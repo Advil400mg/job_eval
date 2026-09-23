@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Évaluateur d'offres — Jev</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <h1>Évaluateur d'offres d'emploi</h1>
+  <p class="sub">Collez une ou plusieurs URLs : chaque page est récupérée, extraite, passée aux
+  portes de vérification (contrat, expérience, fraîcheur, disponibilité), puis notée par Jev sur
+  les critères du profil. Un CV adapté peut être généré depuis n'importe quelle offre.</p>
+  {% if not api_key_set %}<p class="alert">Clé API absente : renseigner OPENROUTER_API_KEY ou
+  <code>[openrouter]</code> dans {{ config_file }} — l'évaluation échouera.</p>{% endif %}
+  {% if not cv_available %}<p class="alert">Moteur CV indisponible : {{ cv_bin }}</p>{% endif %}
+  {% if not config_file_exists %}<p class="muted small">Aucun fichier de configuration :
+  valeurs par défaut. Copier <code>config.example.toml</code> en <code>config.toml</code>
+  (attendu : <code>{{ config_file }}</code>).</p>{% endif %}
+</header>
+
+<section class="panel">
+  <label for="urls">URLs des offres <span class="hint">(une par ligne)</span></label>
+  <textarea id="urls" rows="5" placeholder="https://exemple.fr/offre-emploi/..."></textarea>
+  <div class="row">
+    <button id="run">Évaluer</button>
+    <span id="status" class="status"></span>
+  </div>
+  <details class="thresholds">
+    <summary>Seuils et critères du profil</summary>
+    <p>Seuil global <strong>{{ thresholds.minimum_global_score }}</strong>/100 —
+       confiance minimale <strong>{{ thresholds.minimum_confidence }}</strong> —
+       fraîcheur maximale <strong>{{ thresholds.max_age_days }}</strong> jours.</p>
+    <ul>
+      {% for c in criteria %}
+      <li><code>{{ c.id }}</code> — {{ c.name }} (poids {{ c.weight }}{% if c.required %}, obligatoire ≥ {{ c.min_score }}{% endif %})</li>
+      {% endfor %}
+    </ul>
+  </details>
+</section>
+
+<section id="dashboard">
+  <div class="kpis" id="kpis"><p class="muted">Chargement des statistiques…</p></div>
+  <div class="grid2">
+    <div class="panel"><h2>Répartition des scores</h2><div id="distribution"></div></div>
+    <div class="panel"><h2>Portes de vérification</h2><div id="gates"></div></div>
+  </div>
+  <div class="panel">
+    <h2>Comportement des critères Jev</h2>
+    <p class="muted">Score et confiance moyens sur toutes les offres évaluées, et nombre de fois
+    où le critère a bloqué la qualification.</p>
+    <div id="criteria_stats"></div>
+  </div>
+</section>
+
+<section class="panel">
+  <h2>Historique des lots</h2>
+  <div id="history"><p class="muted">Chargement…</p></div>
+</section>
+
+<section class="panel">
+  <h2>Générations de CV</h2>
+  <p class="muted small">Les générations en cours et leurs résultats restent visibles après un rechargement de la page.</p>
+  <div id="cv_jobs"><p class="muted">Chargement…</p></div>
+</section>
+
+<section class="panel">
+  <h2>Toutes les offres évaluées</h2>
+  <div class="row">
+    <input type="search" id="filter" placeholder="filtrer par poste, entreprise, statut, critère bloquant…">
+    <select id="status_filter">
+      <option value="">tous les statuts</option>
+      <option value="qualified">qualifiées</option>
+      <option value="rejected">refusées Jev</option>
+      <option value="jev_excluded">validées Jev mais exclues</option>
+      <option value="error">échecs techniques</option>
+    </select>
+    <select id="score_filter">
+      <option value="">toutes les notes</option>
+      <option value="above">score ≥ seuil</option>
+      <option value="below">score sous le seuil</option>
+      <option value="scored">avec un score</option>
+      <option value="unscored">sans score (échec technique)</option>
+    </select>
+    <label class="inline"><input type="checkbox" id="group_by_lot" checked> grouper par lot</label>
+    <span id="offers_count" class="muted"></span>
+  </div>
+  <p class="muted small">CV : par défaut le PDF est produit ici même et rien n'est envoyé.
+  « CV + email » envoie en plus le PDF sur ta boîte mail (<code>{{ cv_email_target or "EMAIL_ADDRESS non configurée" }}</code>) —
+  jamais au recruteur.</p>
+  <div id="offers"><p class="muted">Chargement…</p></div>
+</section>
+
+<section id="results"></section>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

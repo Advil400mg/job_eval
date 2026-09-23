@@ -1,0 +1,36 @@
+# Évaluateur d'offres Jev — un seul fichier compose.
+#
+#   cp .env.example .env      # puis renseigner OPENROUTER_API_KEY
+#   cp config.example.toml config.toml
+#   docker compose up -d --build
+services:
+  jev:
+    build: .
+    image: jev-webapp:1.4.0
+    container_name: jev-webapp
+    ports:
+      - "${PORT:-8000}:8000"
+    environment:
+      # Compose lit automatiquement le fichier .env du dossier.
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      JEV_CONFIG: /config/config.toml
+      JEV_DATA_DIR: /data
+      TZ: ${TZ:-Europe/Paris}
+      HOME: /tmp
+      # Optionnel : variante « CV + email » et vérification de réception.
+      EMAIL_ADDRESS: ${EMAIL_ADDRESS:-}
+      EMAIL_PASSWORD: ${EMAIL_PASSWORD:-}
+      EMAIL_SMTP_HOST: ${EMAIL_SMTP_HOST:-}
+      EMAIL_SMTP_PORT: ${EMAIL_SMTP_PORT:-465}
+      EMAIL_IMAP_HOST: ${EMAIL_IMAP_HOST:-}
+      EMAIL_IMAP_PORT: ${EMAIL_IMAP_PORT:-993}
+    volumes:
+      # Une seule configuration pour le lancement local, Docker ou Ansible.
+      - ${CONFIG_FILE:-./config.toml}:/config/config.toml:ro
+      # Volume géré par Docker : SQLite, PDF et journaux, sans problème d'UID hôte.
+      - jev-data:/data
+    restart: unless-stopped
+
+volumes:
+  jev-data:
+

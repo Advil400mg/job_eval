@@ -1,0 +1,50 @@
+# Configuration de l'évaluateur d'offres Jev.
+# Copier en config.toml et adapter. Toutes les valeurs sont optionnelles :
+# sans ce fichier, l'application tourne avec des valeurs par défaut relatives
+# à ce dossier, et lit la clé API dans la variable OPENROUTER_API_KEY.
+#
+# Priorité : variables d'environnement > ce fichier > valeurs par défaut.
+
+[app]
+host = "127.0.0.1"
+port = 8000
+data_dir = "./data"        # SQLite, PDF générés, caches
+# db_file = ""             # défaut : <data_dir>/jev.db
+
+[openrouter]
+# La clé API n'a pas à être écrite ici. Trois possibilités, dans cet ordre :
+#   1. variable d'environnement OPENROUTER_API_KEY
+#   2. clé écrite ci-dessous (déconseillé : fichier en clair)
+#   3. fichier pointé par api_key_file, au format KEY=VALUE (ex. un .env) ou clé brute
+# api_key = ""
+api_key_file = ""          # ex. "~/.config/jev/openrouter.env"
+endpoint = "https://openrouter.ai/api/alpha/decisions"
+model = "typesafe/jev-1.13"
+timeout_seconds = 120
+max_retries = 3
+
+[profile]
+path = "./PROFILE.json"            # critères, seuils, règles de rejet dur
+evaluator = "./scripts/evaluate_job.py"
+# minimum_global_score = 68        # laisser commenté pour utiliser PROFILE.json
+# minimum_confidence = 0.5
+
+[fetch]
+timeout_seconds = 30
+max_workers = 4                    # offres évaluées en parallèle (1 à 8)
+max_text_chars = 60000
+
+[cv]
+# Moteur de CV embarqué (engine/). Placeholders disponibles :
+#   {python} {url} {out_dir} {extra}
+# {extra} vaut "--dry-run" quand l'email n'est pas demandé, rien sinon.
+# enabled = false si tu ne veux pas de génération de CV : le bouton renverra
+# alors une explication au lieu de faire semblant.
+enabled = true
+command = "{python} engine/tailor_cv.py {url} --json --out-dir {out_dir} --no-jev --no-telegram {extra}"
+out_dir = ""                       # défaut : <data_dir>/cv
+env_file = ""                      # fichier KEY=VALUE pour le moteur (clé API, SMTP)
+email_target = ""                  # adresse affichée ; sinon EMAIL_ADDRESS du env_file
+model = ""                         # modèle de reformulation du CV (défaut du moteur)
+master = ""                        # CV_MASTER.json alternatif ; défaut : engine/CV_MASTER.json
+timeout_seconds = 900
