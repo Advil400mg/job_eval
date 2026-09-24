@@ -1,132 +1,90 @@
-/**
- * Tests hors navigateur de la logique JS du dashboard (filtres + groupement).
- * Exécute app.js dans un contexte Node avec un DOM factice minimal.
- *
- * Run:  node tests/test_app_js.mjs
- */
+/** Offline tests for shared UI visuals and pagination. */
 import fs from "node:fs";
 import vm from "node:vm";
 import assert from "node:assert/strict";
 
-const code = fs.readFileSync(new URL("../app/static/app.js", import.meta.url), "utf8");
-
-const STATS = {
-  offers: 0, scored: 0, qualified: 0, rejected: 0, jev_excluded: 0, errors: 0,
-  avg_score: null, best_score: null, worst_score: null, distribution: [],
-  criteria: [], gates: [], top_offers: [], jev_cost: 0, jev_input_tokens: 0, runs: 0,
-};
-
+const code = fs.readFileSync(new URL("../app/static/common.js", import.meta.url), "utf8");
+const elements = new Map();
 function makeEl() {
   return {
-    value: "", checked: true, textContent: "", innerHTML: "", dataset: {},
-    addEventListener() {}, insertAdjacentHTML() {}, remove() {},
-    querySelector: () => null, closest: () => null,
-    scrollIntoView() {}, after() {},
+    textContent: "", innerHTML: "", className: "", children: [],
+    classList: { toggle() {}, add() {}, remove() {} },
+    append(child) { this.children.push(child); }, remove() {},
   };
 }
-
 const sandbox = {
+  window: {},
   document: {
-    querySelector: () => makeEl(),
-    getElementById: () => null,
-    addEventListener() {},
-    createElement: () => makeEl(),
+    querySelector(selector) { return elements.get(selector) || null; },
+    querySelectorAll() { return []; },
+    createElement() { return makeEl(); },
+    dispatchEvent() {},
   },
-  fetch: async (url) => ({
-    ok: true,
-    json: async () => (String(url).includes("/api/stats") ? STATS
-      : String(url).includes("/api/history") ? { runs: [] } : { offers: [] }),
-  }),
-  console, setTimeout, clearInterval, setInterval: () => 0,
+  fetch: async (url) => ({ ok: true, json: async () =>
+    String(url).includes("/api/history")
+      ? { total: 0, runs: [] }
+      : { total: 0, jobs: [] } }),
+  CustomEvent: class CustomEvent {},
+  URL, URLSearchParams,
+  history: { replaceState() {}, pushState() {} },
+  location: { href: "https://app.test/offers" },
+  setTimeout: () => 0, setInterval: () => 0, clearInterval() {},
+  console,
 };
+sandbox.window = sandbox;
 vm.createContext(sandbox);
-const { filterOffers, groupOffersByLot, cvJobStatus } = vm.runInContext(
-  `${code}\n;({ filterOffers, groupOffersByLot, cvJobStatus })`, sandbox);
-
-const OFFERS = [
-  { run_id: "lotB", evaluated_at: "2026-09-23T10:00:00", title: "Ingénieur sécurité réseaux",
-    company: "SG", location: "Paris", status: "rejected", score: 61.8, minimum_global_score: 68,
-    blocking_criteria: ["junior_fit"], gate_failures: [] },
-  { run_id: "lotA", evaluated_at: "2026-09-22T09:00:00", title: "Admin systèmes",
-    company: "DGSI", location: "Levallois", status: "qualified", score: 74.0, minimum_global_score: 68,
-    blocking_criteria: [], gate_failures: [] },
-  { run_id: "lotA", evaluated_at: "2026-09-22T09:00:00", title: "Stage cyber",
-    company: "Hellowork", location: "Toulouse", status: "rejected", score: 68.6, minimum_global_score: 68,
-    blocking_criteria: ["junior_fit"], gate_failures: ["contract_type"] },
-  { run_id: "lotA", evaluated_at: "2026-09-22T09:00:00", title: "Page JS vide",
-    company: "—", location: "—", status: "error", minimum_global_score: 68,
-    blocking_criteria: [], gate_failures: ["freshness"] },
-];
-
-const opts = (over = {}) => ({ query: "", status: "", score: "", ...over });
-/* les tableaux renvoyés appartiennent au contexte vm : on compare des chaînes */
-const titles = (rows) => Array.from(rows, (o) => o.title).join(" | ");
-const keys = (groups) => Array.from(groups, (g) => g.run_id).join(" | ");
+vm.runInContext(code, sandbox);
+const { escapeHtml, scoreVisual, criteriaVisual, paginationHtml, statusBadge } = sandbox.JEV;
 let passed = 0;
-function check(name, fn) { fn(); passed++; console.log("ok  ", name); }
+function check(name, callback) { callback(); passed++; console.log("ok  ", name); }
 
-check("filtre score ≥ seuil ne garde que les offres au-dessus", () => {
-  const rows = filterOffers(OFFERS, opts({ score: "above" }));
-  assert.equal(titles(rows), "Admin systèmes | Stage cyber");
+check("le score visuel affiche valeur, barre et seuil", () => {
+  const html = scoreVisual(74.2, 68, true);
+  assert.match(html, /74\.2/);
+  assert.match(html, /width:74\.2%/);
+  assert.match(html, /left:68%/);
+  assert.match(html, /seuil 68/);
+  assert.match(html, /pass/);
 });
 
-check("filtre score sous le seuil", () => {
-  const rows = filterOffers(OFFERS, opts({ score: "below" }));
-  assert.equal(titles(rows), "Ingénieur sécurité réseaux");
+check("un score sous le seuil est explicitement en échec", () => {
+  const html = scoreVisual(61, 68);
+  assert.match(html, /fail/);
+  assert.match(html, /Score 61\.0 sur 100, seuil 68/);
 });
 
-check("filtre sans score = échec technique, et il est bien non vide", () => {
-  const rows = filterOffers(OFFERS, opts({ score: "unscored" }));
-  assert.equal(titles(rows), "Page JS vide");
+check("un score absent n'est pas transformé en zéro", () => {
+  const html = scoreVisual(null, 68);
+  assert.match(html, /sans score/);
+  assert.doesNotMatch(html, />0\.0</);
 });
 
-check("les deux filtres score sont complémentaires", () => {
-  const scored = filterOffers(OFFERS, opts({ score: "scored" }));
-  const unscored = filterOffers(OFFERS, opts({ score: "unscored" }));
-  assert.equal(Array.from(scored).length + Array.from(unscored).length, OFFERS.length);
+check("les mini-visuels de critères ont une légende textuelle", () => {
+  const html = criteriaVisual([
+    { id: "skills", name: "Compétences", score: 80, confidence: .9, required: true, passed: true },
+    { id: "experience", name: "Expérience", score: 40, confidence: .8, required: true, passed: false },
+  ], .5);
+  assert.match(html, /criterion-dot ok/);
+  assert.match(html, /criterion-dot bad/);
+  assert.match(html, /1 bloquant/);
+  assert.match(html, /Compétences : 80\.0\/100/);
 });
 
-check("filtre statut", () => {
-  assert.equal(titles(filterOffers(OFFERS, opts({ status: "qualified" }))), "Admin systèmes");
+check("la pagination borne la fenêtre autour de la page courante", () => {
+  const html = paginationHtml(6, 12);
+  assert.match(html, /data-page="4"/);
+  assert.match(html, /data-page="8"/);
+  assert.match(html, /data-page="12"/);
+  assert.match(html, /class="active">6/);
 });
 
-check("recherche plein texte sur titre, entreprise, critère bloquant", () => {
-  assert.equal(filterOffers(OFFERS, opts({ query: "dgsI" })).length, 1);
-  assert.equal(filterOffers(OFFERS, opts({ query: "junior_fit" })).length, 2);
-  assert.equal(filterOffers(OFFERS, opts({ query: "contract_type" })).length, 1);
-  assert.equal(filterOffers(OFFERS, opts({ query: "aucun resultat" })).length, 0);
+check("les badges ont toujours un texte en plus de la couleur", () => {
+  assert.match(statusBadge("qualified"), /Qualifiée/);
+  assert.match(statusBadge("error"), /Erreur technique/);
 });
 
-check("filtres combinés", () => {
-  const rows = filterOffers(OFFERS, opts({ status: "rejected", query: "stage", score: "above" }));
-  assert.equal(titles(rows), "Stage cyber");
-});
-
-check("groupement par lot : tous les lots, offres conservées, lots récents d'abord", () => {
-  const groups = groupOffersByLot(OFFERS);
-  assert.equal(Array.from(groups).length, 2);
-  assert.equal(keys(groups), "lotB | lotA");
-  assert.equal(Array.from(groups)[1].offers.length, 3);
-  const total = Array.from(groups).reduce((sum, g) => sum + Array.from(g.offers).length, 0);
-  assert.equal(total, OFFERS.length);
-});
-
-check("groupement d'une liste vide", () => {
-  assert.equal(Array.from(groupOffersByLot([])).length, 0);
-});
-
-check("le groupement respecte les filtres appliqués avant", () => {
-  const filtered = filterOffers(OFFERS, opts({ score: "above" }));
-  const groups = groupOffersByLot(filtered);
-  /* les deux offres au-dessus du seuil viennent du même lot */
-  assert.equal(keys(groups), "lotA");
-  assert.equal(Array.from(groups).reduce((s, g) => s + Array.from(g.offers).length, 0), 2);
-});
-
-check("le suivi CV distingue en cours, prêt et échec", () => {
-  assert.equal(cvJobStatus({ status: "running" }), "Génération en cours…");
-  assert.equal(cvJobStatus({ status: "done" }), "PDF prêt");
-  assert.equal(cvJobStatus({ status: "failed" }), "Échec");
+check("les valeurs injectées sont échappées", () => {
+  assert.equal(escapeHtml('<script>"x"</script>'), "&lt;script&gt;&quot;x&quot;&lt;/script&gt;");
 });
 
 console.log(`\n${passed} tests JS OK`);

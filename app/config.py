@@ -28,7 +28,7 @@ DEFAULTS: dict = {
         "timeout_seconds": 120,
         "max_retries": 3,
     },
-    "profile": {"path": "./PROFILE.json", "evaluator": "./scripts/evaluate_job.py",
+    "profile": {"path": "", "evaluator": "./scripts/evaluate_job.py",
                 "minimum_global_score": None, "minimum_confidence": None},
     "fetch": {"timeout_seconds": 30, "max_workers": 4, "max_text_chars": 60000},
     "cv": {
@@ -85,7 +85,7 @@ def load_raw() -> dict:
                 "data_dir": env.get("JEV_DATA_DIR"), "db_file": env.get("JEV_DB")},
         "profile": {"path": env.get("JEV_PROFILE"), "evaluator": env.get("JEV_EVALUATOR")},
         "cv": {"command": env.get("CV_COMMAND"), "out_dir": env.get("CV_OUT_DIR"),
-               "env_file": env.get("HERMES_ENV_FILE")},
+               "env_file": env.get("HERMES_ENV_FILE"), "master": env.get("CV_MASTER")},
     }
     # CV_TAILOR_BIN (ancien nom) reste accepté : chemin d'un binaire appelé comme aujourd'hui
     if env.get("CV_TAILOR_BIN"):
@@ -164,10 +164,9 @@ def cv_environment(cfg: dict | None = None) -> tuple[dict, str]:
     env["CV_RUNS"] = str(settings_now["data_dir"] / "cv-runs")
     env["CV_PROFILE"] = str(settings_now["profile_path"])
     env["CV_JEV"] = str(settings_now["evaluator_path"])
+    env["CV_MASTER"] = str(settings_now["cv"]["master_path"])
     if settings_now["cv"]["model"]:
         env["CV_MODEL"] = str(settings_now["cv"]["model"])
-    if settings_now["cv"]["master"]:
-        env["CV_MASTER"] = str(_resolve_path(settings_now["cv"]["master"], APP_DIR))
     return env, str(settings_now["cv"].get("command") or "")
 
 
@@ -188,6 +187,12 @@ def settings() -> dict:
     cfg = load_raw()
     data_dir = _resolve_path(cfg["app"].get("data_dir") or "./data", APP_DIR)
     db_file = cfg["app"].get("db_file")
+    profile_value = cfg["profile"].get("path")
+    master_value = cfg["cv"].get("master")
+    profile_path = (_resolve_path(profile_value, APP_DIR)
+                    if profile_value else data_dir / "PROFILE.json")
+    master_path = (_resolve_path(master_value, APP_DIR)
+                   if master_value else data_dir / "CV_MASTER.json")
     resolved = {
         "host": cfg["app"].get("host") or "127.0.0.1",
         "port": int(cfg["app"].get("port") or 8000),
@@ -199,7 +204,7 @@ def settings() -> dict:
             "timeout_seconds": int(cfg["openrouter"].get("timeout_seconds") or 120),
             "max_retries": int(cfg["openrouter"].get("max_retries") or 3),
         },
-        "profile_path": _resolve_path(cfg["profile"].get("path") or "./PROFILE.json", APP_DIR),
+        "profile_path": profile_path,
         "evaluator_path": _resolve_path(
             cfg["profile"].get("evaluator") or "./scripts/evaluate_job.py", APP_DIR),
         "minimum_global_score": cfg["profile"].get("minimum_global_score"),
@@ -216,7 +221,7 @@ def settings() -> dict:
                         if cfg["cv"].get("out_dir") else data_dir / "cv"),
             "env_file": cfg["cv"].get("env_file") or "",
             "model": cfg["cv"].get("model") or "",
-            "master": cfg["cv"].get("master") or "",
+            "master_path": master_path,
             "timeout_seconds": int(cfg["cv"].get("timeout_seconds") or 900),
         },
         "config_file": str(config_path()),

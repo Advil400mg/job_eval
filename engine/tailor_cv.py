@@ -51,8 +51,8 @@ def _path(env_name, default):
 
 
 DATA_DIR = _path('CV_DATA_DIR', APP_DIR / 'data')
-MASTER_PATH = _path('CV_MASTER', HERE / 'CV_MASTER.json')
-PROFILE_PATH = _path('CV_PROFILE', APP_DIR / 'PROFILE.json')
+MASTER_PATH = _path('CV_MASTER', APP_DIR / 'data' / 'CV_MASTER.json')
+PROFILE_PATH = _path('CV_PROFILE', APP_DIR / 'data' / 'PROFILE.json')
 ENV_PATH = _path('CV_ENV_FILE', APP_DIR / '.env')
 DEFAULT_OUT = _path('CV_OUT_DIR', DATA_DIR / 'cv')
 RUNS = _path('CV_RUNS', DATA_DIR / 'cv-runs')
@@ -163,13 +163,12 @@ def fetch_offer(url):
 
 # ── 2. LLM ────────────────────────────────────────────────────────────────
 
-SYSTEM = """Tu adaptes le CV de Tanguy Vienot à une offre d'emploi, en français.
+SYSTEM = """Tu adaptes le CV d'un candidat à une offre d'emploi, dans la langue du CV.
 
 RÈGLES ABSOLUES
 - La seule source de faits autorisée est le master JSON fourni. Rien d'autre.
 - Interdit d'inventer : entreprise, poste, date, diplôme, technologie, outil, chiffre,
-  certification, responsabilité ou résultat.
-- Interdit de revendiquer des années d'expérience professionnelle, ou un niveau sénior/expert.
+  certification, responsabilité, résultat, ancienneté ou niveau de séniorité.
 - Les stages restent présentés comme des stages.
 - Tu peux : choisir l'ordre des expériences, des groupes de compétences et des projets ;
   sélectionner et légèrement reformuler les puces (mêmes faits, vocabulaire de l'offre) ;
@@ -404,9 +403,9 @@ def email_body(result, meta, jev, master, tailoring, pdf):
     for g in list(tailoring.get('gaps') or []) + master.get('gap_notes_for_email', []):
         L.append(f"  - {g}")
     L.append("")
-    if tailoring.get('include_eligibility'):
-        L.append("Habilitation : candidat français, JDC effectuée, casier compatible ; "
-                 "accepte les entretiens et études préalables à l'habilitation.")
+    if tailoring.get('include_eligibility') and master.get('eligibility_defense_only'):
+        L.append("Éléments d'éligibilité déclarés dans le CV : "
+                 + " — ".join(master['eligibility_defense_only']))
         L.append("")
     if result.get('warnings'):
         L.append("Avertissements du validateur : " + ' | '.join(result['warnings']))
@@ -443,7 +442,7 @@ def main():
 
     if not MASTER_PATH.is_file():
         raise SystemExit(f'ERROR: master de faits introuvable : {MASTER_PATH} '
-                         f'(définir CV_MASTER ou déposer CV_MASTER.json dans engine/)')
+                         f'(initialiser l’application ou définir CV_MASTER)')
     if not PROFILE_PATH.is_file():
         raise SystemExit(f'ERROR: profil introuvable : {PROFILE_PATH} (définir CV_PROFILE)')
     master = json.loads(MASTER_PATH.read_text(encoding='utf-8'))
@@ -507,7 +506,7 @@ def main():
                      f"{slug(meta.get('title') or 'poste')}{ref}_{datetime.now():%Y%m%d}.pdf")
     pages, scale = render_cv_pdf.render(
         master, tailoring, pdf, include_eligibility=bool(tailoring.get('include_eligibility')),
-        subtitle=f"CV Tanguy Vienot — {meta.get('title') or 'offre'}")
+        subtitle=f"CV {master['identity']['name'].title()} — {meta.get('title') or 'offre'}")
     log(f"pdf : {pdf} ({pages} page(s), échelle {scale:.2f})")
 
     # Jev

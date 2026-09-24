@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-heading compact"><div><p class="eyebrow">Documents</p><h1>Générations de CV</h1><p>Les tâches continuent côté serveur et restent visibles après un rechargement.</p></div></section>
+<div class="toolbar-panel"><label>État<select id="cv_status"><option value="">Tous</option><option value="running">En cours</option><option value="done">Terminés</option><option value="failed">Échecs</option></select></label><p class="muted">« CV + email » envoie le document uniquement à <code>{{ cv_email_target or 'EMAIL_ADDRESS non configurée' }}</code>.</p></div>
+<div id="cv_jobs" class="job-list"><div class="loading-card">Chargement…</div></div>
+<nav id="cv_pagination" class="pagination" aria-label="Pagination des CV"></nav>
+{% endblock %}
+{% block scripts %}<script src="/static/cv-jobs.js"></script>{% endblock %}

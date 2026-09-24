@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block shell_class %}wide-shell{% endblock %}
+{% block content %}
+<section class="page-heading compact">
+  <div><p class="eyebrow">Espace de travail</p><h1>Offres</h1>
+    <p>Une ligne par offre par défaut. Ouvrez une offre pour voir ses critères, ses portes et ses évaluations précédentes.</p></div>
+  <a class="primary-link" href="/">+ Évaluer des URLs</a>
+</section>
+
+<section class="offer-workspace">
+  <aside id="filters" class="filter-panel" aria-label="Filtres des offres">
+    <div class="filter-title"><strong>Filtres</strong><button id="filters_close" class="icon-btn mobile-only" aria-label="Fermer les filtres">×</button></div>
+    <label>Recherche<input type="search" id="filter_q" placeholder="Poste, entreprise, blocage…"></label>
+    <label>Statut<select id="filter_status"><option value="">Tous</option><option value="qualified">Qualifiée</option><option value="rejected">Refusée Jev</option><option value="jev_excluded">Exclue par une porte</option><option value="unverified">Non vérifiée</option><option value="error">Erreur technique</option></select></label>
+    <label>Entreprise<select id="filter_company"><option value="">Toutes</option></select></label>
+    <label>Localisation<select id="filter_location"><option value="">Toutes</option></select></label>
+    <div class="filter-grid"><label>Score min.<input type="number" id="filter_score_min" min="0" max="100" inputmode="numeric"></label><label>Score max.<input type="number" id="filter_score_max" min="0" max="100" inputmode="numeric"></label></div>
+    <label>Score<select id="filter_scored"><option value="">Tous</option><option value="yes">Avec score</option><option value="no">Sans score</option></select></label>
+    <label>CV<select id="filter_cv"><option value="">Tous</option><option value="yes">CV disponible</option><option value="no">Sans CV</option></select></label>
+    <label>Historique<select id="filter_view"><option value="latest">Dernière évaluation</option><option value="all">Toutes les évaluations</option></select></label>
+    <button id="filters_reset" class="secondary-btn full">Réinitialiser</button>
+  </aside>
+
+  <div class="offers-main">
+    <div class="offers-toolbar">
+      <button id="filters_open" class="secondary-btn mobile-only">Filtres</button>
+      <div id="quick_filters" class="quick-filters" aria-label="Vues rapides">
+        <button data-quick="" class="active">Toutes</button><button data-quick="qualified">Qualifiées</button>
+        <button data-quick="review">À examiner</button><button data-quick="error">Erreurs</button>
+      </div>
+      <label class="sort-control">Trier<select id="sort"><option value="newest">Plus récentes</option><option value="score_desc">Meilleur score</option><option value="score_asc">Score le plus faible</option><option value="company">Entreprise</option><option value="published_desc">Publication récente</option></select></label>
+    </div>
+    <div class="result-meta"><strong id="offers_total">—</strong><span id="active_filters"></span></div>
+    <div id="offers_list" class="offers-list"><div class="loading-card">Chargement des offres…</div></div>
+    <nav id="offers_pagination" class="pagination" aria-label="Pagination des offres"></nav>
+  </div>
+</section>
+
+<div id="offer_drawer_backdrop" class="drawer-backdrop hidden"></div>
+<aside id="offer_drawer" class="drawer" aria-label="Détail de l’offre" aria-hidden="true">
+  <div class="drawer-head"><button id="drawer_close" class="icon-btn" aria-label="Fermer">×</button></div>
+  <div id="offer_detail"></div>
+</aside>
+{% endblock %}
+{% block scripts %}<script src="/static/offers.js"></script>{% endblock %}

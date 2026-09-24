@@ -24,7 +24,7 @@ class ConfigBase(unittest.TestCase):
         self.dir = Path(self.tmp.name)
         self.saved = {k: os.environ.get(k) for k in
                       ("JEV_CONFIG", "OPENROUTER_API_KEY", "PORT", "HOST",
-                       "JEV_DATA_DIR", "JEV_DB", "JEV_PROFILE", "CV_TAILOR_BIN",
+                       "JEV_DATA_DIR", "JEV_DB", "JEV_PROFILE", "CV_MASTER", "CV_TAILOR_BIN",
                        "CV_COMMAND", "EMAIL_ADDRESS", "EMAIL_PASSWORD",
                        "EMAIL_SMTP_HOST", "EMAIL_SMTP_PORT", "EMAIL_IMAP_HOST",
                        "EMAIL_IMAP_PORT", "HERMES_ENV_FILE")}
@@ -56,6 +56,8 @@ class Defaults(ConfigBase):
         settings = config.settings()
         self.assertFalse(settings["config_file_exists"])
         self.assertEqual(settings["db_file"], config.APP_DIR / "data" / "jev.db")
+        self.assertEqual(settings["profile_path"], config.APP_DIR / "data" / "PROFILE.json")
+        self.assertEqual(settings["cv"]["master_path"], config.APP_DIR / "data" / "CV_MASTER.json")
         self.assertEqual(settings["openrouter"]["model"], "typesafe/jev-1.13")
         self.assertTrue(str(settings["openrouter"]["endpoint"]).startswith("https://"))
         self.assertEqual(settings["port"], 8000)
@@ -94,10 +96,13 @@ class FileAndEnv(ConfigBase):
         """)
         os.environ["PORT"] = "9002"
         os.environ["JEV_DATA_DIR"] = str(self.dir / "autre")
+        os.environ["CV_MASTER"] = str(self.dir / "master-custom.json")
         config.reset_cache()
         settings = config.settings()
         self.assertEqual(settings["port"], 9002)
         self.assertEqual(settings["data_dir"], self.dir / "autre")
+        self.assertEqual(settings["profile_path"], self.dir / "autre" / "PROFILE.json")
+        self.assertEqual(settings["cv"]["master_path"], self.dir / "master-custom.json")
 
     def test_chemin_de_config_inexistant_echoue_clairement(self):
         os.environ["JEV_CONFIG"] = str(self.dir / "absent.toml")

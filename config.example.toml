@@ -24,7 +24,7 @@ timeout_seconds = 120
 max_retries = 3
 
 [profile]
-path = "./PROFILE.json"            # critères, seuils, règles de rejet dur
+path = ""                            # défaut : <data_dir>/PROFILE.json, créé au premier lancement
 evaluator = "./scripts/evaluate_job.py"
 # minimum_global_score = 68        # laisser commenté pour utiliser PROFILE.json
 # minimum_confidence = 0.5
@@ -46,5 +46,5 @@ out_dir = ""                       # défaut : <data_dir>/cv
 env_file = ""                      # fichier KEY=VALUE pour le moteur (clé API, SMTP)
 email_target = ""                  # adresse affichée ; sinon EMAIL_ADDRESS du env_file
 model = ""                         # modèle de reformulation du CV (défaut du moteur)
-master = ""                        # CV_MASTER.json alternatif ; défaut : engine/CV_MASTER.json
+master = ""                        # défaut : <data_dir>/CV_MASTER.json, créé au premier lancement
 timeout_seconds = 900

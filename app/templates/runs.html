@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-heading compact"><div><p class="eyebrow">Historique</p><h1>Lots d’évaluation</h1><p>Chaque lot conserve sa progression, ses résultats et ses exports.</p></div><a class="primary-link" href="/">+ Nouveau lot</a></section>
+<div class="toolbar-panel"><label>État<select id="run_status"><option value="">Tous</option><option value="running">En cours</option><option value="done">Terminés</option><option value="failed">Échecs</option></select></label></div>
+<div id="runs_list" class="run-list"><div class="loading-card">Chargement…</div></div>
+<nav id="runs_pagination" class="pagination" aria-label="Pagination des lots"></nav>
+{% endblock %}
+{% block scripts %}<script src="/static/runs.js"></script>{% endblock %}

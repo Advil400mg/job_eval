@@ -168,7 +168,7 @@ def render(master, tailoring, path, include_eligibility=False, subtitle=None):
         doc = SimpleDocTemplate(str(path), pagesize=A4,
                                 rightMargin=1.5 * cm, leftMargin=1.5 * cm,
                                 topMargin=1.0 * cm, bottomMargin=1.0 * cm,
-                                title=subtitle or 'CV Tanguy Vienot',
+                                title=subtitle or f"CV {master['identity']['name'].title()}",
                                 author=master['identity']['name'].title())
         story = build_story(master, tailoring, k, include_eligibility)
         doc.build(story)

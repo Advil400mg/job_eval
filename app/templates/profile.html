@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-heading compact"><div><p class="eyebrow">Candidat</p><h1>{{ identity.name }}</h1><p>{{ identity.headline_default }}</p></div></section>
+<div class="profile-grid"><section class="panel"><h2>Identité du master</h2><dl class="definition-list"><dt>Email</dt><dd>{{ identity.email or '—' }}</dd><dt>Téléphone</dt><dd>{{ identity.phone or '—' }}</dd><dt>Mobilité</dt><dd>{{ identity.mobility or '—' }}</dd><dt>Langues</dt><dd>{{ identity.languages_line or '—' }}</dd></dl></section><section class="panel"><h2>Seuils</h2><dl class="definition-list"><dt>Score global</dt><dd>{{ thresholds.minimum_global_score }}/100</dd><dt>Confiance</dt><dd>{{ thresholds.minimum_confidence }}</dd><dt>Fraîcheur</dt><dd>{{ thresholds.max_age_days }} jours</dd></dl></section></div>
+<section class="panel"><h2>Critères d’évaluation</h2><div class="criteria-profile">{% for criterion in criteria %}<article><div><strong>{{ criterion.name }}</strong><code>{{ criterion.id }}</code></div><p>{{ criterion.description }}</p><span>Poids {{ criterion.weight }}{% if criterion.required %} · obligatoire ≥ {{ criterion.min_score }}{% endif %}</span></article>{% endfor %}</div></section>
+<section class="panel"><h2>Préférences de recherche</h2><pre class="json-preview">{{ profile.search | tojson(indent=2) }}</pre><p class="muted">Ces données sont stockées dans le répertoire persistant de l’instance, pas dans l’image Docker.</p></section>
+{% endblock %}

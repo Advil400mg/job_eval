@@ -18,10 +18,10 @@ jev-webapp/
 ├── .env.example             # variables d'environnement (clé API, SMTP) → copier en .env
 ├── Dockerfile               # image auto-portante
 ├── docker-compose.yml       # l'unique fichier compose
-├── requirements.txt         # fastapi, uvicorn, jinja2 + moteur de CV (reportlab, pymupdf)
-├── PROFILE.json             # critères, seuils, règles de rejet dur
+├── requirements.txt         # dépendances web, import PDF et moteur de CV
 ├── app/                     # sources de l'application web
 │   ├── config.py            # lecture de config.toml + surcharges d'environnement
+│   ├── onboarding.py        # premier lancement : PDF → master + profil
 │   ├── main.py              # routes HTTP (dashboard, évaluation, CV, exports)
 │   ├── extract.py           # récupération de page + extraction (titre, employeur, dates)
 │   ├── gates.py             # portes contrat / expérience / fraîcheur / disponibilité
@@ -29,19 +29,18 @@ jev-webapp/
 │   ├── analytics.py         # agrégats du dashboard
 │   ├── cv.py                # exécution du moteur de CV configuré
 │   ├── pipeline.py          # fetch -> extract -> gates -> Jev -> verdict
-│   ├── store.py             # SQLite (lots, résultats, jobs CV)
-│   ├── templates/index.html
-│   └── static/{app.js,style.css}
+│   ├── store.py             # SQLite, migration, pagination et déduplication
+│   ├── templates/           # pages Évaluer, Offres, Lots, CV, Analyses et Profil
+│   └── static/              # shell commun + scripts spécialisés par page
 ├── engine/                  # moteur de CV embarqué (aucune dépendance Hermes)
 │   ├── tailor_cv.py         # sélection/reformulation bornée par le master + validation
 │   ├── render_cv_pdf.py     # rendu PDF une page
 │   ├── validate_tailoring.py# anti-invention : rien qui ne soit dans le master
-│   ├── CV_MASTER.json       # base de faits du candidat  ← à remplacer pour partager
 │   └── fonts/               # Liberation Sans embarquée (+ licence) : rendu identique partout
 ├── scripts/
 │   ├── evaluate_job.py      # notation Jev (script du skill Job Hunt + surcharges optionnelles)
 │   └── serve.py             # démarrage : affiche la config effective puis lance uvicorn
-└── tests/                   # 66 tests hors ligne (Python + Node)
+└── tests/                   # 73 tests hors ligne (Python + Node)
 ```
 
 ## Ce que fait l'application
@@ -60,7 +59,21 @@ jev-webapp/
    n'ajuste jamais un score ; seuls l'endpoint, le modèle et la clé viennent de la config.
 5. **Verdict** : `qualified` / `jev_excluded` / `rejected` / `unverified` (Jev injoignable,
    aucune donnée inventée).
-6. **CV adapté** à la demande, via un moteur externe configurable.
+6. **CV adapté** à la demande, via le moteur embarqué configurable.
+
+### Premier lancement
+
+Tant que le profil n'existe pas, l'interface demande un CV PDF avec une couche texte. Le CV
+est extrait puis analysé par le modèle CV configuré ; aucun fait absent du document ne doit
+être ajouté. L'utilisateur complète uniquement les préférences non déductibles du CV
+(postes, localisations et seuils). L'application écrit dans `data_dir` :
+
+- `CV_MASTER.json`, source factuelle du générateur de CV ;
+- `PROFILE.json`, critères et préférences d'évaluation ;
+- `source_cv.pdf`, copie du document importé.
+
+Ces fichiers sont des données d'instance, ignorées par Git et persistées dans le volume Docker.
+Les API d'évaluation et de CV répondent `428` tant que l'initialisation n'est pas terminée.
 
 ## Configuration — config.toml
 
@@ -92,7 +105,7 @@ configuration effective — jamais les secrets.
 | `app` | `db_file` | `<data_dir>/jev.db` | base SQLite |
 | `openrouter` | `endpoint` | API OpenRouter | point d'entrée Jev |
 | `openrouter` | `model` | `typesafe/jev-1.13` | modèle de notation |
-| `profile` | `path` | `./PROFILE.json` | critères, seuils, rejets durs |
+| `profile` | `path` | `<data_dir>/PROFILE.json` | critères, seuils, rejets durs générés à l'initialisation |
 | `profile` | `evaluator` | `./scripts/evaluate_job.py` | script de notation |
 | `fetch` | `max_workers` | `4` | offres évaluées en parallèle (1-8) |
 | `cv` | `enabled` | `true` | `false` = bouton CV désactivé, avec explication |
@@ -101,27 +114,28 @@ configuration effective — jamais les secrets.
 | `cv` | `env_file` | — | fichier `KEY=VALUE` chargé pour le moteur (clé, emails SMTP) |
 
 Surcharges d'environnement acceptées : `OPENROUTER_API_KEY`, `JEV_CONFIG`, `HOST`, `PORT`,
-`JEV_DATA_DIR`, `JEV_DB`, `JEV_PROFILE`, `JEV_EVALUATOR`, `CV_COMMAND`, `CV_OUT_DIR`,
+`JEV_DATA_DIR`, `JEV_DB`, `JEV_PROFILE`, `JEV_EVALUATOR`, `CV_MASTER`, `CV_COMMAND`, `CV_OUT_DIR`,
 `CV_TAILOR_BIN` (ancien nom, conservé), `HERMES_ENV_FILE`.
 
 ## Portabilité
 
 Pour faire tourner l'application ailleurs, il faut **les sources et une clé API** — rien d'autre :
 
-1. copier le dossier sans les éléments régénérables (`.venv/`, `data/`, `__pycache__/`,
+1. copier le dépôt sans les éléments régénérables (`.venv/`, `data/`, `__pycache__/`,
    `config.toml` et `.env`) ;
 2. créer `config.toml` depuis `config.example.toml` et `.env` depuis `.env.example` ;
-3. adapter `PROFILE.json` et `engine/CV_MASTER.json` au candidat — les seules vraies
-   dépendances métier (et les seules données personnelles du dossier).
+3. démarrer, ouvrir l'interface puis importer le CV PDF demandé.
+
+Les données personnelles ne font donc pas partie des sources. Pour déplacer une instance déjà
+initialisée, copier son `data_dir` ou son volume Docker en plus du dépôt.
 
 Aucune installation Hermes n'est requise : le moteur de CV est embarqué, ses polices aussi,
 et tous les chemins par défaut sont relatifs au dossier. Le moteur reste désactivable
 (`[cv] enabled = false`) ; dans ce cas la génération de CV est annoncée comme indisponible
 avec le motif, sans que le reste de l'application en souffre.
 
-Vérifié en réel : copie du dossier dans un autre répertoire, `config.toml` minimal, aucune
-variable d'environnement, aucun chemin Hermes → `/healthz` lisible, évaluation réelle (61,2),
-et CV réellement généré (1 page, 45 474 octets) par le moteur de cette copie.
+Vérifié sur une instance vierge : 73 tests hors ligne, construction Docker, démarrage sous
+l'utilisateur non privilégié, page d'initialisation visible et chemins de profil dans `/data`.
 
 ## Démarrage sans Docker
 
@@ -174,12 +188,18 @@ Points de portabilité vérifiés :
 
 | Méthode | Route | Rôle |
 |---|---|---|
-| `GET` | `/` | interface web (dashboard + évaluation + CV) |
+| `GET` | `/` | nouvelle évaluation et reprise des lots en cours |
+| `GET` | `/offers` | espace de travail paginé, filtré et dédupliqué par URL |
+| `GET` | `/runs`, `/runs/{id}` | historique et détail des lots |
+| `GET` | `/cv`, `/analytics`, `/profile` | CV persistants, analyses et profil candidat |
+| `GET` | `/api/onboarding` | état du premier lancement et fichiers manquants |
+| `POST` | `/api/onboarding` | formulaire multipart avec `cv_pdf` et préférences → initialise le profil |
 | `POST` | `/api/evaluate` | `{"urls": ["https://…", …]}` → `{"run_id": …}` |
 | `GET` | `/api/runs/{run_id}` | état du lot + résultats complets + résumé agrégé |
-| `GET` | `/api/stats` | KPI globaux, répartition des scores, agrégats par critère et par porte |
-| `GET` | `/api/offers` | toutes les offres évaluées, aplaties (score, critères, portes, CV existant) |
-| `GET` | `/api/history` | résumé de chaque lot (meilleur score, moyenne, compteurs) |
+| `GET` | `/api/stats?view=latest\|all&days=N` | KPI filtrables, scores, critères et portes |
+| `GET` | `/api/offers` | pagination, recherche, filtres, tri et vue dernière/toutes les évaluations |
+| `GET` | `/api/offers/history?url=…` | détail et historique des évaluations d'une URL normalisée |
+| `GET` | `/api/history?page=N` | lots paginés, filtrables par état |
 | `GET` | `/api/criteria` | critères et seuils du profil chargé |
 | `POST` | `/api/cv` | `{"url": "…", "send_email": false}` → `{"job_id": …}` |
 | `GET` | `/api/cv` | jobs CV récents, y compris ceux en cours (permet de reprendre le suivi après reload) |
@@ -208,27 +228,32 @@ en cours après un rechargement de la page :
   recruteur depuis cette application.
 
 Le moteur est celui que vous configurez — par défaut celui embarqué dans `engine/` (sélection
-LLM bornée par `engine/CV_MASTER.json`, validateur anti-invention, rendu PDF une page avec les
+LLM bornée par `<data_dir>/CV_MASTER.json`, validateur anti-invention, rendu PDF une page avec les
 polices embarquées). L'application ne fabrique rien : elle affiche ce que le moteur renvoie
 (pages, titre retenu, priorités, écarts, avertissements) et, en cas d'échec, son message
 d'erreur tel quel. Variables lues par le moteur : `CV_MASTER`, `CV_PROFILE`, `CV_DATA_DIR`,
 `CV_OUT_DIR`, `CV_RUNS`, `CV_JEV`, `CV_MODEL`, `CV_FONTDIR` — toutes dérivées de `config.toml`
 par l'application.
 
-## Dashboard
+## Interface multipage
 
-- **KPI** : offres évaluées, qualifiées, refusées Jev, validées Jev mais exclues, échecs
-  techniques, score moyen / meilleur / pire, coût Jev cumulé et volume de tokens.
-- **Répartition des scores** par tranche, seuil mis en évidence.
-- **Portes** : pass / échec / réserve / inconnu par porte, plus le motif d'échec le plus fréquent.
-- **Comportement des critères Jev** : poids, obligatoire, score moyen, confiance moyenne,
-  nombre de blocages (et pourcentage), confiances sous le seuil — triés par fréquence de blocage.
-- **Historique des lots** : chaque ligne se déplie (« offres ▾ ») pour montrer ses offres
-  groupées, triées par score, sans quitter la page.
-- **Toutes les offres évaluées** : recherche plein texte, filtre par statut, filtre par note
-  (≥ seuil / sous le seuil / avec un score / sans score), case « grouper par lot », score vs
-  seuil, mini-barres par critère, date de publication prouvée, critères bloquants, portes en
-  échec, boutons CV.
+- **Évaluer** : saisie des URLs, déduplication avant envoi, lot actif et derniers lots.
+- **Offres** : pagination serveur, recherche, filtres, tri, dernière évaluation par URL par
+  défaut et accès à tout l'historique dans un panneau latéral.
+- **Lots** : progression persistée, compteurs, exports et détail complet des résultats.
+- **CV** : tâches en cours, PDF terminés et erreurs, avec reprise du polling après rechargement.
+- **Analyses** : période et vue dernière/toutes les évaluations, KPI cliquables, distribution,
+  portes et critères.
+- **Profil** : identité issue du master, seuils et critères d'évaluation.
+
+Les scores gardent un affichage visuel : valeur numérique, barre colorée et marqueur du seuil.
+Les petits indicateurs de critères ont désormais une légende textuelle (`bloquant`,
+`confiance faible`, `satisfait`) afin de ne pas dépendre uniquement de la couleur.
+
+SQLite migre automatiquement les anciennes bases en ajoutant les colonnes indexées nécessaires
+aux recherches. Les résultats JSON complets restent conservés ; aucune ancienne évaluation n'est
+supprimée. Les paramètres `utm_*`, `fbclid`, `gclid`, fragments et slash final sont ignorés pour
+regrouper les réévaluations d'une même URL.
 
 ## Tests
 
@@ -236,13 +261,14 @@ par l'application.
 python3 tests/test_gates.py       # portes + parsing de dates (20 tests)
 python3 tests/test_analytics.py   # agrégats du dashboard (9 tests)
 python3 tests/test_cv_parse.py    # lecture de la sortie du moteur CV (4 tests)
-python3 tests/test_config.py      # configuration, priorités, clé API, CV (20 tests)
-python3 tests/test_store.py       # persistance et reprise des jobs CV (2 tests)
-node tests/test_app_js.mjs        # filtres, groupement et états CV (11 tests)
+python3 tests/test_config.py      # configuration, priorités, clé API, CV
+python3 tests/test_onboarding.py  # import PDF, validation et persistance du profil
+python3 tests/test_store.py       # migration SQLite, pagination, déduplication et jobs CV
+node tests/test_app_js.mjs        # score visuel, légendes de critères et pagination
 ```
 
-Tous hors ligne, sans dépendance ni clé API. Le test JS exécute `app.js` dans un contexte
-Node avec un DOM factice.
+Tous hors ligne, sans dépendance ni clé API. Le test JS exécute les fonctions UI communes dans
+un contexte Node avec un DOM factice.
 
 ## Limites connues
 

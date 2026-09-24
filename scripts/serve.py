@@ -25,7 +25,8 @@ def describe(settings: dict) -> str:
     exists = "absente (valeurs par défaut)" if not settings["config_file_exists"] else "lue"
     lines = [
         f"config     : {settings['config_file']} — {exists}",
-        f"profil     : {settings['profile_path']}",
+        f"profil     : {settings['profile_path']} — {'OK' if Path(settings['profile_path']).is_file() else 'À CRÉER AU PREMIER LANCEMENT'}",
+        f"master CV  : {settings['cv']['master_path']} — {'OK' if Path(settings['cv']['master_path']).is_file() else 'À CRÉER AU PREMIER LANCEMENT'}",
         f"évaluateur : {settings['evaluator_path']}",
         f"modèle Jev : {settings['openrouter']['model']}",
         f"base       : {settings['db_file']}",

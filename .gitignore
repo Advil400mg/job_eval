@@ -4,4 +4,6 @@ config.toml
 __pycache__/
 *.py[cod]
 .env
+/PROFILE.json
+/engine/CV_MASTER.json
 

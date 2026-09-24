@@ -1,0 +1,13 @@
+(() => {
+  const { $, escapeHtml, fetchJSON, num } = JEV;
+  function kpi(label, value, href = "") { const body = `<strong>${value}</strong><span>${escapeHtml(label)}</span>`; return href ? `<a class="kpi" href="${href}">${body}</a>` : `<div class="kpi">${body}</div>`; }
+  function render(stats) {
+    $("#analytics_kpis").innerHTML = [kpi("Offres", stats.offers, "/offers"), kpi("Qualifiées", stats.qualified, "/offers?status=qualified"), kpi("Refusées Jev", stats.rejected, "/offers?status=rejected"), kpi("Exclues", stats.jev_excluded, "/offers?status=jev_excluded"), kpi("Erreurs / non vérifiées", stats.errors, "/offers?status=error"), kpi("Score moyen", num(stats.avg_score)), kpi("Coût Jev", `$${(stats.jev_cost || 0).toFixed(4)}`)].join("");
+    const max = Math.max(1, ...stats.distribution.map((bucket) => bucket.count));
+    $("#distribution").innerHTML = stats.distribution.map((bucket) => { const [min, maxScore] = bucket.bucket.endsWith("+") ? [80, 100] : bucket.bucket.split("-").map(Number); return `<a class="distribution-row" href="/offers?score_min=${min}&score_max=${maxScore}"><span>${escapeHtml(bucket.bucket)}</span><div><i style="width:${Math.round((bucket.count / max) * 100)}%"></i></div><strong>${bucket.count}</strong></a>`; }).join("");
+    $("#gates").innerHTML = stats.gates.length ? `<div class="analytics-table">${stats.gates.map((gate) => `<div><code>${escapeHtml(gate.gate)}</code><span class="ok-text">${gate.pass} OK</span><span class="bad-text">${gate.fail} échecs</span><span>${gate.warn} réserves</span></div>`).join("")}</div>` : '<p class="muted">Aucune donnée.</p>';
+    $("#criteria_stats").innerHTML = stats.criteria.length ? `<div class="analytics-table criteria-analytics">${stats.criteria.map((criterion) => `<div><div><strong>${escapeHtml(criterion.name)}</strong><code>${escapeHtml(criterion.id)}</code></div><div class="analytics-score"><span><i style="width:${Math.max(0, Math.min(100, criterion.avg_score || 0))}%"></i></span><strong>${num(criterion.avg_score)}</strong></div><span>confiance ${num(criterion.avg_confidence, 2)}</span><span class="${criterion.blocking ? "bad-text" : ""}">${criterion.blocking} blocage(s)</span></div>`).join("")}</div>` : '<p class="muted">Aucune donnée.</p>';
+  }
+  async function load() { const days = $("#analytics_days").value, view = $("#analytics_view").value; try { render(await fetchJSON(`/api/stats?view=${view}${days ? `&days=${days}` : ""}`)); } catch (error) { $("#analytics_kpis").innerHTML = `<div class="error">${escapeHtml(error.message)}</div>`; } }
+  $("#analytics_days").addEventListener("change", load); $("#analytics_view").addEventListener("change", load); load();
+})();

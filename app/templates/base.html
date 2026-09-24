@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ page_title }} — Jev</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body data-page="{{ active }}">
+<header class="app-header">
+  <a class="brand" href="/" aria-label="Jev — nouvelle évaluation">
+    <span class="brand-mark">J</span><span><strong>Jev</strong><small>Job evaluator</small></span>
+  </a>
+  <nav class="main-nav" aria-label="Navigation principale">
+    <a href="/" class="{% if active == 'evaluate' %}active{% endif %}">Évaluer</a>
+    <a href="/offers" class="{% if active == 'offers' %}active{% endif %}">Offres</a>
+    <a href="/runs" class="{% if active == 'runs' %}active{% endif %}">Lots <span id="nav_runs_badge" class="nav-badge hidden"></span></a>
+    <a href="/cv" class="{% if active == 'cv' %}active{% endif %}">CV <span id="nav_cv_badge" class="nav-badge hidden"></span></a>
+    <a href="/analytics" class="{% if active == 'analytics' %}active{% endif %}">Analyses</a>
+  </nav>
+  <a class="profile-link {% if active == 'profile' %}active{% endif %}" href="/profile" aria-label="Profil candidat">Profil</a>
+</header>
+
+{% if not api_key_set %}<div class="global-alert">Clé API absente : l’évaluation et l’analyse du CV échoueront.</div>{% endif %}
+{% if not cv_available %}<div class="global-alert">Moteur CV indisponible : {{ cv_detail }}</div>{% endif %}
+
+<main class="page-shell {% block shell_class %}{% endblock %}">
+  {% block content %}{% endblock %}
+</main>
+
+<div id="toast_region" class="toast-region" aria-live="polite"></div>
+<script src="/static/common.js"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

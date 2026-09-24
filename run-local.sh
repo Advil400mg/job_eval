@@ -34,7 +34,7 @@ fi
 
 UV="$(command -v uv || true)"
 if [ -z "$UV" ]; then
-  for candidate in "$HOME/.hermes/bin/uv" "$HOME/.local/bin/uv" "$HOME/.cargo/bin/uv"; do
+  for candidate in "$HOME/.local/bin/uv" "$HOME/.cargo/bin/uv"; do
     if [ -x "$candidate" ]; then UV="$candidate"; break; fi
   done
 fi

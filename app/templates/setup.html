@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Initialisation — Évaluateur d'offres</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <h1>Initialisation du profil</h1>
+  <p class="sub">Cette instance ne contient aucun profil candidat. Importez un CV PDF avec une couche texte : l'application créera un <code>CV_MASTER.json</code> fidèle au CV et un <code>PROFILE.json</code> d'évaluation.</p>
+  {% if not setup.api_key_set %}<p class="alert">Clé API absente : renseignez <code>OPENROUTER_API_KEY</code> dans l'environnement ou la configuration avant l'import.</p>{% endif %}
+</header>
+
+<section class="panel">
+  <form id="setup_form">
+    <label for="cv_pdf">CV au format PDF <span class="hint">(obligatoire, 10 Mo maximum, PDF texte)</span></label>
+    <input id="cv_pdf" name="cv_pdf" type="file" accept="application/pdf,.pdf" required>
+
+    <label for="target_roles">Postes recherchés <span class="hint">(un par ligne ; vide = titre du CV)</span></label>
+    <textarea id="target_roles" name="target_roles" rows="4" placeholder="Ingénieur sécurité réseau&#10;Analyste SOC"></textarea>
+
+    <label for="locations">Localisations acceptées <span class="hint">(une par ligne ; vide = aucune restriction)</span></label>
+    <textarea id="locations" name="locations" rows="3" placeholder="Bruxelles&#10;Luxembourg&#10;Paris"></textarea>
+
+    <div class="row">
+      <label>Rejeter les offres demandant au moins
+        <input name="reject_experience_years" type="number" min="1" max="50" value="2" required> ans d'expérience
+      </label>
+      <label>Fraîcheur maximale
+        <input name="max_age_days" type="number" min="1" max="365" value="30" required> jours
+      </label>
+    </div>
+
+    <div class="row">
+      <button id="setup_submit" type="submit" {% if not setup.api_key_set %}disabled{% endif %}>Analyser le CV et initialiser</button>
+      <span id="setup_status" class="status"></span>
+    </div>
+  </form>
+  <p class="muted small">Le PDF source et les deux fichiers générés sont conservés dans le répertoire de données persistant, jamais dans l'image Docker. Les préférences qui ne figurent pas dans le CV ne sont pas inventées.</p>
+</section>
+<script src="/static/setup.js"></script>
+</body>
+</html>

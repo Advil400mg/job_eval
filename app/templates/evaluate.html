@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-heading">
+  <div><p class="eyebrow">Nouveau lot</p><h1>Évaluer des offres</h1>
+    <p>Collez les liens trouvés. Les doublons et paramètres de suivi sont éliminés avant le lancement.</p></div>
+  <a class="secondary-btn" href="/offers">Parcourir les offres</a>
+</section>
+
+<section class="panel focus-panel">
+  <label for="urls">URLs des offres <span id="url_count" class="hint">0 URL</span></label>
+  <textarea id="urls" rows="7" placeholder="https://entreprise.example/jobs/…&#10;https://autre.example/offre/…"></textarea>
+  <div id="url_feedback" class="input-feedback"></div>
+  <div class="action-row">
+    <button id="run" type="button">Lancer l’évaluation</button>
+    <span id="status" class="status" role="status"></span>
+  </div>
+  <details class="profile-summary">
+    <summary>Règles appliquées</summary>
+    <p>Score requis <strong>{{ thresholds.minimum_global_score }}/100</strong> · confiance minimale <strong>{{ thresholds.minimum_confidence }}</strong> · publication ≤ <strong>{{ thresholds.max_age_days }} jours</strong>.</p>
+    {% if target_roles %}<p>Postes ciblés : {{ target_roles|join(', ') }}</p>{% endif %}
+    <div class="criteria-chips">{% for criterion in criteria %}<span>{{ criterion.name }} · poids {{ criterion.weight }}</span>{% endfor %}</div>
+  </details>
+</section>
+
+<section id="active_run" class="panel hidden" aria-live="polite"></section>
+
+<section class="section-heading"><div><h2>Lots récents</h2><p>Les traitements en cours reprennent automatiquement après un rechargement.</p></div><a href="/runs">Voir tous les lots</a></section>
+<div id="recent_runs" class="run-list"><div class="loading-card">Chargement…</div></div>
+{% endblock %}
+{% block scripts %}<script src="/static/evaluate.js"></script>{% endblock %}

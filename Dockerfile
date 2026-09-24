@@ -11,11 +11,11 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Sources, moteur de CV embarqué (polices incluses), profil et configuration d'exemple
+# Sources, moteur de CV embarqué (polices incluses) et configuration d'exemple
 COPY app ./app
 COPY engine ./engine
 COPY scripts ./scripts
-COPY PROFILE.json config.example.toml ./
+COPY config.example.toml ./
 
 # utilisateur non privilégié par défaut ; docker-compose peut le remplacer par ton uid
 RUN mkdir -p /data /config && useradd -m -u 10001 jev && chown -R jev:jev /data /config /app

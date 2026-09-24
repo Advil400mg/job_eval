@@ -5,7 +5,6 @@ Run:  python3 tests/test_gates.py
 
 from __future__ import annotations
 
-import json
 import os
 import sys
 import unittest
@@ -16,8 +15,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app import gates  # noqa: E402
 from app.extract import parse_french_date  # noqa: E402
 
-PROFILE = json.load(open(os.path.join(os.path.dirname(os.path.dirname(
-    os.path.abspath(__file__))), "PROFILE.json"), encoding="utf-8"))
+PROFILE = {
+    "search": {
+        "max_age_days": 30,
+        "experience_filter": {"reject_if_minimum_required_years_gte": 2},
+    }
+}
 
 
 class DateParsing(unittest.TestCase):
