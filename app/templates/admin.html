@@ -32,23 +32,21 @@
   <div class="admin-section-head">
     <div><p class="eyebrow">Accès</p><h2>Utilisateurs</h2><p>{{ admin_stats.users }} compte{% if admin_stats.users != 1 %}s{% endif %} enregistré{% if admin_stats.users != 1 %}s{% endif %} sur cette instance.</p></div>
   </div>
-  <div class="admin-table-wrap">
-    <table class="admin-table">
-      <thead><tr><th>Utilisateur</th><th>Contact</th><th>Rôle</th><th>État</th><th class="admin-action-column">Action</th></tr></thead>
-      <tbody id="users_body">
+  <div class="admin-list admin-users-list" role="table" aria-label="Utilisateurs">
+    <div class="admin-list-head" role="row"><span>Utilisateur</span><span>Contact</span><span>Rôle</span><span>État</span><span>Action</span></div>
+    <div id="users_body" class="admin-list-body" role="rowgroup">
       {% for user in users %}
-        <tr data-user-id="{{ user.id }}">
-          <td data-label="Utilisateur"><div class="admin-identity"><span class="admin-avatar" aria-hidden="true">{{ (user.display_name or user.username)[0]|upper }}</span><span><strong>{{ user.display_name or user.username }}</strong><small>@{{ user.username }}{% if user.id == current_user.id %} · compte actuel{% endif %}</small></span></div></td>
-          <td data-label="Contact"><span class="admin-email">{{ user.email or 'Aucun email' }}</span></td>
-          <td data-label="Rôle"><span class="admin-pill role-{{ user.role }}">{{ 'Administrateur' if user.role == 'admin' else 'Utilisateur' }}</span></td>
-          <td data-label="État"><span class="admin-state {{ 'is-active' if user.active else 'is-disabled' }}"><i></i>{{ 'Actif' if user.active else 'Désactivé' }}</span></td>
-          <td data-label="Action" class="admin-action-column">{% if user.id != current_user.id %}<button class="secondary-btn compact user-toggle" data-active="{{ 'false' if user.active else 'true' }}">{{ 'Désactiver' if user.active else 'Réactiver' }}</button>{% else %}<span class="muted small">Session actuelle</span>{% endif %}</td>
-        </tr>
+        <article class="admin-list-row" role="row" data-user-id="{{ user.id }}">
+          <div class="admin-cell admin-cell-primary" role="cell" data-label="Utilisateur"><div class="admin-identity"><span class="admin-avatar" aria-hidden="true">{{ (user.display_name or user.username)[0]|upper }}</span><span><strong>{{ user.display_name or user.username }}</strong><small>@{{ user.username }}{% if user.id == current_user.id %} · compte actuel{% endif %}</small></span></div></div>
+          <div class="admin-cell" role="cell" data-label="Contact"><span class="admin-email">{{ user.email or 'Aucun email' }}</span></div>
+          <div class="admin-cell" role="cell" data-label="Rôle"><span class="admin-pill role-{{ user.role }}">{{ 'Administrateur' if user.role == 'admin' else 'Utilisateur' }}</span></div>
+          <div class="admin-cell" role="cell" data-label="État"><span class="admin-state {{ 'is-active' if user.active else 'is-disabled' }}"><i></i>{{ 'Actif' if user.active else 'Désactivé' }}</span></div>
+          <div class="admin-cell admin-cell-action" role="cell" data-label="Action">{% if user.id != current_user.id %}<button class="secondary-btn compact user-toggle" data-active="{{ 'false' if user.active else 'true' }}">{{ 'Désactiver' if user.active else 'Réactiver' }}</button>{% else %}<span class="muted small">Session actuelle</span>{% endif %}</div>
+        </article>
       {% else %}
-        <tr><td colspan="5"><div class="empty-state"><strong>Aucun utilisateur</strong><p>Les comptes apparaîtront ici.</p></div></td></tr>
+        <div class="empty-state"><strong>Aucun utilisateur</strong><p>Les comptes apparaîtront ici.</p></div>
       {% endfor %}
-      </tbody>
-    </table>
+    </div>
   </div>
 </section>
 
@@ -56,23 +54,21 @@
   <div class="admin-section-head">
     <div><p class="eyebrow">Invitations</p><h2>Historique des invitations</h2><p>Les liens expirés ou utilisés restent visibles pour le suivi.</p></div>
   </div>
-  <div class="admin-table-wrap">
-    <table class="admin-table admin-invitations-table">
-      <thead><tr><th>Destinataire</th><th>Créée</th><th>Expiration</th><th>État</th><th class="admin-action-column">Action</th></tr></thead>
-      <tbody>
+  <div class="admin-list admin-invitations-list" role="table" aria-label="Invitations">
+    <div class="admin-list-head" role="row"><span>Destinataire</span><span>Créée</span><span>Expiration</span><span>État</span><span>Action</span></div>
+    <div class="admin-list-body" role="rowgroup">
       {% for invite in invitations %}
-        <tr>
-          <td data-label="Destinataire"><div class="admin-invite-recipient"><strong>{{ invite.email or 'Lien partageable' }}</strong><small>{{ 'Réservée à cette adresse' if invite.email else 'Aucune adresse imposée' }}</small></div></td>
-          <td data-label="Créée"><time data-local-time datetime="{{ invite.created_at }}">{{ invite.created_at }}</time></td>
-          <td data-label="Expiration"><time data-local-time datetime="{{ invite.expires_at }}">{{ invite.expires_at }}</time></td>
-          <td data-label="État"><span class="admin-pill invite-{{ invite.status }}">{% if invite.status == 'used' %}Utilisée{% elif invite.status == 'revoked' %}Révoquée{% elif invite.status == 'expired' %}Expirée{% else %}Active{% endif %}</span></td>
-          <td data-label="Action" class="admin-action-column">{% if invite.status == 'active' %}<button class="secondary-btn compact invite-revoke" data-id="{{ invite.id }}">Révoquer</button>{% else %}<span class="muted small">Aucune action</span>{% endif %}</td>
-        </tr>
+        <article class="admin-list-row" role="row">
+          <div class="admin-cell admin-cell-primary" role="cell" data-label="Destinataire"><div class="admin-invite-recipient"><strong>{{ invite.email or 'Lien partageable' }}</strong><small>{{ 'Réservée à cette adresse' if invite.email else 'Aucune adresse imposée' }}</small></div></div>
+          <div class="admin-cell" role="cell" data-label="Créée"><time data-local-time datetime="{{ invite.created_at }}">{{ invite.created_at }}</time></div>
+          <div class="admin-cell" role="cell" data-label="Expiration"><time data-local-time datetime="{{ invite.expires_at }}">{{ invite.expires_at }}</time></div>
+          <div class="admin-cell" role="cell" data-label="État"><span class="admin-pill invite-{{ invite.status }}">{% if invite.status == 'used' %}Utilisée{% elif invite.status == 'revoked' %}Révoquée{% elif invite.status == 'expired' %}Expirée{% else %}Active{% endif %}</span></div>
+          <div class="admin-cell admin-cell-action" role="cell" data-label="Action">{% if invite.status == 'active' %}<button class="secondary-btn compact invite-revoke" data-id="{{ invite.id }}">Révoquer</button>{% else %}<span class="muted small">Aucune action</span>{% endif %}</div>
+        </article>
       {% else %}
-        <tr><td colspan="5"><div class="empty-state"><strong>Aucune invitation</strong><p>Crée le premier accès avec le formulaire ci-dessus.</p></div></td></tr>
+        <div class="empty-state"><strong>Aucune invitation</strong><p>Crée le premier accès avec le formulaire ci-dessus.</p></div>
       {% endfor %}
-      </tbody>
-    </table>
+    </div>
   </div>
 </section>
 {% endblock %}

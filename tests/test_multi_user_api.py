@@ -124,6 +124,15 @@ class MultiUserApiTest(unittest.TestCase):
             }, follow_redirects=False)
             self.assertEqual(reused.status_code, 400)
 
+    def test_admin_page_uses_responsive_grid_lists(self):
+        with TestClient(app) as admin_client:
+            self.login(admin_client, "alice", "correct-horse-battery")
+            response = admin_client.get("/admin")
+            self.assertEqual(response.status_code, 200)
+            self.assertIn('class="admin-list admin-users-list"', response.text)
+            self.assertIn('class="admin-list admin-invitations-list"', response.text)
+            self.assertNotIn("<table", response.text)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
