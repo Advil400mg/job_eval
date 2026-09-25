@@ -65,7 +65,7 @@ class JobRecovery(unittest.TestCase):
         job_id = store.create_cv_job("https://jobs.test/cv", send_email=True)
         with mock.patch.object(jobs, "submit_run"):
             result = jobs.recover_after_restart()
-        job = store.get_cv_job(job_id)
+        job = store.get_cv_job_system(job_id)
         assert job is not None
         self.assertEqual(result["interrupted_cv"], 1)
         self.assertEqual(job["status"], "interrupted")
@@ -78,7 +78,7 @@ class JobRecovery(unittest.TestCase):
         with mock.patch.object(jobs, "submit_cv") as submit:
             self.assertTrue(jobs.retry_cv(job_id))
         submit.assert_called_once_with(job_id)
-        job = store.get_cv_job(job_id)
+        job = store.get_cv_job_system(job_id)
         assert job is not None
         self.assertEqual(job["status"], "running")
         self.assertEqual(job["attempts"], 2)

@@ -33,10 +33,24 @@ class Applications(unittest.TestCase):
         })
         store.finish_run(run)
 
-    def test_migration_v3_vers_v4_ajoute_les_tables_sans_perte(self):
+    def test_migration_v3_vers_v5_ajoute_les_tables_sans_perte(self):
         connection = sqlite3.connect(store.DB_PATH)
-        v3_schema = store.SCHEMA.split("CREATE TABLE IF NOT EXISTS profile_versions", 1)[0]
-        connection.executescript(v3_schema)
+        connection.executescript("""
+            CREATE TABLE runs (
+                id TEXT PRIMARY KEY, created_at TEXT NOT NULL, urls TEXT NOT NULL,
+                status TEXT NOT NULL, progress INTEGER NOT NULL DEFAULT 0,
+                total INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE TABLE results (
+                run_id TEXT NOT NULL, url TEXT NOT NULL, created_at TEXT NOT NULL,
+                status TEXT NOT NULL, payload TEXT NOT NULL,
+                PRIMARY KEY (run_id, url)
+            );
+            CREATE TABLE cv_jobs (
+                id TEXT PRIMARY KEY, url TEXT NOT NULL, created_at TEXT NOT NULL,
+                status TEXT NOT NULL, payload TEXT
+            );
+        """)
         connection.execute("PRAGMA user_version = 3")
         connection.execute(
             "INSERT INTO runs (id, created_at, urls, status, progress, total) "
@@ -46,7 +60,7 @@ class Applications(unittest.TestCase):
         connection.close()
         self.assertEqual(store.list_applications()["total"], 0)
         with sqlite3.connect(store.DB_PATH) as migrated:
-            self.assertEqual(migrated.execute("PRAGMA user_version").fetchone()[0], 4)
+            self.assertEqual(migrated.execute("PRAGMA user_version").fetchone()[0], 5)
             self.assertEqual(migrated.execute(
                 "SELECT status FROM runs WHERE id = 'v3-run'"
             ).fetchone()[0], "done")

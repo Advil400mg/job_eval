@@ -46,10 +46,12 @@ class ProfileManagement(unittest.TestCase):
         self.saved = {key: os.environ.get(key) for key in ("JEV_CONFIG", "JEV_DATA_DIR", "JEV_PROFILE")}
         os.environ["JEV_CONFIG"] = str(self.root / "missing.toml")
         os.environ["JEV_DATA_DIR"] = str(self.root)
-        os.environ["JEV_PROFILE"] = str(self.root / "PROFILE.json")
         config.reset_cache()
         store.DB_PATH = str(self.root / "jev.db")
-        (self.root / "PROFILE.json").write_text(
+        # The new profile.path() resolves to data_dir/users/legacy-admin/PROFILE.json
+        profile_dir = config.user_dir()  # self.root / "users" / "legacy-admin"
+        profile_dir.mkdir(parents=True, exist_ok=True)
+        (profile_dir / "PROFILE.json").write_text(
             json.dumps(sample_profile(), ensure_ascii=False), encoding="utf-8",
         )
 

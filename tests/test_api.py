@@ -47,7 +47,7 @@ class ApiSecurity(unittest.TestCase):
         with TestClient(app) as client:
             health = client.get("/healthz")
             self.assertEqual(health.status_code, 200)
-            self.assertEqual(health.json(), {"ok": True, "version": "2.2.0", "auth_required": True})
+            self.assertEqual(health.json(), {"ok": True, "version": "2.3.0", "auth_required": True})
             self.assertEqual(client.get("/api/history").status_code, 401)
             page = client.get("/offers", follow_redirects=False)
             self.assertEqual(page.status_code, 303)
@@ -56,7 +56,8 @@ class ApiSecurity(unittest.TestCase):
     def test_login_pose_un_cookie_signe_et_donne_acces(self):
         with TestClient(app) as client:
             response = client.post(
-                "/login", data={"password": "integration-password", "next": "/api/history"},
+                "/login", data={"identifier": "admin", "password": "integration-password",
+                                "next": "/api/history"},
                 follow_redirects=False,
             )
             self.assertEqual(response.status_code, 303)
@@ -69,7 +70,7 @@ class ApiSecurity(unittest.TestCase):
     def test_mauvais_mot_de_passe_ne_pose_pas_de_cookie(self):
         with TestClient(app) as client:
             response = client.post(
-                "/login", data={"password": "wrong-password", "next": "/"},
+                "/login", data={"identifier": "admin", "password": "wrong-password", "next": "/"},
                 follow_redirects=False,
             )
             self.assertEqual(response.status_code, 401)

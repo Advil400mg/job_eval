@@ -15,8 +15,28 @@ from functools import lru_cache
 from pathlib import Path
 
 APP_DIR = Path(__file__).resolve().parent.parent
+
+# Identifiant de repli pour les tests et l'admin existant avant multi-utilisateur.
+LEGACY_USER_ID = "legacy-admin"
+
 DEFAULT_CONFIG = APP_DIR / "config.toml"
 EXAMPLE_CONFIG = APP_DIR / "config.example.toml"
+
+
+def user_dir(user_id: str | None = None) -> Path:
+    """Répertoire isolé pour les fichiers d'un utilisateur.
+
+    Structure :
+        data/users/{IDENTIFIANT}/PROFILE.json
+        data/users/{IDENTIFIANT}/CV_MASTER.json
+        data/users/{IDENTIFIANT}/source_cv.pdf
+        data/users/{IDENTIFIANT}/cv/          ← CV générés
+        data/users/{IDENTIFIANT}/cv-runs/     ← journaux du moteur
+
+    user_id=None → legacy-admin (rétrocompatibilité tests/admin).
+    """
+    uid = (user_id or LEGACY_USER_ID).strip()
+    return settings()["data_dir"] / "users" / uid
 
 DEFAULTS: dict = {
     "app": {"host": "127.0.0.1", "port": 8000, "data_dir": "./data", "db_file": ""},
@@ -167,12 +187,14 @@ def resolve_api_key(cfg: dict | None = None) -> str:
     return ""
 
 
-def cv_environment(cfg: dict | None = None) -> tuple[dict, str]:
+def cv_environment(cfg: dict | None = None, user_id: str | None = None) -> tuple[dict, str]:
     """Environnement à passer au moteur CV + commande effective.
 
     Le moteur embarqué (engine/) lit ses chemins dans ces variables : elles sont
     dérivées de la configuration de l'application, pour qu'il n'y ait qu'une seule
     source de vérité (data_dir, profil, master, modèle).
+
+    Si user_id est fourni, les chemins pointent vers data/users/{user_id}/.
     """
     settings_now = settings()
     env = dict(os.environ)
@@ -184,12 +206,15 @@ def cv_environment(cfg: dict | None = None) -> tuple[dict, str]:
         # par Compose/Ansible plutôt que lus depuis un chemin propre à l'hôte.
         for name, value in read_env_file(_resolve_path(env_file, APP_DIR)).items():
             env.setdefault(name, value)
+
+    u_dir = user_dir(user_id)
+
     env["CV_DATA_DIR"] = str(settings_now["data_dir"])
-    env["CV_OUT_DIR"] = str(settings_now["cv"]["out_dir"])
-    env["CV_RUNS"] = str(settings_now["data_dir"] / "cv-runs")
-    env["CV_PROFILE"] = str(settings_now["profile_path"])
+    env["CV_OUT_DIR"] = str(u_dir / "cv")
+    env["CV_RUNS"] = str(u_dir / "cv-runs")
+    env["CV_PROFILE"] = str(u_dir / "PROFILE.json")
     env["CV_JEV"] = str(settings_now["evaluator_path"])
-    env["CV_MASTER"] = str(settings_now["cv"]["master_path"])
+    env["CV_MASTER"] = str(u_dir / "CV_MASTER.json")
     if settings_now["cv"]["model"]:
         env["CV_MODEL"] = str(settings_now["cv"]["model"])
     return env, str(settings_now["cv"].get("command") or "")
@@ -250,7 +275,7 @@ def settings() -> dict:
             "timeout_seconds": int(cfg["cv"].get("timeout_seconds") or 900),
         },
         "security": {
-            "auth_enabled": bool(os.environ.get("JEV_AUTH_PASSWORD")),
+            "auth_enabled": True,
             "session_hours": max(1, int(cfg["security"].get("session_hours") or 12)),
             "cookie_secure": _bool(cfg["security"].get("cookie_secure")),
             "trust_proxy": _bool(cfg["security"].get("trust_proxy")),

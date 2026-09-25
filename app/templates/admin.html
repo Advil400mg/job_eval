@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-header">
+  <div><p class="eyebrow">Instance</p><h1>Administration</h1><p class="muted">Comptes et invitations à usage unique.</p></div>
+</section>
+<section class="panel">
+  <h2>Créer une invitation</h2>
+  <form id="invite_form" class="stack-form">
+    <label for="invite_email">Email réservé (facultatif)</label>
+    <input id="invite_email" type="email" maxlength="320">
+    <label for="invite_hours">Validité en heures</label>
+    <input id="invite_hours" type="number" min="1" max="720" value="72">
+    <label><input id="invite_send" type="checkbox"> Envoyer aussi par email</label>
+    <button class="primary-btn" type="submit">Créer l’invitation</button>
+  </form>
+  <div id="invite_result" class="hidden"></div>
+</section>
+<section class="panel">
+  <h2>Utilisateurs</h2>
+  <div class="table-wrap"><table><thead><tr><th>Utilisateur</th><th>Email</th><th>Rôle</th><th>État</th><th>Action</th></tr></thead><tbody id="users_body">
+  {% for user in users %}<tr data-user-id="{{ user.id }}"><td>{{ user.display_name or user.username }}<br><span class="muted">{{ user.username }}</span></td><td>{{ user.email or '—' }}</td><td>{{ user.role }}</td><td>{{ 'actif' if user.active else 'désactivé' }}</td><td>{% if user.id != current_user.id %}<button class="secondary-btn user-toggle" data-active="{{ 'false' if user.active else 'true' }}">{{ 'Désactiver' if user.active else 'Réactiver' }}</button>{% endif %}</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+<section class="panel">
+  <h2>Invitations</h2>
+  <div class="table-wrap"><table><thead><tr><th>Email</th><th>Expiration</th><th>État</th><th>Action</th></tr></thead><tbody>
+  {% for invite in invitations %}<tr><td>{{ invite.email or 'Lien libre' }}</td><td>{{ invite.expires_at }}</td><td>{% if invite.accepted_at %}utilisée{% elif invite.revoked_at %}révoquée{% else %}active{% endif %}</td><td>{% if not invite.accepted_at and not invite.revoked_at %}<button class="secondary-btn invite-revoke" data-id="{{ invite.id }}">Révoquer</button>{% endif %}</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+{% endblock %}
+{% block scripts %}<script src="/static/admin.js"></script>{% endblock %}

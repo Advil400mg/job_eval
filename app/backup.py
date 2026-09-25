@@ -18,7 +18,7 @@ from . import config, store
 
 FORMAT_VERSION = 1
 _ALLOWED_ROOT_FILES = {"jev.db", "PROFILE.json", "CV_MASTER.json", "source_cv.pdf"}
-_ALLOWED_PREFIXES = ("cv/", "cv-runs/")
+_ALLOWED_PREFIXES = ("cv/", "cv-runs/", "users/")
 
 
 class BackupError(RuntimeError):
@@ -36,11 +36,7 @@ def _sha256(path: Path) -> str:
 def _sources() -> list[tuple[str, Path]]:
     settings = config.settings()
     return [
-        ("PROFILE.json", Path(settings["profile_path"])),
-        ("CV_MASTER.json", Path(settings["cv"]["master_path"])),
-        ("source_cv.pdf", Path(settings["data_dir"]) / "source_cv.pdf"),
-        ("cv", Path(settings["cv"]["out_dir"])),
-        ("cv-runs", Path(settings["data_dir"]) / "cv-runs"),
+        ("users", Path(settings["data_dir"]) / "users"),
     ]
 
 
@@ -80,7 +76,7 @@ def create_backup(kind: str = "manual") -> dict:
                 "format": "jev-backup",
                 "version": FORMAT_VERSION,
                 "created_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
-                "app_version": "2.2.0",
+                "app_version": "2.3.0",
                 "kind": kind,
                 "files": entries,
             }
@@ -234,4 +230,6 @@ def restore_backup(archive_path: Path) -> dict:
                               Path(settings["cv"]["out_dir"]))
             _atomic_directory(stage / "cv-runs" if (stage / "cv-runs").is_dir() else None,
                               data_dir / "cv-runs")
+            _atomic_directory(stage / "users" if (stage / "users").is_dir() else None,
+                              data_dir / "users")
     return {"restored": True, "manifest": manifest, "safety_backup": safety}

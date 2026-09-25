@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Créer un compte — Jev</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="login-body">
+<main class="login-shell">
+  <section class="login-card">
+    <div class="brand login-brand"><span class="brand-mark">J</span><span><strong>Jev</strong><small>Compte sur invitation</small></span></div>
+    <h1>Créer un compte</h1>
+    {% if error %}<div class="error">{{ error }}</div>{% endif %}
+    {% if not invitation or not invitation.valid %}
+      <div class="error">Cette invitation est invalide, expirée, révoquée ou déjà utilisée.</div>
+    {% else %}
+    <form method="post" action="/register" class="stack-form">
+      <input type="hidden" name="token" value="{{ token }}">
+      <label for="username">Nom d’utilisateur</label>
+      <input id="username" name="username" value="{{ username or '' }}" minlength="3" maxlength="64" required autofocus autocomplete="username">
+      <label for="display_name">Nom affiché</label>
+      <input id="display_name" name="display_name" value="{{ display_name or '' }}" maxlength="120" autocomplete="name">
+      <label for="email">Email</label>
+      <input id="email" name="email" type="email" value="{{ email or invitation.email or '' }}" {% if invitation.email %}readonly{% endif %} maxlength="320" autocomplete="email">
+      <label for="password">Mot de passe</label>
+      <input id="password" name="password" type="password" minlength="12" maxlength="512" required autocomplete="new-password">
+      <p class="muted">12 caractères minimum. Le lien ne peut être utilisé qu’une fois.</p>
+      <button class="primary-btn" type="submit">Créer mon compte</button>
+    </form>
+    {% endif %}
+    <p><a href="/login">Retour à la connexion</a></p>
+  </section>
+</main>
+</body>
+</html>

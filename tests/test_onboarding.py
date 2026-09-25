@@ -49,12 +49,15 @@ class OnboardingTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name)
+        # onboarding.paths() now uses config.user_dir() → data_dir/users/legacy-admin/*
+        u_dir = self.root / "users" / "legacy-admin"
+        u_dir.mkdir(parents=True, exist_ok=True)
         self.settings = {
-            "profile_path": self.root / "PROFILE.json",
+            "profile_path": u_dir / "PROFILE.json",
             "data_dir": self.root,
             "api_key_set": True,
             "openrouter": {"endpoint": "https://example.test", "model": "model"},
-            "cv": {"master_path": self.root / "CV_MASTER.json", "model": ""},
+            "cv": {"master_path": u_dir / "CV_MASTER.json", "model": ""},
         }
         self.settings_patch = mock.patch.object(onboarding.config, "settings", return_value=self.settings)
         self.settings_patch.start()
@@ -102,7 +105,7 @@ class OnboardingTest(unittest.TestCase):
         self.assertGreaterEqual(len(profile["criteria"]), 5)
         self.assertEqual(profile["search"]["experience_filter"]["reject_if_minimum_required_years_gte"], 3)
         self.assertEqual(profile["search"]["max_age_days"], 45)
-        self.assertTrue((self.root / "source_cv.pdf").is_file())
+        self.assertTrue((self.root / "users" / "legacy-admin" / "source_cv.pdf").is_file())
 
     def test_image_only_pdf_is_rejected_without_partial_files(self):
         document = pymupdf.open()

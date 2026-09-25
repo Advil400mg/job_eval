@@ -16,10 +16,38 @@ from . import config
 
 DB_PATH = str(config.settings()["db_file"])
 _LOCK = threading.Lock()
+LEGACY_USER_ID = "legacy-admin"
 
 SCHEMA = """
+CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    username TEXT NOT NULL,
+    username_normalized TEXT NOT NULL UNIQUE,
+    email TEXT,
+    email_normalized TEXT UNIQUE,
+    display_name TEXT NOT NULL DEFAULT '',
+    password_hash TEXT NOT NULL,
+    role TEXT NOT NULL CHECK (role IN ('admin', 'user')),
+    active INTEGER NOT NULL DEFAULT 1,
+    session_version INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    last_login_at TEXT
+);
+CREATE TABLE IF NOT EXISTS invitations (
+    id TEXT PRIMARY KEY,
+    token_hash TEXT NOT NULL UNIQUE,
+    email TEXT,
+    created_by TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    accepted_at TEXT,
+    revoked_at TEXT,
+    FOREIGN KEY (created_by) REFERENCES users(id)
+);
 CREATE TABLE IF NOT EXISTS runs (
     id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
     created_at TEXT NOT NULL,
     urls TEXT NOT NULL,
     status TEXT NOT NULL,
@@ -29,7 +57,8 @@ CREATE TABLE IF NOT EXISTS runs (
     updated_at TEXT,
     attempts INTEGER NOT NULL DEFAULT 1,
     last_error TEXT,
-    cancel_requested INTEGER NOT NULL DEFAULT 0
+    cancel_requested INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY (user_id) REFERENCES users(id)
 );
 CREATE TABLE IF NOT EXISTS results (
     run_id TEXT NOT NULL,
@@ -44,10 +73,12 @@ CREATE TABLE IF NOT EXISTS results (
     decision_status TEXT,
     score REAL,
     published_at TEXT,
-    PRIMARY KEY (run_id, url)
+    PRIMARY KEY (run_id, url),
+    FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
 );
 CREATE TABLE IF NOT EXISTS cv_jobs (
     id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
     url TEXT NOT NULL,
     created_at TEXT NOT NULL,
     status TEXT NOT NULL,
@@ -57,18 +88,23 @@ CREATE TABLE IF NOT EXISTS cv_jobs (
     attempts INTEGER NOT NULL DEFAULT 1,
     last_error TEXT,
     cancel_requested INTEGER NOT NULL DEFAULT 0,
-    send_email INTEGER NOT NULL DEFAULT 0
+    send_email INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY (user_id) REFERENCES users(id)
 );
 CREATE TABLE IF NOT EXISTS profile_versions (
     id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
     created_at TEXT NOT NULL,
-    revision TEXT NOT NULL UNIQUE,
+    revision TEXT NOT NULL,
     source TEXT NOT NULL,
-    payload TEXT NOT NULL
+    payload TEXT NOT NULL,
+    UNIQUE (user_id, revision),
+    FOREIGN KEY (user_id) REFERENCES users(id)
 );
 CREATE TABLE IF NOT EXISTS applications (
     id TEXT PRIMARY KEY,
-    normalized_url TEXT NOT NULL UNIQUE,
+    user_id TEXT NOT NULL,
+    normalized_url TEXT NOT NULL,
     url TEXT NOT NULL,
     title TEXT,
     company TEXT,
@@ -81,7 +117,9 @@ CREATE TABLE IF NOT EXISTS applications (
     follow_up_at TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
-    revision INTEGER NOT NULL DEFAULT 1
+    revision INTEGER NOT NULL DEFAULT 1,
+    UNIQUE (user_id, normalized_url),
+    FOREIGN KEY (user_id) REFERENCES users(id)
 );
 CREATE TABLE IF NOT EXISTS application_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -107,6 +145,7 @@ _RESULT_COLUMNS = {
     "published_at": "TEXT",
 }
 _RUN_COLUMNS = {
+    "user_id": "TEXT",
     "started_at": "TEXT",
     "updated_at": "TEXT",
     "attempts": "INTEGER NOT NULL DEFAULT 1",
@@ -114,6 +153,7 @@ _RUN_COLUMNS = {
     "cancel_requested": "INTEGER NOT NULL DEFAULT 0",
 }
 _CV_COLUMNS = {
+    "user_id": "TEXT",
     "started_at": "TEXT",
     "updated_at": "TEXT",
     "attempts": "INTEGER NOT NULL DEFAULT 1",
@@ -168,10 +208,140 @@ def _add_columns(conn: sqlite3.Connection, table: str, definitions: dict[str, st
             conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {sql_type}")
 
 
+def _legacy_data_exists(conn: sqlite3.Connection) -> bool:
+    return any(
+        int(conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0])
+        for table in ("runs", "results", "cv_jobs", "profile_versions", "applications")
+    )
+
+
+def _ensure_legacy_owner(conn: sqlite3.Connection) -> str:
+    row = conn.execute("SELECT id FROM users ORDER BY created_at LIMIT 1").fetchone()
+    if row:
+        return str(row["id"])
+    owner = "legacy-admin"
+    now = _now()
+    conn.execute(
+        "INSERT INTO users (id, username, username_normalized, email, email_normalized, "
+        "display_name, password_hash, role, active, session_version, created_at, updated_at) "
+        "VALUES (?, 'admin', 'admin', NULL, NULL, 'Administrateur', '', 'admin', 0, 1, ?, ?)",
+        (owner, now, now),
+    )
+    return owner
+
+
+def _ensure_user(conn: sqlite3.Connection, user_id: str | None) -> str:
+    """Compatibility owner for direct callers; web routes pass a real user."""
+    owner = (user_id or LEGACY_USER_ID).strip()
+    if not owner:
+        raise ValueError("user_id requis")
+    row = conn.execute("SELECT id FROM users WHERE id = ?", (owner,)).fetchone()
+    if not row:
+        if owner != LEGACY_USER_ID:
+            raise ValueError("utilisateur inconnu")
+        _ensure_legacy_owner(conn)
+    return owner
+
+
+def _rebuild_profile_versions(conn: sqlite3.Connection, owner: str) -> None:
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(profile_versions)")}
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='profile_versions'"
+    ).fetchone()
+    schema = str(row[0] or "") if row else ""
+    if "user_id" in columns and "UNIQUE (user_id, revision)" in schema:
+        return
+    conn.executescript("""
+        DROP TABLE IF EXISTS profile_versions_v5;
+        CREATE TABLE profile_versions_v5 (
+            id TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at TEXT NOT NULL,
+            revision TEXT NOT NULL, source TEXT NOT NULL, payload TEXT NOT NULL,
+            UNIQUE (user_id, revision), FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+    """)
+    if "user_id" in columns:
+        conn.execute(
+            "INSERT INTO profile_versions_v5 SELECT id, COALESCE(user_id, ?), created_at, "
+            "revision, source, payload FROM profile_versions", (owner,),
+        )
+    else:
+        conn.execute(
+            "INSERT INTO profile_versions_v5 SELECT id, ?, created_at, revision, source, payload "
+            "FROM profile_versions", (owner,),
+        )
+    conn.executescript("""
+        DROP TABLE profile_versions;
+        ALTER TABLE profile_versions_v5 RENAME TO profile_versions;
+    """)
+
+
+def _rebuild_applications(conn: sqlite3.Connection, owner: str) -> None:
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(applications)")}
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='applications'"
+    ).fetchone()
+    schema = str(row[0] or "") if row else ""
+    if "user_id" in columns and "UNIQUE (user_id, normalized_url)" in schema:
+        return
+    conn.executescript("""
+        DROP TABLE IF EXISTS applications_v5;
+        DROP TABLE IF EXISTS application_events_v5;
+        CREATE TABLE applications_v5 (
+            id TEXT PRIMARY KEY, user_id TEXT NOT NULL, normalized_url TEXT NOT NULL,
+            url TEXT NOT NULL, title TEXT, company TEXT, location TEXT, status TEXT NOT NULL,
+            notes TEXT NOT NULL DEFAULT '', contact_name TEXT NOT NULL DEFAULT '',
+            contact_email TEXT NOT NULL DEFAULT '', applied_at TEXT, follow_up_at TEXT,
+            created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+            revision INTEGER NOT NULL DEFAULT 1,
+            UNIQUE (user_id, normalized_url), FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+        CREATE TABLE application_events_v5 (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, application_id TEXT NOT NULL,
+            created_at TEXT NOT NULL, event_type TEXT NOT NULL, from_status TEXT,
+            to_status TEXT, payload TEXT NOT NULL DEFAULT '{}',
+            FOREIGN KEY (application_id) REFERENCES applications_v5(id) ON DELETE CASCADE
+        );
+    """)
+    base_columns = (
+        "id, normalized_url, url, title, company, location, status, notes, contact_name, "
+        "contact_email, applied_at, follow_up_at, created_at, updated_at, revision"
+    )
+    if "user_id" in columns:
+        conn.execute(
+            f"INSERT INTO applications_v5 (id, user_id, {base_columns}) "
+            f"SELECT id, COALESCE(user_id, ?), {base_columns} FROM applications", (owner,),
+        )
+    else:
+        conn.execute(
+            f"INSERT INTO applications_v5 (id, user_id, {base_columns}) "
+            f"SELECT id, ?, {base_columns} FROM applications", (owner,),
+        )
+    conn.execute(
+        "INSERT INTO application_events_v5 "
+        "(id, application_id, created_at, event_type, from_status, to_status, payload) "
+        "SELECT id, application_id, created_at, event_type, from_status, to_status, payload "
+        "FROM application_events"
+    )
+    conn.executescript("""
+        DROP TABLE application_events;
+        DROP TABLE applications;
+        ALTER TABLE applications_v5 RENAME TO applications;
+        ALTER TABLE application_events_v5 RENAME TO application_events;
+    """)
+
+
 def _migrate(conn: sqlite3.Connection) -> None:
+    previous_version = int(conn.execute("PRAGMA user_version").fetchone()[0])
     _add_columns(conn, "runs", _RUN_COLUMNS)
     _add_columns(conn, "results", _RESULT_COLUMNS)
     _add_columns(conn, "cv_jobs", _CV_COLUMNS)
+    owner = ""
+    if previous_version < 5 and _legacy_data_exists(conn):
+        owner = _ensure_legacy_owner(conn)
+        conn.execute("UPDATE runs SET user_id = COALESCE(user_id, ?)", (owner,))
+        conn.execute("UPDATE cv_jobs SET user_id = COALESCE(user_id, ?)", (owner,))
+        _rebuild_profile_versions(conn, owner)
+        _rebuild_applications(conn, owner)
     conn.execute("UPDATE runs SET updated_at = COALESCE(updated_at, created_at)")
     conn.execute("UPDATE cv_jobs SET updated_at = COALESCE(updated_at, created_at)")
     rows = conn.execute(
@@ -190,6 +360,7 @@ def _migrate(conn: sqlite3.Connection) -> None:
         )
     conn.executescript("""
         CREATE INDEX IF NOT EXISTS idx_runs_created ON runs(created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_runs_user_created ON runs(user_id, created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_runs_status ON runs(status, created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_results_normalized ON results(normalized_url, created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_results_decision ON results(decision_status, created_at DESC);
@@ -198,13 +369,15 @@ def _migrate(conn: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_results_location ON results(location);
         CREATE INDEX IF NOT EXISTS idx_cv_jobs_status ON cv_jobs(status, created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_cv_jobs_url ON cv_jobs(url, created_at DESC);
-        CREATE INDEX IF NOT EXISTS idx_profile_versions_created ON profile_versions(created_at DESC);
-        CREATE INDEX IF NOT EXISTS idx_applications_status ON applications(status, updated_at DESC);
-        CREATE INDEX IF NOT EXISTS idx_applications_follow_up ON applications(follow_up_at, status);
+        CREATE INDEX IF NOT EXISTS idx_cv_jobs_user_created ON cv_jobs(user_id, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_profile_versions_created ON profile_versions(user_id, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_applications_status ON applications(user_id, status, updated_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_applications_follow_up ON applications(user_id, follow_up_at, status);
         CREATE INDEX IF NOT EXISTS idx_applications_updated ON applications(updated_at DESC);
         CREATE INDEX IF NOT EXISTS idx_application_events_app ON application_events(application_id, id DESC);
+        CREATE INDEX IF NOT EXISTS idx_invitations_creator ON invitations(created_by, created_at DESC);
     """)
-    conn.execute("PRAGMA user_version = 4")
+    conn.execute("PRAGMA user_version = 5")
 
 
 def _connect() -> sqlite3.Connection:
@@ -214,23 +387,25 @@ def _connect() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA busy_timeout = 30000")
-    conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA foreign_keys = OFF")
     conn.execute("PRAGMA journal_mode = WAL")
     conn.execute("PRAGMA synchronous = NORMAL")
     conn.executescript(SCHEMA)
     _migrate(conn)
+    conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
 
-def create_run(urls: list[str]) -> str:
+def create_run(urls: list[str], user_id: str | None = None) -> str:
     run_id = uuid.uuid4().hex[:12]
     now = _now()
     with _LOCK, _connect() as conn:
+        owner = _ensure_user(conn, user_id)
         conn.execute(
-            "INSERT INTO runs (id, created_at, urls, status, progress, total, started_at, "
+            "INSERT INTO runs (id, user_id, created_at, urls, status, progress, total, started_at, "
             "updated_at, attempts, cancel_requested) "
-            "VALUES (?, ?, ?, 'running', 0, ?, ?, ?, 1, 0)",
-            (run_id, now, json.dumps(urls, ensure_ascii=False), len(urls), now, now),
+            "VALUES (?, ?, ?, ?, 'running', 0, ?, ?, ?, 1, 0)",
+            (run_id, owner, now, json.dumps(urls, ensure_ascii=False), len(urls), now, now),
         )
     return run_id
 
@@ -292,7 +467,18 @@ def run_cancel_requested(run_id: str) -> bool:
 
 
 def running_runs() -> list[dict]:
-    return list_runs(limit=200, status="running")
+    with _LOCK, _connect() as conn:
+        rows = conn.execute(
+            "SELECT id, user_id, created_at, status, progress, total, urls, started_at, "
+            "updated_at, attempts, last_error, cancel_requested FROM runs "
+            "WHERE status = 'running' ORDER BY created_at DESC LIMIT 200"
+        ).fetchall()
+    output = []
+    for row in rows:
+        item = dict(row)
+        item["urls"] = json.loads(item["urls"])
+        output.append(item)
+    return output
 
 
 def missing_run_urls(run_id: str) -> list[str]:
@@ -306,9 +492,14 @@ def missing_run_urls(run_id: str) -> list[str]:
     return [url for url in json.loads(row["urls"]) if url not in completed]
 
 
-def get_run(run_id: str) -> dict | None:
+def get_run(run_id: str, user_id: str | None = None) -> dict | None:
     with _LOCK, _connect() as conn:
-        row = conn.execute("SELECT * FROM runs WHERE id = ?", (run_id,)).fetchone()
+        if user_id is None:
+            row = conn.execute("SELECT * FROM runs WHERE id = ?", (run_id,)).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT * FROM runs WHERE id = ? AND user_id = ?", (run_id, user_id),
+            ).fetchone()
         if not row:
             return None
         results = conn.execute(
@@ -320,20 +511,22 @@ def get_run(run_id: str) -> dict | None:
     return run
 
 
-def list_runs(limit: int = 20, offset: int = 0, status: str | None = None) -> list[dict]:
+def list_runs(limit: int = 20, offset: int = 0, status: str | None = None,
+              user_id: str | None = None) -> list[dict]:
     limit = max(1, min(int(limit), 200))
     offset = max(0, int(offset))
     query = (
         "SELECT id, created_at, status, progress, total, urls, started_at, updated_at, "
-        "attempts, last_error, cancel_requested FROM runs"
+        "attempts, last_error, cancel_requested FROM runs WHERE user_id = ?"
     )
-    params: list[object] = []
+    params: list[object] = [user_id or LEGACY_USER_ID]
     if status:
-        query += " WHERE status = ?"
+        query += " AND status = ?"
         params.append(status)
     query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
     params.extend((limit, offset))
     with _LOCK, _connect() as conn:
+        _ensure_user(conn, user_id)
         rows = conn.execute(query, params).fetchall()
     output = []
     for row in rows:
@@ -343,24 +536,26 @@ def list_runs(limit: int = 20, offset: int = 0, status: str | None = None) -> li
     return output
 
 
-def count_runs(status: str | None = None) -> int:
-    query = "SELECT COUNT(*) FROM runs"
-    params: tuple[object, ...] = ()
+def count_runs(status: str | None = None, user_id: str | None = None) -> int:
+    query = "SELECT COUNT(*) FROM runs WHERE user_id = ?"
+    params: list[object] = [user_id or LEGACY_USER_ID]
     if status:
-        query += " WHERE status = ?"
-        params = (status,)
+        query += " AND status = ?"
+        params.append(status)
     with _LOCK, _connect() as conn:
+        _ensure_user(conn, user_id)
         return int(conn.execute(query, params).fetchone()[0])
 
 
-def all_results() -> list[dict]:
+def all_results(user_id: str | None = None) -> list[dict]:
     """Every stored result, newest run first, tagged with its run."""
     with _LOCK, _connect() as conn:
         rows = conn.execute(
             "SELECT results.run_id, results.created_at, results.payload, "
             "runs.created_at AS run_created_at "
             "FROM results JOIN runs ON runs.id = results.run_id "
-            "ORDER BY runs.created_at DESC, results.created_at DESC",
+            "WHERE runs.user_id = ? ORDER BY runs.created_at DESC, results.created_at DESC",
+            (user_id or LEGACY_USER_ID,),
         ).fetchall()
     output = []
     for row in rows:
@@ -372,16 +567,19 @@ def all_results() -> list[dict]:
     return output
 
 
-def results_for_analytics(view: str = "latest", days: int | None = None) -> list[dict]:
-    conditions = ["rn = 1"] if view != "all" else ["1 = 1"]
-    params: list[object] = []
+def results_for_analytics(view: str = "latest", days: int | None = None,
+                          user_id: str | None = None) -> list[dict]:
+    conditions = ["user_id = ?"]
+    if view != "all":
+        conditions.append("rn = 1")
+    params: list[object] = [user_id or LEGACY_USER_ID]
     if days:
         cutoff = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(time.time() - days * 86400))
         conditions.append("run_created_at >= ?")
         params.append(cutoff)
     sql = f"""
         WITH ranked AS (
-            SELECT results.*, runs.created_at AS run_created_at,
+            SELECT results.*, runs.user_id, runs.created_at AS run_created_at,
                    ROW_NUMBER() OVER (
                        PARTITION BY COALESCE(results.normalized_url, results.url)
                        ORDER BY runs.created_at DESC, results.created_at DESC
@@ -405,9 +603,9 @@ def results_for_analytics(view: str = "latest", days: int | None = None) -> list
 
 
 def runs_with_results(limit: int = 50, offset: int = 0,
-                      status: str | None = None) -> list[dict]:
+                      status: str | None = None, user_id: str | None = None) -> list[dict]:
     """Runs (newest first) with their decoded results, for history summaries."""
-    runs = list_runs(limit=limit, offset=offset, status=status)
+    runs = list_runs(limit=limit, offset=offset, status=status, user_id=user_id)
     with _LOCK, _connect() as conn:
         for run in runs:
             rows = conn.execute(
@@ -419,8 +617,8 @@ def runs_with_results(limit: int = 50, offset: int = 0,
 
 
 def _offer_query_parts(filters: dict) -> tuple[list[str], list[object]]:
-    conditions: list[str] = []
-    params: list[object] = []
+    conditions: list[str] = ["user_id = ?"]
+    params: list[object] = [filters.get("user_id") or LEGACY_USER_ID]
     if filters.get("view", "latest") != "all":
         conditions.append("rn = 1")
     query = str(filters.get("q") or "").strip().lower()
@@ -449,11 +647,13 @@ def _offer_query_parts(filters: dict) -> tuple[list[str], list[object]]:
         conditions.append("score IS NULL")
     if filters.get("has_cv") == "yes":
         conditions.append(
-            "EXISTS (SELECT 1 FROM cv_jobs c WHERE c.url = ranked.url AND c.status = 'done')"
+            "EXISTS (SELECT 1 FROM cv_jobs c WHERE c.user_id = ranked.user_id "
+            "AND c.url = ranked.url AND c.status = 'done')"
         )
     elif filters.get("has_cv") == "no":
         conditions.append(
-            "NOT EXISTS (SELECT 1 FROM cv_jobs c WHERE c.url = ranked.url AND c.status = 'done')"
+            "NOT EXISTS (SELECT 1 FROM cv_jobs c WHERE c.user_id = ranked.user_id "
+            "AND c.url = ranked.url AND c.status = 'done')"
         )
     return conditions or ["1 = 1"], params
 
@@ -464,7 +664,7 @@ def query_offers(page: int = 1, page_size: int = 50, **filters) -> dict:
     conditions, params = _offer_query_parts(filters)
     cte = """
         WITH ranked AS (
-            SELECT results.*, runs.created_at AS run_created_at,
+            SELECT results.*, runs.user_id, runs.created_at AS run_created_at,
                    ROW_NUMBER() OVER (
                        PARTITION BY COALESCE(results.normalized_url, results.url)
                        ORDER BY runs.created_at DESC, results.created_at DESC
@@ -503,32 +703,36 @@ def query_offers(page: int = 1, page_size: int = 50, **filters) -> dict:
             "total": total, "pages": pages}
 
 
-def offer_facets(view: str = "latest") -> dict:
-    rank_condition = "rn = 1" if view != "all" else "1 = 1"
+def offer_facets(view: str = "latest", user_id: str | None = None) -> dict:
+    rank_condition = "ranked.user_id = ?"
+    if view != "all":
+        rank_condition += " AND rn = 1"
     cte = """
         WITH ranked AS (
-            SELECT results.*,
+            SELECT results.*, runs.user_id,
                    ROW_NUMBER() OVER (
                        PARTITION BY COALESCE(normalized_url, url)
-                       ORDER BY created_at DESC
+                       ORDER BY results.created_at DESC
                    ) AS rn
-            FROM results
+            FROM results JOIN runs ON runs.id = results.run_id
         )
     """
     with _LOCK, _connect() as conn:
         statuses = conn.execute(
             f"{cte} SELECT decision_status, COUNT(*) AS count FROM ranked WHERE {rank_condition} "
-            "GROUP BY decision_status ORDER BY count DESC"
+            "GROUP BY decision_status ORDER BY count DESC", (user_id or LEGACY_USER_ID,)
         ).fetchall()
         companies = conn.execute(
             f"{cte} SELECT company, COUNT(*) AS count FROM ranked WHERE {rank_condition} "
             "AND company IS NOT NULL AND company != '' "
-            "GROUP BY company ORDER BY count DESC, company LIMIT 100"
+            "GROUP BY company ORDER BY count DESC, company LIMIT 100",
+            (user_id or LEGACY_USER_ID,)
         ).fetchall()
         locations = conn.execute(
             f"{cte} SELECT location, COUNT(*) AS count FROM ranked WHERE {rank_condition} "
             "AND location IS NOT NULL AND location != '' "
-            "GROUP BY location ORDER BY count DESC, location LIMIT 100"
+            "GROUP BY location ORDER BY count DESC, location LIMIT 100",
+            (user_id or LEGACY_USER_ID,)
         ).fetchall()
     return {
         "statuses": {row["decision_status"] or "unknown": row["count"] for row in statuses},
@@ -537,15 +741,16 @@ def offer_facets(view: str = "latest") -> dict:
     }
 
 
-def offer_history(url: str) -> list[dict]:
+def offer_history(url: str, user_id: str | None = None) -> list[dict]:
     key = normalize_url(url)
     with _LOCK, _connect() as conn:
         rows = conn.execute(
             "SELECT results.run_id, results.created_at, results.payload, "
             "runs.created_at AS run_created_at FROM results "
             "JOIN runs ON runs.id = results.run_id "
-            "WHERE results.normalized_url = ? ORDER BY runs.created_at DESC, results.created_at DESC",
-            (key,),
+            "WHERE results.normalized_url = ? AND runs.user_id = ? "
+            "ORDER BY runs.created_at DESC, results.created_at DESC",
+            (key, user_id or LEGACY_USER_ID),
         ).fetchall()
     output = []
     for row in rows:
@@ -557,36 +762,42 @@ def offer_history(url: str) -> list[dict]:
     return output
 
 
-def save_profile_version(profile: dict, revision: str, source: str) -> dict:
+def save_profile_version(profile: dict, revision: str, source: str,
+                         user_id: str | None = None) -> dict:
     version_id = uuid.uuid4().hex[:12]
     created_at = _now()
     payload = json.dumps(profile, ensure_ascii=False, sort_keys=True)
     with _LOCK, _connect() as conn:
+        owner = _ensure_user(conn, user_id)
         conn.execute(
-            "INSERT OR IGNORE INTO profile_versions (id, created_at, revision, source, payload) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (version_id, created_at, revision, source, payload),
+            "INSERT OR IGNORE INTO profile_versions "
+            "(id, user_id, created_at, revision, source, payload) VALUES (?, ?, ?, ?, ?, ?)",
+            (version_id, owner, created_at, revision, source, payload),
         )
         row = conn.execute(
-            "SELECT id, created_at, revision, source FROM profile_versions WHERE revision = ?",
-            (revision,),
+            "SELECT id, created_at, revision, source FROM profile_versions "
+            "WHERE user_id = ? AND revision = ?", (owner, revision),
         ).fetchone()
     return dict(row)
 
 
-def list_profile_versions(limit: int = 50) -> list[dict]:
+def list_profile_versions(limit: int = 50, user_id: str | None = None) -> list[dict]:
     limit = max(1, min(int(limit), 200))
     with _LOCK, _connect() as conn:
         rows = conn.execute(
             "SELECT id, created_at, revision, source FROM profile_versions "
-            "ORDER BY created_at DESC, rowid DESC LIMIT ?", (limit,),
+            "WHERE user_id = ? ORDER BY created_at DESC, rowid DESC LIMIT ?",
+            (user_id or LEGACY_USER_ID, limit),
         ).fetchall()
     return [dict(row) for row in rows]
 
 
-def get_profile_version(version_id: str) -> dict | None:
+def get_profile_version(version_id: str, user_id: str | None = None) -> dict | None:
     with _LOCK, _connect() as conn:
-        row = conn.execute("SELECT * FROM profile_versions WHERE id = ?", (version_id,)).fetchone()
+        row = conn.execute(
+            "SELECT * FROM profile_versions WHERE id = ? AND user_id = ?",
+            (version_id, user_id or LEGACY_USER_ID),
+        ).fetchone()
     if not row:
         return None
     version = dict(row)
@@ -594,12 +805,14 @@ def get_profile_version(version_id: str) -> dict | None:
     return version
 
 
-def latest_offer_metadata(url: str) -> dict:
+def latest_offer_metadata(url: str, user_id: str | None = None) -> dict:
     key = normalize_url(url)
     with _LOCK, _connect() as conn:
         row = conn.execute(
-            "SELECT url, title, company, location FROM results WHERE normalized_url = ? "
-            "ORDER BY created_at DESC LIMIT 1", (key,),
+            "SELECT results.url, results.title, results.company, results.location FROM results "
+            "JOIN runs ON runs.id = results.run_id "
+            "WHERE results.normalized_url = ? AND runs.user_id = ? "
+            "ORDER BY results.created_at DESC LIMIT 1", (key, user_id or LEGACY_USER_ID),
         ).fetchone()
     return dict(row) if row else {"url": url, "title": "", "company": "", "location": ""}
 
@@ -625,13 +838,14 @@ def _application_row(row: sqlite3.Row) -> dict:
     return item
 
 
-def create_application(url: str, status: str = "to_review", **metadata: str) -> dict:
+def create_application(url: str, status: str = "to_review", user_id: str | None = None,
+                       **metadata: str) -> dict:
     if status not in APPLICATION_STATUSES:
         raise ValueError("statut de candidature invalide")
     key = normalize_url(url)
     if not key:
         raise ValueError("URL de candidature invalide")
-    known = latest_offer_metadata(url)
+    known = latest_offer_metadata(url, user_id)
     now = _now()
     application_id = uuid.uuid4().hex[:12]
     values = {
@@ -641,16 +855,17 @@ def create_application(url: str, status: str = "to_review", **metadata: str) -> 
         "location": str(metadata.get("location") or known.get("location") or "").strip(),
     }
     with _LOCK, _connect() as conn:
+        owner = _ensure_user(conn, user_id)
         existing = conn.execute(
-            "SELECT * FROM applications WHERE normalized_url = ?", (key,),
+            "SELECT * FROM applications WHERE user_id = ? AND normalized_url = ?", (owner, key),
         ).fetchone()
         if existing:
             return _application_row(existing)
         conn.execute(
             "INSERT INTO applications "
-            "(id, normalized_url, url, title, company, location, status, created_at, updated_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (application_id, key, values["url"], values["title"], values["company"],
+            "(id, user_id, normalized_url, url, title, company, location, status, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (application_id, owner, key, values["url"], values["title"], values["company"],
              values["location"], status, now, now),
         )
         _application_event(conn, application_id, "created", None, status)
@@ -658,21 +873,25 @@ def create_application(url: str, status: str = "to_review", **metadata: str) -> 
     return _application_row(row)
 
 
-def get_application(application_id: str) -> dict | None:
-    with _LOCK, _connect() as conn:
-        row = conn.execute("SELECT * FROM applications WHERE id = ?", (application_id,)).fetchone()
-    return _application_row(row) if row else None
-
-
-def application_for_url(url: str) -> dict | None:
+def get_application(application_id: str, user_id: str | None = None) -> dict | None:
     with _LOCK, _connect() as conn:
         row = conn.execute(
-            "SELECT * FROM applications WHERE normalized_url = ?", (normalize_url(url),),
+            "SELECT * FROM applications WHERE id = ? AND user_id = ?",
+            (application_id, user_id or LEGACY_USER_ID),
         ).fetchone()
     return _application_row(row) if row else None
 
 
-def applications_for_urls(urls: list[str]) -> dict[str, dict]:
+def application_for_url(url: str, user_id: str | None = None) -> dict | None:
+    with _LOCK, _connect() as conn:
+        row = conn.execute(
+            "SELECT * FROM applications WHERE user_id = ? AND normalized_url = ?",
+            (user_id or LEGACY_USER_ID, normalize_url(url)),
+        ).fetchone()
+    return _application_row(row) if row else None
+
+
+def applications_for_urls(urls: list[str], user_id: str | None = None) -> dict[str, dict]:
     keys = list(dict.fromkeys(normalize_url(url) for url in urls if url))
     if not keys:
         return {}
@@ -682,7 +901,9 @@ def applications_for_urls(urls: list[str]) -> dict[str, dict]:
             chunk = keys[start:start + 500]
             placeholders = ",".join("?" for _ in chunk)
             rows = conn.execute(
-                f"SELECT * FROM applications WHERE normalized_url IN ({placeholders})", chunk,
+                f"SELECT * FROM applications WHERE user_id = ? "
+                f"AND normalized_url IN ({placeholders})",
+                [user_id or LEGACY_USER_ID, *chunk],
             ).fetchall()
             for row in rows:
                 output[row["normalized_url"]] = _application_row(row)
@@ -690,7 +911,8 @@ def applications_for_urls(urls: list[str]) -> dict[str, dict]:
 
 
 def update_application(application_id: str, changes: dict,
-                       expected_revision: int | None = None) -> dict | None:
+                       expected_revision: int | None = None,
+                       user_id: str | None = None) -> dict | None:
     allowed = {
         "status", "notes", "contact_name", "contact_email", "applied_at", "follow_up_at",
         "title", "company", "location",
@@ -699,9 +921,12 @@ def update_application(application_id: str, changes: dict,
     if "status" in updates and updates["status"] not in APPLICATION_STATUSES:
         raise ValueError("statut de candidature invalide")
     if not updates:
-        return get_application(application_id)
+        return get_application(application_id, user_id)
     with _LOCK, _connect() as conn:
-        current = conn.execute("SELECT * FROM applications WHERE id = ?", (application_id,)).fetchone()
+        owner = user_id or LEGACY_USER_ID
+        current = conn.execute(
+            "SELECT * FROM applications WHERE id = ? AND user_id = ?", (application_id, owner),
+        ).fetchone()
         if not current:
             return None
         if expected_revision is not None and int(current["revision"]) != int(expected_revision):
@@ -710,8 +935,10 @@ def update_application(application_id: str, changes: dict,
         fields = [f"{key} = ?" for key in updates]
         values = [updates[key] for key in updates]
         fields.extend(["updated_at = ?", "revision = revision + 1"])
-        values.extend([_now(), application_id])
-        conn.execute(f"UPDATE applications SET {', '.join(fields)} WHERE id = ?", values)
+        values.extend([_now(), application_id, owner])
+        conn.execute(
+            f"UPDATE applications SET {', '.join(fields)} WHERE id = ? AND user_id = ?", values,
+        )
         new_status = updates.get("status", old_status)
         _application_event(
             conn, application_id, "status_changed" if new_status != old_status else "updated",
@@ -721,19 +948,29 @@ def update_application(application_id: str, changes: dict,
     return _application_row(row)
 
 
-def delete_application(application_id: str) -> bool:
+def delete_application(application_id: str, user_id: str | None = None) -> bool:
     with _LOCK, _connect() as conn:
+        owner = user_id or LEGACY_USER_ID
+        row = conn.execute(
+            "SELECT id FROM applications WHERE id = ? AND user_id = ?", (application_id, owner),
+        ).fetchone()
+        if not row:
+            return False
         conn.execute("DELETE FROM application_events WHERE application_id = ?", (application_id,))
-        cursor = conn.execute("DELETE FROM applications WHERE id = ?", (application_id,))
+        cursor = conn.execute(
+            "DELETE FROM applications WHERE id = ? AND user_id = ?", (application_id, owner),
+        )
         return cursor.rowcount == 1
 
 
-def application_events(application_id: str, limit: int = 100) -> list[dict]:
+def application_events(application_id: str, limit: int = 100,
+                       user_id: str | None = None) -> list[dict]:
     limit = max(1, min(int(limit), 500))
     with _LOCK, _connect() as conn:
         rows = conn.execute(
-            "SELECT * FROM application_events WHERE application_id = ? "
-            "ORDER BY id DESC LIMIT ?", (application_id, limit),
+            "SELECT e.* FROM application_events e JOIN applications a ON a.id = e.application_id "
+            "WHERE e.application_id = ? AND a.user_id = ? ORDER BY e.id DESC LIMIT ?",
+            (application_id, user_id or LEGACY_USER_ID, limit),
         ).fetchall()
     events = []
     for row in rows:
@@ -744,11 +981,12 @@ def application_events(application_id: str, limit: int = 100) -> list[dict]:
 
 
 def list_applications(page: int = 1, page_size: int = 25, q: str = "",
-                      status: str = "", due: str = "", sort: str = "updated") -> dict:
+                      status: str = "", due: str = "", sort: str = "updated",
+                      user_id: str | None = None) -> dict:
     page = max(1, int(page))
     page_size = max(5, min(int(page_size), 100))
-    conditions: list[str] = []
-    params: list[object] = []
+    conditions: list[str] = ["user_id = ?"]
+    params: list[object] = [user_id or LEGACY_USER_ID]
     if status:
         conditions.append("status = ?")
         params.append(status)
@@ -766,7 +1004,7 @@ def list_applications(page: int = 1, page_size: int = 25, q: str = "",
     elif due == "upcoming":
         conditions.append("follow_up_at IS NOT NULL AND follow_up_at >= ? AND status NOT IN ('rejected','offer')")
         params.append(today)
-    where = " AND ".join(conditions) if conditions else "1 = 1"
+    where = " AND ".join(conditions)
     order = {
         "updated": "updated_at DESC",
         "follow_up": "follow_up_at IS NULL, follow_up_at ASC, updated_at DESC",
@@ -780,7 +1018,8 @@ def list_applications(page: int = 1, page_size: int = 25, q: str = "",
             [*params, page_size, (page - 1) * page_size],
         ).fetchall()
         counts = conn.execute(
-            "SELECT status, COUNT(*) AS count FROM applications GROUP BY status"
+            "SELECT status, COUNT(*) AS count FROM applications WHERE user_id = ? GROUP BY status",
+            (user_id or LEGACY_USER_ID,),
         ).fetchall()
     return {
         "applications": [_application_row(row) for row in rows],
@@ -790,17 +1029,21 @@ def list_applications(page: int = 1, page_size: int = 25, q: str = "",
     }
 
 
-def all_applications() -> list[dict]:
+def all_applications(user_id: str | None = None) -> list[dict]:
     with _LOCK, _connect() as conn:
-        rows = conn.execute("SELECT * FROM applications ORDER BY updated_at DESC").fetchall()
+        rows = conn.execute(
+            "SELECT * FROM applications WHERE user_id = ? ORDER BY updated_at DESC",
+            (user_id or LEGACY_USER_ID,),
+        ).fetchall()
     return [_application_row(row) for row in rows]
 
 
-def mark_application_cv_ready(url: str) -> bool:
+def mark_application_cv_ready(url: str, user_id: str | None = None) -> bool:
     key = normalize_url(url)
     with _LOCK, _connect() as conn:
         current = conn.execute(
-            "SELECT * FROM applications WHERE normalized_url = ?", (key,),
+            "SELECT * FROM applications WHERE user_id = ? AND normalized_url = ?",
+            (user_id or LEGACY_USER_ID, key),
         ).fetchone()
         if not current or current["status"] != "to_review":
             return False
@@ -812,15 +1055,16 @@ def mark_application_cv_ready(url: str) -> bool:
         return True
 
 
-def create_cv_job(url: str, send_email: bool = False) -> str:
+def create_cv_job(url: str, send_email: bool = False, user_id: str | None = None) -> str:
     job_id = uuid.uuid4().hex[:12]
     now = _now()
     with _LOCK, _connect() as conn:
+        owner = _ensure_user(conn, user_id)
         conn.execute(
-            "INSERT INTO cv_jobs (id, url, created_at, status, started_at, updated_at, "
+            "INSERT INTO cv_jobs (id, user_id, url, created_at, status, started_at, updated_at, "
             "attempts, cancel_requested, send_email) "
-            "VALUES (?, ?, ?, 'running', ?, ?, 1, 0, ?)",
-            (job_id, url, now, now, now, int(send_email)),
+            "VALUES (?, ?, ?, ?, 'running', ?, ?, 1, 0, ?)",
+            (job_id, owner, url, now, now, now, int(send_email)),
         )
     return job_id
 
@@ -872,9 +1116,7 @@ def interrupt_running_cv_jobs() -> int:
         return cursor.rowcount
 
 
-def get_cv_job(job_id: str) -> dict | None:
-    with _LOCK, _connect() as conn:
-        row = conn.execute("SELECT * FROM cv_jobs WHERE id = ?", (job_id,)).fetchone()
+def _cv_job_row(row: sqlite3.Row | None) -> dict | None:
     if not row:
         return None
     job = dict(row)
@@ -882,14 +1124,30 @@ def get_cv_job(job_id: str) -> dict | None:
     return job
 
 
-def list_cv_jobs(limit: int = 20, status: str | None = None, offset: int = 0) -> list[dict]:
+def get_cv_job(job_id: str, user_id: str) -> dict | None:
+    with _LOCK, _connect() as conn:
+        row = conn.execute(
+            "SELECT * FROM cv_jobs WHERE id = ? AND user_id = ?", (job_id, user_id),
+        ).fetchone()
+    return _cv_job_row(row)
+
+
+def get_cv_job_system(job_id: str) -> dict | None:
+    """Unscoped lookup reserved for the background job executor."""
+    with _LOCK, _connect() as conn:
+        row = conn.execute("SELECT * FROM cv_jobs WHERE id = ?", (job_id,)).fetchone()
+    return _cv_job_row(row)
+
+
+def list_cv_jobs(limit: int = 20, status: str | None = None, offset: int = 0,
+                 user_id: str | None = None) -> list[dict]:
     """Recent CV jobs, including running ones so the UI can resume polling."""
     limit = max(1, min(int(limit), 200))
     offset = max(0, int(offset))
-    query = "SELECT * FROM cv_jobs"
-    params: list[object] = []
+    query = "SELECT * FROM cv_jobs WHERE user_id = ?"
+    params: list[object] = [user_id or LEGACY_USER_ID]
     if status:
-        query += " WHERE status = ?"
+        query += " AND status = ?"
         params.append(status)
     query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
     params.extend((limit, offset))
@@ -903,12 +1161,12 @@ def list_cv_jobs(limit: int = 20, status: str | None = None, offset: int = 0) ->
     return jobs
 
 
-def count_cv_jobs(status: str | None = None) -> int:
-    query = "SELECT COUNT(*) FROM cv_jobs"
-    params: tuple[object, ...] = ()
+def count_cv_jobs(status: str | None = None, user_id: str | None = None) -> int:
+    query = "SELECT COUNT(*) FROM cv_jobs WHERE user_id = ?"
+    params: list[object] = [user_id or LEGACY_USER_ID]
     if status:
-        query += " WHERE status = ?"
-        params = (status,)
+        query += " AND status = ?"
+        params.append(status)
     with _LOCK, _connect() as conn:
         return int(conn.execute(query, params).fetchone()[0])
 
@@ -931,7 +1189,7 @@ def backup_database(destination: str) -> None:
             target.close()
 
 
-def latest_cvs_for(urls: list[str]) -> dict[str, dict]:
+def latest_cvs_for(urls: list[str], user_id: str | None = None) -> dict[str, dict]:
     unique = list(dict.fromkeys(url for url in urls if url))
     if not unique:
         return {}
@@ -941,8 +1199,9 @@ def latest_cvs_for(urls: list[str]) -> dict[str, dict]:
             chunk = unique[start:start + 500]
             placeholders = ",".join("?" for _ in chunk)
             rows = conn.execute(
-                f"SELECT * FROM cv_jobs WHERE status = 'done' AND url IN ({placeholders}) "
-                "ORDER BY created_at DESC", chunk,
+                f"SELECT * FROM cv_jobs WHERE user_id = ? AND status = 'done' "
+                f"AND url IN ({placeholders}) ORDER BY created_at DESC",
+                [user_id or LEGACY_USER_ID, *chunk],
             ).fetchall()
             for row in rows:
                 if row["url"] in output:
@@ -953,5 +1212,5 @@ def latest_cvs_for(urls: list[str]) -> dict[str, dict]:
     return output
 
 
-def latest_cv_for(url: str) -> dict | None:
-    return latest_cvs_for([url]).get(url)
+def latest_cv_for(url: str, user_id: str | None = None) -> dict | None:
+    return latest_cvs_for([url], user_id).get(url)
