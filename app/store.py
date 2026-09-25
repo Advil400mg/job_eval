@@ -9,6 +9,7 @@ import sqlite3
 import threading
 import time
 import uuid
+from datetime import date
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from . import config
@@ -58,7 +59,43 @@ CREATE TABLE IF NOT EXISTS cv_jobs (
     cancel_requested INTEGER NOT NULL DEFAULT 0,
     send_email INTEGER NOT NULL DEFAULT 0
 );
+CREATE TABLE IF NOT EXISTS profile_versions (
+    id TEXT PRIMARY KEY,
+    created_at TEXT NOT NULL,
+    revision TEXT NOT NULL UNIQUE,
+    source TEXT NOT NULL,
+    payload TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS applications (
+    id TEXT PRIMARY KEY,
+    normalized_url TEXT NOT NULL UNIQUE,
+    url TEXT NOT NULL,
+    title TEXT,
+    company TEXT,
+    location TEXT,
+    status TEXT NOT NULL,
+    notes TEXT NOT NULL DEFAULT '',
+    contact_name TEXT NOT NULL DEFAULT '',
+    contact_email TEXT NOT NULL DEFAULT '',
+    applied_at TEXT,
+    follow_up_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    revision INTEGER NOT NULL DEFAULT 1
+);
+CREATE TABLE IF NOT EXISTS application_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    application_id TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    from_status TEXT,
+    to_status TEXT,
+    payload TEXT NOT NULL DEFAULT '{}',
+    FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE
+);
 """
+
+APPLICATION_STATUSES = ("to_review", "cv_ready", "applied", "interview", "rejected", "offer")
 
 _RESULT_COLUMNS = {
     "normalized_url": "TEXT",
@@ -161,8 +198,13 @@ def _migrate(conn: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_results_location ON results(location);
         CREATE INDEX IF NOT EXISTS idx_cv_jobs_status ON cv_jobs(status, created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_cv_jobs_url ON cv_jobs(url, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_profile_versions_created ON profile_versions(created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_applications_status ON applications(status, updated_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_applications_follow_up ON applications(follow_up_at, status);
+        CREATE INDEX IF NOT EXISTS idx_applications_updated ON applications(updated_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_application_events_app ON application_events(application_id, id DESC);
     """)
-    conn.execute("PRAGMA user_version = 3")
+    conn.execute("PRAGMA user_version = 4")
 
 
 def _connect() -> sqlite3.Connection:
@@ -513,6 +555,261 @@ def offer_history(url: str) -> list[dict]:
         item["run_created_at"] = row["run_created_at"]
         output.append(item)
     return output
+
+
+def save_profile_version(profile: dict, revision: str, source: str) -> dict:
+    version_id = uuid.uuid4().hex[:12]
+    created_at = _now()
+    payload = json.dumps(profile, ensure_ascii=False, sort_keys=True)
+    with _LOCK, _connect() as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO profile_versions (id, created_at, revision, source, payload) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (version_id, created_at, revision, source, payload),
+        )
+        row = conn.execute(
+            "SELECT id, created_at, revision, source FROM profile_versions WHERE revision = ?",
+            (revision,),
+        ).fetchone()
+    return dict(row)
+
+
+def list_profile_versions(limit: int = 50) -> list[dict]:
+    limit = max(1, min(int(limit), 200))
+    with _LOCK, _connect() as conn:
+        rows = conn.execute(
+            "SELECT id, created_at, revision, source FROM profile_versions "
+            "ORDER BY created_at DESC, rowid DESC LIMIT ?", (limit,),
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def get_profile_version(version_id: str) -> dict | None:
+    with _LOCK, _connect() as conn:
+        row = conn.execute("SELECT * FROM profile_versions WHERE id = ?", (version_id,)).fetchone()
+    if not row:
+        return None
+    version = dict(row)
+    version["profile"] = json.loads(version.pop("payload"))
+    return version
+
+
+def latest_offer_metadata(url: str) -> dict:
+    key = normalize_url(url)
+    with _LOCK, _connect() as conn:
+        row = conn.execute(
+            "SELECT url, title, company, location FROM results WHERE normalized_url = ? "
+            "ORDER BY created_at DESC LIMIT 1", (key,),
+        ).fetchone()
+    return dict(row) if row else {"url": url, "title": "", "company": "", "location": ""}
+
+
+def _application_event(conn: sqlite3.Connection, application_id: str, event_type: str,
+                       from_status: str | None, to_status: str | None,
+                       payload: dict | None = None) -> None:
+    conn.execute(
+        "INSERT INTO application_events "
+        "(application_id, created_at, event_type, from_status, to_status, payload) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (application_id, _now(), event_type, from_status, to_status,
+         json.dumps(payload or {}, ensure_ascii=False)),
+    )
+
+
+def _application_row(row: sqlite3.Row) -> dict:
+    item = dict(row)
+    item["overdue"] = bool(
+        item.get("follow_up_at") and item["follow_up_at"] < date.today().isoformat()
+        and item.get("status") not in ("rejected", "offer")
+    )
+    return item
+
+
+def create_application(url: str, status: str = "to_review", **metadata: str) -> dict:
+    if status not in APPLICATION_STATUSES:
+        raise ValueError("statut de candidature invalide")
+    key = normalize_url(url)
+    if not key:
+        raise ValueError("URL de candidature invalide")
+    known = latest_offer_metadata(url)
+    now = _now()
+    application_id = uuid.uuid4().hex[:12]
+    values = {
+        "url": str(metadata.get("url") or known.get("url") or url).strip(),
+        "title": str(metadata.get("title") or known.get("title") or "").strip(),
+        "company": str(metadata.get("company") or known.get("company") or "").strip(),
+        "location": str(metadata.get("location") or known.get("location") or "").strip(),
+    }
+    with _LOCK, _connect() as conn:
+        existing = conn.execute(
+            "SELECT * FROM applications WHERE normalized_url = ?", (key,),
+        ).fetchone()
+        if existing:
+            return _application_row(existing)
+        conn.execute(
+            "INSERT INTO applications "
+            "(id, normalized_url, url, title, company, location, status, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (application_id, key, values["url"], values["title"], values["company"],
+             values["location"], status, now, now),
+        )
+        _application_event(conn, application_id, "created", None, status)
+        row = conn.execute("SELECT * FROM applications WHERE id = ?", (application_id,)).fetchone()
+    return _application_row(row)
+
+
+def get_application(application_id: str) -> dict | None:
+    with _LOCK, _connect() as conn:
+        row = conn.execute("SELECT * FROM applications WHERE id = ?", (application_id,)).fetchone()
+    return _application_row(row) if row else None
+
+
+def application_for_url(url: str) -> dict | None:
+    with _LOCK, _connect() as conn:
+        row = conn.execute(
+            "SELECT * FROM applications WHERE normalized_url = ?", (normalize_url(url),),
+        ).fetchone()
+    return _application_row(row) if row else None
+
+
+def applications_for_urls(urls: list[str]) -> dict[str, dict]:
+    keys = list(dict.fromkeys(normalize_url(url) for url in urls if url))
+    if not keys:
+        return {}
+    output: dict[str, dict] = {}
+    with _LOCK, _connect() as conn:
+        for start in range(0, len(keys), 500):
+            chunk = keys[start:start + 500]
+            placeholders = ",".join("?" for _ in chunk)
+            rows = conn.execute(
+                f"SELECT * FROM applications WHERE normalized_url IN ({placeholders})", chunk,
+            ).fetchall()
+            for row in rows:
+                output[row["normalized_url"]] = _application_row(row)
+    return output
+
+
+def update_application(application_id: str, changes: dict,
+                       expected_revision: int | None = None) -> dict | None:
+    allowed = {
+        "status", "notes", "contact_name", "contact_email", "applied_at", "follow_up_at",
+        "title", "company", "location",
+    }
+    updates = {key: changes[key] for key in allowed if key in changes}
+    if "status" in updates and updates["status"] not in APPLICATION_STATUSES:
+        raise ValueError("statut de candidature invalide")
+    if not updates:
+        return get_application(application_id)
+    with _LOCK, _connect() as conn:
+        current = conn.execute("SELECT * FROM applications WHERE id = ?", (application_id,)).fetchone()
+        if not current:
+            return None
+        if expected_revision is not None and int(current["revision"]) != int(expected_revision):
+            raise RuntimeError("candidature modifiée depuis son chargement")
+        old_status = current["status"]
+        fields = [f"{key} = ?" for key in updates]
+        values = [updates[key] for key in updates]
+        fields.extend(["updated_at = ?", "revision = revision + 1"])
+        values.extend([_now(), application_id])
+        conn.execute(f"UPDATE applications SET {', '.join(fields)} WHERE id = ?", values)
+        new_status = updates.get("status", old_status)
+        _application_event(
+            conn, application_id, "status_changed" if new_status != old_status else "updated",
+            old_status, new_status, updates,
+        )
+        row = conn.execute("SELECT * FROM applications WHERE id = ?", (application_id,)).fetchone()
+    return _application_row(row)
+
+
+def delete_application(application_id: str) -> bool:
+    with _LOCK, _connect() as conn:
+        conn.execute("DELETE FROM application_events WHERE application_id = ?", (application_id,))
+        cursor = conn.execute("DELETE FROM applications WHERE id = ?", (application_id,))
+        return cursor.rowcount == 1
+
+
+def application_events(application_id: str, limit: int = 100) -> list[dict]:
+    limit = max(1, min(int(limit), 500))
+    with _LOCK, _connect() as conn:
+        rows = conn.execute(
+            "SELECT * FROM application_events WHERE application_id = ? "
+            "ORDER BY id DESC LIMIT ?", (application_id, limit),
+        ).fetchall()
+    events = []
+    for row in rows:
+        event = dict(row)
+        event["payload"] = json.loads(event["payload"] or "{}")
+        events.append(event)
+    return events
+
+
+def list_applications(page: int = 1, page_size: int = 25, q: str = "",
+                      status: str = "", due: str = "", sort: str = "updated") -> dict:
+    page = max(1, int(page))
+    page_size = max(5, min(int(page_size), 100))
+    conditions: list[str] = []
+    params: list[object] = []
+    if status:
+        conditions.append("status = ?")
+        params.append(status)
+    if q.strip():
+        token = f"%{q.strip().lower()}%"
+        conditions.append(
+            "(LOWER(title) LIKE ? OR LOWER(company) LIKE ? OR LOWER(location) LIKE ? "
+            "OR LOWER(notes) LIKE ? OR LOWER(contact_name) LIKE ? OR LOWER(contact_email) LIKE ?)"
+        )
+        params.extend([token] * 6)
+    today = date.today().isoformat()
+    if due == "overdue":
+        conditions.append("follow_up_at IS NOT NULL AND follow_up_at < ? AND status NOT IN ('rejected','offer')")
+        params.append(today)
+    elif due == "upcoming":
+        conditions.append("follow_up_at IS NOT NULL AND follow_up_at >= ? AND status NOT IN ('rejected','offer')")
+        params.append(today)
+    where = " AND ".join(conditions) if conditions else "1 = 1"
+    order = {
+        "updated": "updated_at DESC",
+        "follow_up": "follow_up_at IS NULL, follow_up_at ASC, updated_at DESC",
+        "company": "LOWER(company) ASC, updated_at DESC",
+        "status": "status ASC, updated_at DESC",
+    }.get(sort, "updated_at DESC")
+    with _LOCK, _connect() as conn:
+        total = int(conn.execute(f"SELECT COUNT(*) FROM applications WHERE {where}", params).fetchone()[0])
+        rows = conn.execute(
+            f"SELECT * FROM applications WHERE {where} ORDER BY {order} LIMIT ? OFFSET ?",
+            [*params, page_size, (page - 1) * page_size],
+        ).fetchall()
+        counts = conn.execute(
+            "SELECT status, COUNT(*) AS count FROM applications GROUP BY status"
+        ).fetchall()
+    return {
+        "applications": [_application_row(row) for row in rows],
+        "page": page, "page_size": page_size, "total": total,
+        "pages": max(1, (total + page_size - 1) // page_size),
+        "counts": {row["status"]: row["count"] for row in counts},
+    }
+
+
+def all_applications() -> list[dict]:
+    with _LOCK, _connect() as conn:
+        rows = conn.execute("SELECT * FROM applications ORDER BY updated_at DESC").fetchall()
+    return [_application_row(row) for row in rows]
+
+
+def mark_application_cv_ready(url: str) -> bool:
+    key = normalize_url(url)
+    with _LOCK, _connect() as conn:
+        current = conn.execute(
+            "SELECT * FROM applications WHERE normalized_url = ?", (key,),
+        ).fetchone()
+        if not current or current["status"] != "to_review":
+            return False
+        conn.execute(
+            "UPDATE applications SET status = 'cv_ready', updated_at = ?, revision = revision + 1 "
+            "WHERE id = ?", (_now(), current["id"]),
+        )
+        _application_event(conn, current["id"], "cv_ready", "to_review", "cv_ready")
+        return True
 
 
 def create_cv_job(url: str, send_email: bool = False) -> str:

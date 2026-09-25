@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block shell_class %}wide-shell{% endblock %}
+{% block content %}
+<section class="page-heading compact">
+  <div><p class="eyebrow">Suivi</p><h1>Candidatures</h1><p>Centralisez les statuts, contacts, notes et prochaines relances.</p></div>
+  <div class="drawer-actions"><a class="secondary-btn" href="/api/applications/export?fmt=csv">Exporter CSV</a><a class="secondary-btn" href="/api/applications/export?fmt=json">Exporter JSON</a></div>
+</section>
+<section class="toolbar-panel applications-toolbar">
+  <label>Recherche<input id="app_q" type="search" placeholder="Poste, entreprise, contact…"></label>
+  <label>Statut<select id="app_status"><option value="">Tous</option><option value="to_review">À étudier</option><option value="cv_ready">CV prêt</option><option value="applied">Candidature envoyée</option><option value="interview">Entretien</option><option value="rejected">Refus</option><option value="offer">Offre reçue</option></select></label>
+  <label>Relance<select id="app_due"><option value="">Toutes</option><option value="overdue">En retard</option><option value="upcoming">À venir</option></select></label>
+  <label>Trier<select id="app_sort"><option value="updated">Dernière modification</option><option value="follow_up">Prochaine relance</option><option value="company">Entreprise</option><option value="status">Statut</option></select></label>
+</section>
+<div id="application_kpis" class="kpis"></div>
+<div id="applications_list" class="application-list" aria-live="polite"><div class="loading-card">Chargement…</div></div>
+<nav id="applications_pagination" class="pagination" aria-label="Pagination des candidatures"></nav>
+<div id="application_drawer_backdrop" class="drawer-backdrop hidden"></div>
+<aside id="application_drawer" class="drawer" aria-label="Détail de la candidature" aria-hidden="true">
+  <div class="drawer-head"><button id="application_drawer_close" class="icon-btn" aria-label="Fermer">×</button></div>
+  <div id="application_detail"></div>
+</aside>
+{% endblock %}
+{% block scripts %}<script src="/static/applications.js"></script>{% endblock %}

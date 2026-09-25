@@ -12,14 +12,15 @@
     <span class="brand-mark">J</span><span><strong>Jev</strong><small>Job evaluator</small></span>
   </a>
   <nav class="main-nav" aria-label="Navigation principale">
-    <a href="/" class="{% if active == 'evaluate' %}active{% endif %}">Évaluer</a>
-    <a href="/offers" class="{% if active == 'offers' %}active{% endif %}">Offres</a>
-    <a href="/runs" class="{% if active == 'runs' %}active{% endif %}">Lots <span id="nav_runs_badge" class="nav-badge hidden"></span></a>
-    <a href="/cv" class="{% if active == 'cv' %}active{% endif %}">CV <span id="nav_cv_badge" class="nav-badge hidden"></span></a>
-    <a href="/analytics" class="{% if active == 'analytics' %}active{% endif %}">Analyses</a>
+    <a href="/" class="{% if active == 'evaluate' %}active{% endif %}"{% if active == 'evaluate' %} aria-current="page"{% endif %}>Évaluer</a>
+    <a href="/offers" class="{% if active == 'offers' %}active{% endif %}"{% if active == 'offers' %} aria-current="page"{% endif %}>Offres</a>
+    <a href="/runs" class="{% if active == 'runs' %}active{% endif %}"{% if active == 'runs' %} aria-current="page"{% endif %}>Lots <span id="nav_runs_badge" class="nav-badge hidden"></span></a>
+    <a href="/cv" class="{% if active == 'cv' %}active{% endif %}"{% if active == 'cv' %} aria-current="page"{% endif %}>CV <span id="nav_cv_badge" class="nav-badge hidden"></span></a>
+    <a href="/applications" class="{% if active == 'applications' %}active{% endif %}"{% if active == 'applications' %} aria-current="page"{% endif %}>Candidatures</a>
+    <a href="/analytics" class="{% if active == 'analytics' %}active{% endif %}"{% if active == 'analytics' %} aria-current="page"{% endif %}>Analyses</a>
   </nav>
   <div class="header-actions">
-    <a class="profile-link {% if active == 'profile' %}active{% endif %}" href="/profile" aria-label="Profil candidat">Profil</a>
+    <a class="profile-link {% if active == 'profile' %}active{% endif %}" href="/profile" aria-label="Profil candidat"{% if active == 'profile' %} aria-current="page"{% endif %}>Profil</a>
     {% if auth_enabled %}<form method="post" action="/logout"><button class="logout-btn" type="submit">Déconnexion</button></form>{% endif %}
   </div>
 </header>

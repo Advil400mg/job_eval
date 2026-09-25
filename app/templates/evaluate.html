@@ -22,6 +22,18 @@
   </details>
 </section>
 
+<details class="panel manual-evaluation">
+  <summary><strong>Offre dynamique ou inaccessible ? Coller son texte</strong></summary>
+  <p class="muted">Ce mode n’effectue aucune requête vers la page. L’URL reste validée et sert de référence.</p>
+  <form id="manual_form" class="stack-form">
+    <label>URL de référence<input id="manual_url" type="url" required maxlength="2048" placeholder="https://entreprise.example/jobs/…"></label>
+    <div class="form-grid three"><label>Intitulé<input id="manual_title" maxlength="300" required></label><label>Entreprise<input id="manual_company" maxlength="300"></label><label>Localisation<input id="manual_location" maxlength="300"></label></div>
+    <label>Date de publication prouvée<input id="manual_published_at" type="date"></label>
+    <label>Texte complet de l’offre<textarea id="manual_text" rows="14" minlength="200" maxlength="60000" required placeholder="Copiez ici les missions, exigences, localisation, contrat et date de publication…"></textarea></label>
+    <div class="action-row"><button type="submit">Évaluer ce texte</button><span id="manual_status" class="status" role="status"></span></div>
+  </form>
+</details>
+
 <section id="active_run" class="panel hidden" aria-live="polite"></section>
 
 <section class="section-heading"><div><h2>Lots récents</h2><p>Les traitements en cours reprennent automatiquement après un rechargement.</p></div><a href="/runs">Voir tous les lots</a></section>

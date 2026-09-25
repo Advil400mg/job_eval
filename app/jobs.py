@@ -41,6 +41,7 @@ def _execute_cv(job_id: str) -> None:
             should_cancel=lambda: store.cv_cancel_requested(job_id),
         )
         store.finish_cv_job(job_id, "done", payload)
+        store.mark_application_cv_ready(job["url"])
     except cv.CvCancelled as exc:
         store.finish_cv_job(job_id, "cancelled", {"error": str(exc)}, str(exc))
     except cv.CvError as exc:

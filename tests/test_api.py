@@ -47,7 +47,7 @@ class ApiSecurity(unittest.TestCase):
         with TestClient(app) as client:
             health = client.get("/healthz")
             self.assertEqual(health.status_code, 200)
-            self.assertEqual(health.json(), {"ok": True, "version": "2.1.0", "auth_required": True})
+            self.assertEqual(health.json(), {"ok": True, "version": "2.2.0", "auth_required": True})
             self.assertEqual(client.get("/api/history").status_code, 401)
             page = client.get("/offers", follow_redirects=False)
             self.assertEqual(page.status_code, 303)

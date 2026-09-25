@@ -1,6 +1,7 @@
 (() => {
   const { $, $$, escapeHtml, fetchJSON, statusBadge, scoreVisual, criteriaVisual,
-    criteriaHtml, gatesHtml, paginationHtml, updateQuery, formatDate, generateCv } = JEV;
+    criteriaHtml, gatesHtml, paginationHtml, updateQuery, formatDate, generateCv,
+    applicationStatusBadge, showToast } = JEV;
   const params = new URLSearchParams(location.search);
   const state = {
     page: Number(params.get("page")) || 1, page_size: 25,
@@ -39,7 +40,7 @@
       <div class="offer-identity"><div class="offer-title-line"><a href="${escapeHtml(offer.url)}" target="_blank" rel="noopener" data-external>${escapeHtml(offer.title || offer.url)}</a>${offer.evaluation_count > 1 ? `<span class="count-badge">${offer.evaluation_count} évaluations</span>` : ""}</div><strong>${escapeHtml(offer.company || "Entreprise inconnue")}</strong><span>${escapeHtml(offer.location || "Localisation inconnue")} · évaluée le ${formatDate(offer.evaluated_at)}</span><div class="offer-issues">${issues.length ? issues.map((issue) => `<span>${escapeHtml(issue)}</span>`).join("") : '<span class="positive">aucun blocage détecté</span>'}</div></div>
       <div class="offer-score">${scoreVisual(offer.score, offer.minimum_global_score, true)}</div>
       <div class="offer-criteria">${criteriaVisual(offer.criteria, offer.minimum_confidence)}</div>
-      <div class="offer-status">${statusBadge(offer.status)}<span>${offer.published_at ? `publiée ${escapeHtml(offer.published_at)}` : "date non prouvée"}</span></div>
+      <div class="offer-status">${statusBadge(offer.status)}${offer.application ? applicationStatusBadge(offer.application.status) : ""}<span>${offer.published_at ? `publiée ${escapeHtml(offer.published_at)}` : "date non prouvée"}</span></div>
       <div class="offer-actions"><button class="icon-btn" data-open-offer title="Voir le détail">→</button></div>
     </article>`;
   }
@@ -88,9 +89,17 @@
     $("#offer_detail").innerHTML = '<div class="loading-card">Chargement du détail…</div>';
     const payload = await fetchJSON(`/api/offers/history?url=${encodeURIComponent(url)}`);
     const offer = payload.offer;
-    $("#offer_detail").innerHTML = `<div class="drawer-title"><p class="eyebrow">${escapeHtml(offer.company || "Offre")}</p><h2>${escapeHtml(offer.title || offer.url)}</h2><p>${escapeHtml(offer.location || "Localisation inconnue")}</p></div><div class="drawer-score">${scoreVisual(offer.score, offer.minimum_global_score)}</div><div class="drawer-status">${statusBadge(offer.status)}<a href="${escapeHtml(offer.url)}" target="_blank" rel="noopener">Voir l’offre source ↗</a></div>${offer.error ? `<div class="error">${escapeHtml(offer.error)}</div>` : ""}<section><h3>Décision</h3>${offer.blocking_criteria?.length ? `<p>Critères bloquants : ${offer.blocking_criteria.map((item) => `<code>${escapeHtml(item)}</code>`).join(" ")}</p>` : '<p class="muted">Aucun critère obligatoire bloquant.</p>'}${gatesHtml(offer.gates)}</section><section><h3>Critères Jev</h3>${criteriaHtml(offer.criteria, offer.minimum_confidence)}</section><section><h3>CV</h3><div class="drawer-actions">${offer.cv ? `<a class="secondary-btn" href="/api/cv/${offer.cv.job_id}/pdf" target="_blank">Télécharger le CV existant</a>` : ""}<button data-drawer-cv>Générer PDF</button><button class="secondary-btn" data-drawer-email>PDF + email</button></div></section><section><h3>Historique · ${payload.history.length} évaluation(s)</h3><div class="history-lines">${payload.history.map(historyLine).join("")}</div></section>`;
+    $("#offer_detail").innerHTML = `<div class="drawer-title"><p class="eyebrow">${escapeHtml(offer.company || "Offre")}</p><h2>${escapeHtml(offer.title || offer.url)}</h2><p>${escapeHtml(offer.location || "Localisation inconnue")}</p></div><div class="drawer-score">${scoreVisual(offer.score, offer.minimum_global_score)}</div><div class="drawer-status">${statusBadge(offer.status)}<a href="${escapeHtml(offer.url)}" target="_blank" rel="noopener">Voir l’offre source ↗</a></div>${offer.error ? `<div class="error">${escapeHtml(offer.error)}</div>` : ""}<section><h3>Décision</h3>${offer.blocking_criteria?.length ? `<p>Critères bloquants : ${offer.blocking_criteria.map((item) => `<code>${escapeHtml(item)}</code>`).join(" ")}</p>` : '<p class="muted">Aucun critère obligatoire bloquant.</p>'}${gatesHtml(offer.gates)}</section><section><h3>Critères Jev</h3>${criteriaHtml(offer.criteria, offer.minimum_confidence)}</section><section><h3>Suivi de candidature</h3><div class="drawer-actions">${offer.application ? `${applicationStatusBadge(offer.application.status)}<a class="secondary-btn" href="/applications?open=${encodeURIComponent(offer.application.id)}">Ouvrir le suivi</a>` : '<button data-track-offer>Ajouter au suivi</button>'}</div></section><section><h3>CV</h3><div class="drawer-actions">${offer.cv ? `<a class="secondary-btn" href="/api/cv/${offer.cv.job_id}/pdf" target="_blank">Télécharger le CV existant</a>` : ""}<button data-drawer-cv>Générer PDF</button><button class="secondary-btn" data-drawer-email>PDF + email</button></div></section><section><h3>Historique · ${payload.history.length} évaluation(s)</h3><div class="history-lines">${payload.history.map(historyLine).join("")}</div></section>`;
     $("[data-drawer-cv]").addEventListener("click", (event) => generateCv(offer.url, false, event.currentTarget));
     $("[data-drawer-email]").addEventListener("click", (event) => generateCv(offer.url, true, event.currentTarget));
+    const track = $("[data-track-offer]");
+    if (track) track.addEventListener("click", async () => {
+      track.disabled = true;
+      try {
+        await fetchJSON("/api/applications", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: offer.url, title: offer.title || "", company: offer.company || "", location: offer.location || "" }) });
+        showToast("Offre ajoutée au suivi.", "success"); await loadOffers(); await openDrawer(url);
+      } catch (error) { showToast(error.message, "error"); track.disabled = false; }
+    });
   }
 
   function closeDrawer() {
