@@ -393,8 +393,10 @@ class AuthMiddleware(BaseHTTPMiddleware):
             )
             return RedirectResponse(f"/login?next={target}", status_code=303)
 
-        # CSRF check for authenticated mutations on protected routes
-        if request.method not in _SAFE_METHODS and not _is_same_origin(request):
+        # Logout relies on the Strict SameSite session cookie and must remain usable
+        # behind proxies that do not preserve Origin/Referer correctly.
+        csrf_exempt = request.method == "POST" and path == "/logout"
+        if request.method not in _SAFE_METHODS and not csrf_exempt and not _is_same_origin(request):
             return JSONResponse(
                 {"detail": "Requête interdite (origine non vérifiée)"},
                 status_code=HTTP_403_FORBIDDEN,

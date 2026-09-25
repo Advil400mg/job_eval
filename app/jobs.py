@@ -26,7 +26,7 @@ def submit_run(run_id: str, urls: list[str]) -> None:
     run_pool, _ = _pools()
     run = store.get_run(run_id)
     job_user_id = run.get("user_id") if run else None
-    run_pool.submit(pipeline.run_batch, run_id, urls, job_user_id)
+    run_pool.submit(pipeline.run_batch, run_id, urls, user_id=job_user_id)
 
 
 def _execute_cv(job_id: str) -> None:

@@ -76,6 +76,21 @@ class ApiSecurity(unittest.TestCase):
             self.assertEqual(response.status_code, 401)
             self.assertNotIn("jev_session=", response.headers.get("set-cookie", ""))
 
+    def test_logout_sans_origin_supprime_la_session(self):
+        with TestClient(app) as client:
+            login = client.post(
+                "/login", data={"identifier": "admin", "password": "integration-password",
+                                "next": "/"},
+                follow_redirects=False,
+            )
+            self.assertEqual(login.status_code, 303)
+            self.assertEqual(client.get("/api/history").status_code, 200)
+            logout = client.post("/logout", follow_redirects=False)
+            self.assertEqual(logout.status_code, 303)
+            self.assertEqual(logout.headers["location"], "/login")
+            self.assertIn("jev_session=", logout.headers.get("set-cookie", ""))
+            self.assertEqual(client.get("/api/history").status_code, 401)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
