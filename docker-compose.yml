@@ -6,13 +6,18 @@
 services:
   jev:
     build: .
-    image: jev-webapp:2.0.0
+    image: jev-webapp:2.1.0
     container_name: jev-webapp
     ports:
       - "${PORT:-8000}:8000"
     environment:
       # Compose lit automatiquement le fichier .env du dossier.
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      JEV_AUTH_PASSWORD: ${JEV_AUTH_PASSWORD:-}
+      JEV_SESSION_SECRET: ${JEV_SESSION_SECRET:-}
+      JEV_COOKIE_SECURE: ${JEV_COOKIE_SECURE:-false}
+      JEV_TRUST_PROXY: ${JEV_TRUST_PROXY:-false}
+      JEV_ALLOW_INSECURE_REMOTE: ${JEV_ALLOW_INSECURE_REMOTE:-false}
       JEV_CONFIG: /config/config.toml
       JEV_DATA_DIR: /data
       TZ: ${TZ:-Europe/Paris}

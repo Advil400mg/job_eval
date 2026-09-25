@@ -5,8 +5,8 @@ from __future__ import annotations
 import html
 import json
 import re
-import urllib.error
-import urllib.request
+
+from . import config, network
 
 USER_AGENT = (
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
@@ -27,24 +27,22 @@ class FetchError(RuntimeError):
     pass
 
 
-def fetch_html(url: str, timeout: int = 30) -> str:
-    """Download a page, retrying once on transient errors."""
-    if not re.match(r"^https?://", url, re.I):
-        raise FetchError("URL must start with http:// or https://")
-    last = None
-    for attempt in range(2):
-        try:
-            req = urllib.request.Request(url, headers={
+def fetch_html(url: str, timeout: int | None = None) -> str:
+    """Download a public HTTP(S) page with SSRF-safe redirect handling."""
+    settings = config.settings()["fetch"]
+    try:
+        return network.fetch_text(
+            url,
+            headers={
                 "User-Agent": USER_AGENT,
                 "Accept": "text/html,application/xhtml+xml",
                 "Accept-Language": "fr,en;q=0.8",
-            })
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
-                charset = resp.headers.get_content_charset() or "utf-8"
-                return resp.read().decode(charset, "replace")
-        except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, OSError) as exc:
-            last = exc
-    raise FetchError(f"Fetch failed: {last}")
+            },
+            timeout=float(timeout or settings["timeout_seconds"]),
+            max_bytes=max(1_000_000, int(settings["max_text_chars"]) * 10),
+        )
+    except network.UnsafeUrl as exc:
+        raise FetchError(str(exc)) from exc
 
 
 def _job_posting(html_text: str) -> dict:

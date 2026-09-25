@@ -7,25 +7,34 @@ import io
 import json
 import os
 import re
-from concurrent.futures import ThreadPoolExecutor
+import tempfile
+from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 from starlette.requests import Request
 
-from . import analytics, config, cv, onboarding, pipeline, store
+from . import analytics, backup, config, cv, jobs, network, onboarding, pipeline, security, store
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-app = FastAPI(title="Jev Job Offer Evaluator", version="2.0.0")
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    security.validate_configuration()
+    _app.state.recovery = jobs.recover_after_restart()
+    yield
+    jobs.shutdown()
+
+
+app = FastAPI(title="Jev Job Offer Evaluator", version="2.1.0", lifespan=lifespan)
+app.add_middleware(security.AuthMiddleware)
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
-
-POOL = ThreadPoolExecutor(max_workers=2)
-CV_POOL = ThreadPoolExecutor(max_workers=1)
 
 
 class EvaluateRequest(BaseModel):
@@ -45,6 +54,10 @@ def _clean_urls(raw: list[str]) -> list[str]:
                 continue
             if not re.match(r"^https?://", candidate, re.I):
                 raise HTTPException(400, f"URL invalide (http/https requis) : {candidate}")
+            try:
+                network.validate_url(candidate)
+            except network.UnsafeUrl as exc:
+                raise HTTPException(400, f"URL refusée : {exc}") from exc
             key = store.normalize_url(candidate)
             if key not in seen:
                 seen.add(key)
@@ -127,6 +140,7 @@ def _page_context(request: Request, active: str, title: str) -> dict:
         "cv_detail": cv_why, "cv_email_target": _email_target(),
         "config_file": settings["config_file"],
         "config_file_exists": settings["config_file_exists"],
+        "auth_enabled": settings["security"]["auth_enabled"],
     }
 
 
@@ -134,13 +148,45 @@ def _render_page(request: Request, template: str, active: str, title: str,
                  extra: dict | None = None):
     setup = onboarding.status()
     if setup["needed"]:
-        return templates.TemplateResponse("setup.html", {
+        return templates.TemplateResponse(request, "setup.html", {
             "request": request, "setup": setup,
             "config_file": config.settings()["config_file"],
         })
     context = _page_context(request, active, title)
     context.update(extra or {})
-    return templates.TemplateResponse(template, context)
+    return templates.TemplateResponse(request, template, context)
+
+
+@app.get("/login", response_class=HTMLResponse)
+def login_page(request: Request, next: str = "/"):
+    if not security.auth_enabled():
+        return RedirectResponse("/", status_code=303)
+    return templates.TemplateResponse(request, "login.html", {
+        "request": request, "next": security.safe_next(next), "error": "",
+    })
+
+
+@app.post("/login", response_class=HTMLResponse)
+def login(request: Request, password: str = Form(...), next: str = Form("/")):
+    settings = config.settings()["security"]
+    security.enforce_rate(
+        request, "login", settings["login_attempts"], settings["login_window_seconds"],
+    )
+    target = security.safe_next(next)
+    if not security.verify_password(password):
+        return templates.TemplateResponse(request, "login.html", {
+            "request": request, "next": target, "error": "Mot de passe incorrect.",
+        }, status_code=401)
+    response = RedirectResponse(target, status_code=303)
+    security.set_session_cookie(response)
+    return response
+
+
+@app.post("/logout")
+def logout():
+    response = RedirectResponse("/login", status_code=303)
+    security.clear_session_cookie(response)
+    return response
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -210,10 +256,13 @@ def get_onboarding():
 
 @app.post("/api/onboarding")
 async def create_onboarding(
-    cv_pdf: UploadFile = File(...), target_roles: str = Form(""),
+    request: Request, cv_pdf: UploadFile = File(...), target_roles: str = Form(""),
     locations: str = Form(""), reject_experience_years: int = Form(2),
     max_age_days: int = Form(30),
 ):
+    security.enforce_rate(
+        request, "onboarding", config.settings()["security"]["onboarding_per_hour"], 3600,
+    )
     if not onboarding.status()["needed"]:
         raise HTTPException(409, "L'application est déjà initialisée. Réinitialiser les données avant un nouvel import.")
     if cv_pdf.content_type not in ("application/pdf", "application/x-pdf", "application/octet-stream"):
@@ -230,30 +279,18 @@ async def create_onboarding(
 
 @app.get("/healthz")
 def healthz():
-    settings = config.settings()
-    setup = onboarding.status()
-    cv_ok, cv_why = cv.available()
-    return {
-        "ok": True, "onboarding_needed": setup["needed"],
-        "onboarding_missing": setup["missing"], "config_file": settings["config_file"],
-        "config_file_exists": settings["config_file_exists"],
-        "api_key_set": settings["api_key_set"], "profile": str(settings["profile_path"]),
-        "cv_master": str(settings["cv"]["master_path"]),
-        "evaluator": str(settings["evaluator_path"]),
-        "jev_model": settings["openrouter"]["model"],
-        "jev_endpoint": settings["openrouter"]["endpoint"],
-        "db_file": str(settings["db_file"]), "cv_available": cv_ok,
-        "cv_detail": cv_why, "cv_out_dir": str(settings["cv"]["out_dir"]),
-        "cv_email_target": settings["email_target"],
-    }
+    return {"ok": True, "version": "2.1.0", "auth_required": security.auth_enabled()}
 
 
 @app.post("/api/evaluate")
-def evaluate(payload: EvaluateRequest):
+def evaluate(request: Request, payload: EvaluateRequest):
     _require_onboarding_complete()
+    security.enforce_rate(
+        request, "evaluate", config.settings()["security"]["evaluate_per_minute"], 60,
+    )
     urls = _clean_urls(payload.urls)
     run_id = store.create_run(urls)
-    POOL.submit(pipeline.run_batch, run_id, urls)
+    jobs.submit_run(run_id, urls)
     return {"run_id": run_id, "total": len(urls), "url": f"/runs/{run_id}"}
 
 
@@ -267,6 +304,20 @@ def get_run(run_id: str):
         item["cv"] = _cv_summary(item.get("url", ""), cv_jobs)
     run["summary"] = analytics.run_summary(run)
     return run
+
+
+@app.post("/api/runs/{run_id}/retry")
+def retry_run(run_id: str):
+    if not jobs.retry_run(run_id):
+        raise HTTPException(409, "Ce lot ne peut pas être relancé")
+    return {"run_id": run_id, "status": "running"}
+
+
+@app.post("/api/runs/{run_id}/cancel")
+def cancel_run(run_id: str):
+    if not store.request_run_cancel(run_id):
+        raise HTTPException(409, "Ce lot n’est pas en cours")
+    return {"run_id": run_id, "cancel_requested": True}
 
 
 @app.get("/api/stats")
@@ -319,7 +370,7 @@ def get_history(
     page: int = Query(1, ge=1), page_size: int = Query(20, ge=5, le=100),
     status: str | None = None,
 ):
-    if status not in (None, "running", "done", "failed"):
+    if status not in (None, "running", "done", "failed", "interrupted", "cancelled"):
         raise HTTPException(400, "statut de lot invalide")
     total = store.count_runs(status=status)
     runs = [analytics.run_summary(run) for run in store.runs_with_results(
@@ -350,7 +401,7 @@ def list_cv_jobs(
     limit: int = Query(20, ge=1, le=200), status: str | None = None,
     page: int = Query(1, ge=1), page_size: int | None = Query(None, ge=5, le=100),
 ):
-    if status not in (None, "running", "done", "failed"):
+    if status not in (None, "running", "done", "failed", "interrupted", "cancelled"):
         raise HTTPException(400, "statut CV invalide")
     size = page_size or limit
     total = store.count_cv_jobs(status=status)
@@ -360,25 +411,21 @@ def list_cv_jobs(
 
 
 @app.post("/api/cv")
-def create_cv(payload: CvRequest):
+def create_cv(request: Request, payload: CvRequest):
     _require_onboarding_complete()
+    security.enforce_rate(
+        request, "cv", config.settings()["security"]["cv_per_hour"], 3600,
+    )
     ok, why = cv.available()
     if not ok:
         raise HTTPException(501, f"moteur CV indisponible : {why}")
     url = payload.url.strip()
-    if not re.match(r"^https?://", url, re.I):
-        raise HTTPException(400, "URL invalide")
-    job_id = store.create_cv_job(url)
-
-    def _run():
-        try:
-            store.finish_cv_job(job_id, "done", cv.generate(url, send_email=payload.send_email))
-        except cv.CvError as exc:
-            store.finish_cv_job(job_id, "failed", {"error": str(exc)})
-        except Exception as exc:  # noqa: BLE001 - reported, never hidden
-            store.finish_cv_job(job_id, "failed", {"error": str(exc)})
-
-    CV_POOL.submit(_run)
+    try:
+        network.validate_url(url)
+    except network.UnsafeUrl as exc:
+        raise HTTPException(400, f"URL refusée : {exc}") from exc
+    job_id = store.create_cv_job(url, send_email=payload.send_email)
+    jobs.submit_cv(job_id)
     return {"job_id": job_id, "url": url}
 
 
@@ -388,6 +435,20 @@ def get_cv(job_id: str):
     if not job:
         raise HTTPException(404, "Job CV inconnu")
     return job
+
+
+@app.post("/api/cv/{job_id}/retry")
+def retry_cv(job_id: str):
+    if not jobs.retry_cv(job_id):
+        raise HTTPException(409, "Ce job CV ne peut pas être relancé")
+    return {"job_id": job_id, "status": "running"}
+
+
+@app.post("/api/cv/{job_id}/cancel")
+def cancel_cv(job_id: str):
+    if not store.request_cv_cancel(job_id):
+        raise HTTPException(409, "Ce job CV n’est pas en cours")
+    return {"job_id": job_id, "cancel_requested": True}
 
 
 @app.get("/api/cv/{job_id}/pdf")
@@ -404,6 +465,64 @@ def download_cv(job_id: str):
     if os.path.commonpath((root, resolved)) != root:
         raise HTTPException(403, "PDF hors du répertoire de sortie configuré")
     return FileResponse(resolved, media_type="application/pdf", filename=os.path.basename(resolved))
+
+
+@app.get("/api/backups")
+def get_backups():
+    return {"backups": backup.list_backups()}
+
+
+@app.post("/api/backups")
+def create_backup():
+    return backup.create_backup("manual")
+
+
+@app.get("/api/backups/{name}")
+def download_backup(name: str):
+    try:
+        path = backup.backup_path(name)
+    except backup.BackupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    return FileResponse(path, media_type="application/zip", filename=path.name)
+
+
+@app.delete("/api/backups/{name}")
+def delete_backup(name: str):
+    try:
+        backup.delete_backup(name)
+    except backup.BackupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    return {"deleted": name}
+
+
+@app.post("/api/backups/restore")
+async def restore_backup(
+    request: Request, archive: UploadFile = File(...), confirmation: str = Form(...),
+):
+    if confirmation != "RESTAURER":
+        raise HTTPException(400, "Confirmation de restauration invalide")
+    security.enforce_rate(
+        request, "restore", config.settings()["security"]["restore_per_hour"], 3600,
+    )
+    limit = config.settings()["backup"]["max_upload_bytes"]
+    data_dir = Path(config.settings()["data_dir"])
+    data_dir.mkdir(parents=True, exist_ok=True)
+    temporary_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(dir=data_dir, prefix=".restore-upload-", delete=False) as handle:
+            temporary_path = Path(handle.name)
+            total = 0
+            while chunk := await archive.read(1024 * 1024):
+                total += len(chunk)
+                if total > limit:
+                    raise HTTPException(413, "Archive de restauration trop volumineuse")
+                handle.write(chunk)
+        return backup.restore_backup(temporary_path)
+    except backup.BackupError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    finally:
+        if temporary_path:
+            temporary_path.unlink(missing_ok=True)
 
 
 @app.get("/api/runs/{run_id}/export")

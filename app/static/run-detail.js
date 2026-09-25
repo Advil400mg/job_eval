@@ -15,6 +15,7 @@
       $("#run_header").innerHTML = `<div><p class="eyebrow">Lot ${escapeHtml(run.id)}</p><h1>${run.status === "running" ? "Évaluation en cours" : "Résultats du lot"}</h1><p>Lancé le ${formatDate(run.created_at)} · ${run.progress}/${run.total} offres traitées</p></div>${statusBadge(run.status)}`;
       const progress = run.total ? Math.round((run.progress / run.total) * 100) : 0;
       $("#run_progress").innerHTML = run.status === "running" ? `<div class="progress large"><span style="width:${progress}%"></span></div>` : "";
+      $("#run_controls").innerHTML = run.status === "running" ? '<button class="secondary-btn" data-run-cancel>Annuler le lot</button>' : ["failed", "interrupted", "cancelled"].includes(run.status) ? '<button data-run-retry>Relancer les offres manquantes</button>' : "";
       $("#run_summary").innerHTML = [["Score moyen", summary.avg_score ?? "—"], ["Meilleur", summary.best_score ?? "—"], ["Qualifiées", summary.qualified || 0], ["Refusées", summary.rejected || 0], ["Exclues", summary.jev_excluded || 0], ["Erreurs", summary.errors || 0]].map(([label, value]) => `<div class="kpi"><strong>${value}</strong><span>${label}</span></div>`).join("");
       const sorted = [...(run.results || [])].sort((a, b) => (b.jev?.global_score ?? -1) - (a.jev?.global_score ?? -1));
       $("#run_offers").innerHTML = sorted.length ? sorted.map(card).join("") : '<div class="empty-state"><strong>Traitement en attente</strong><p>Les premières offres apparaîtront ici.</p></div>';
@@ -22,5 +23,17 @@
     } catch (error) { $("#run_offers").innerHTML = `<div class="error">${escapeHtml(error.message)}</div>`; }
   }
   $("#run_offers").addEventListener("click", (event) => { const cv = event.target.closest("[data-cv]"); const email = event.target.closest("[data-cv-email]"); if (cv) generateCv(cv.dataset.cv, false, cv); if (email) generateCv(email.dataset.cvEmail, true, email); });
+  $("#run_controls").addEventListener("click", async (event) => {
+    const retry = event.target.closest("[data-run-retry]");
+    const cancel = event.target.closest("[data-run-cancel]");
+    const button = retry || cancel;
+    if (!button) return;
+    button.disabled = true;
+    try {
+      await fetchJSON(`/api/runs/${runId}/${retry ? "retry" : "cancel"}`, { method: "POST" });
+      if (retry && !poller) poller = setInterval(load, 2000);
+      await load();
+    } catch (error) { JEV.showToast(error.message, "error"); button.disabled = false; }
+  });
   load(); poller = setInterval(load, 2000);
 })();

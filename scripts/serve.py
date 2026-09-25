@@ -17,7 +17,7 @@ from pathlib import Path
 APP_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(APP_DIR))
 
-from app import config, cv  # noqa: E402
+from app import config, cv, security  # noqa: E402
 
 
 def describe(settings: dict) -> str:
@@ -31,6 +31,7 @@ def describe(settings: dict) -> str:
         f"modèle Jev : {settings['openrouter']['model']}",
         f"base       : {settings['db_file']}",
         f"clé API    : {'OK' if settings['api_key_set'] else 'ABSENTE — l’évaluation échouera'}",
+        f"accès web  : {'protégé par mot de passe' if settings['security']['auth_enabled'] else 'SANS AUTHENTIFICATION'}",
         f"moteur CV  : {'OK' if cv_ok else 'indisponible'} — {cv_why}",
     ]
     return "\n".join("  " + line for line in lines)
@@ -59,6 +60,16 @@ def main() -> int:
 
     host = args.host or os.environ.get("HOST") or settings["host"]
     port = int(args.port or os.environ.get("PORT") or settings["port"])
+    security.validate_configuration()
+    local_hosts = {"127.0.0.1", "localhost", "::1"}
+    if (host not in local_hosts and not settings["security"]["auth_enabled"]
+            and not settings["security"]["allow_insecure_remote"]):
+        print(
+            "ERREUR : écoute distante refusée sans JEV_AUTH_PASSWORD. "
+            "Définis un mot de passe ou JEV_ALLOW_INSECURE_REMOTE=true.",
+            file=sys.stderr,
+        )
+        return 2
     print(f"\n→ http://{host}:{port}")
 
     import uvicorn

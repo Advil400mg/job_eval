@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Connexion — Jev</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="login-body">
+<main class="login-shell">
+  <section class="login-card">
+    <div class="brand login-brand"><span class="brand-mark">J</span><span><strong>Jev</strong><small>Accès protégé</small></span></div>
+    <h1>Connexion</h1>
+    <p class="muted">Saisis le mot de passe de cette instance.</p>
+    {% if error %}<div class="error">{{ error }}</div>{% endif %}
+    <form method="post" action="/login" class="stack-form">
+      <input type="hidden" name="next" value="{{ next }}">
+      <label for="password">Mot de passe</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required autofocus>
+      <button class="primary-btn" type="submit">Se connecter</button>
+    </form>
+  </section>
+</main>
+</body>
+</html>

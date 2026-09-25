@@ -11,6 +11,10 @@
     let payload = {};
     try { payload = await response.json(); } catch (_) { /* non-JSON error */ }
     if (!response.ok) {
+      if (response.status === 401) {
+        const next = encodeURIComponent(window.location.pathname + window.location.search);
+        window.location.href = `/login?next=${next}`;
+      }
       const detail = typeof payload.detail === "string" ? payload.detail
         : payload.detail?.message || `Erreur HTTP ${response.status}`;
       throw new Error(detail);
@@ -27,6 +31,8 @@
     running: ["En cours", "running"],
     done: ["Terminé", "ok"],
     failed: ["Échec", "bad"],
+    interrupted: ["Interrompu", "warn"],
+    cancelled: ["Annulé", "unknown"],
   };
   function statusBadge(status) {
     const [label, css] = statusMap[status] || [status || "Inconnu", "unknown"];

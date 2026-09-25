@@ -34,6 +34,26 @@ timeout_seconds = 30
 max_workers = 4                    # offres évaluées en parallèle (1 à 8)
 max_text_chars = 60000
 
+[security]
+# Le mot de passe et le secret de session viennent uniquement de l'environnement :
+# JEV_AUTH_PASSWORD (12 caractères minimum) et JEV_SESSION_SECRET (32 minimum, optionnel).
+session_hours = 12
+cookie_secure = false              # true derrière HTTPS
+trust_proxy = false                # true seulement derrière un proxy de confiance
+login_attempts = 5
+login_window_seconds = 300
+evaluate_per_minute = 10
+cv_per_hour = 20
+onboarding_per_hour = 5
+restore_per_hour = 2
+
+[jobs]
+stale_seconds = 300
+max_attempts = 3
+
+[backup]
+max_upload_mb = 512
+
 [cv]
 # Moteur de CV embarqué (engine/). Placeholders disponibles :
 #   {python} {url} {out_dir} {extra}

@@ -40,7 +40,7 @@ jev-webapp/
 ├── scripts/
 │   ├── evaluate_job.py      # notation Jev (script du skill Job Hunt + surcharges optionnelles)
 │   └── serve.py             # démarrage : affiche la config effective puis lance uvicorn
-└── tests/                   # 73 tests hors ligne (Python + Node)
+└── tests/                   # 99 tests hors ligne (Python + Node)
 ```
 
 ## Ce que fait l'application
@@ -112,10 +112,28 @@ configuration effective — jamais les secrets.
 | `cv` | `command` | `cv-tailor {url} …` | commande du moteur, placeholders `{url}` `{out_dir}` `{extra}` |
 | `cv` | `out_dir` | `<data_dir>/cv` | PDF générés |
 | `cv` | `env_file` | — | fichier `KEY=VALUE` chargé pour le moteur (clé, emails SMTP) |
+| `security` | `session_hours` | `12` | durée du cookie de session signé |
+| `security` | `login_attempts` | `5` | tentatives de connexion par fenêtre de cinq minutes |
+| `jobs` | `max_attempts` | `3` | reprises maximales d'un lot après redémarrage |
 
 Surcharges d'environnement acceptées : `OPENROUTER_API_KEY`, `JEV_CONFIG`, `HOST`, `PORT`,
 `JEV_DATA_DIR`, `JEV_DB`, `JEV_PROFILE`, `JEV_EVALUATOR`, `CV_MASTER`, `CV_COMMAND`, `CV_OUT_DIR`,
-`CV_TAILOR_BIN` (ancien nom, conservé), `HERMES_ENV_FILE`.
+`CV_TAILOR_BIN` (ancien nom, conservé), `HERMES_ENV_FILE`, `JEV_AUTH_PASSWORD`,
+`JEV_SESSION_SECRET`, `JEV_COOKIE_SECURE`, `JEV_TRUST_PROXY` et
+`JEV_ALLOW_INSECURE_REMOTE`.
+
+### Sécurité de l'interface
+
+Définir `JEV_AUTH_PASSWORD` (12 caractères minimum) active l'authentification sur toutes
+les pages et API, sauf `/healthz`, `/login` et les ressources statiques. Le cookie de
+session est signé, `HttpOnly` et `SameSite=Strict`. `JEV_SESSION_SECRET` est recommandé
+en production et doit contenir au moins 32 caractères. Utiliser `JEV_COOKIE_SECURE=true`
+derrière HTTPS et `JEV_TRUST_PROXY=true` uniquement derrière un reverse proxy de confiance.
+
+Une écoute non locale sans mot de passe est refusée par défaut. Ne définir
+`JEV_ALLOW_INSECURE_REMOTE=true` que pour un environnement de développement isolé.
+Les URL d'offres sont validées contre les destinations privées, locales, réservées et les
+métadonnées cloud ; chaque redirection est revalidée avant connexion.
 
 ## Portabilité
 
@@ -134,7 +152,7 @@ et tous les chemins par défaut sont relatifs au dossier. Le moteur reste désac
 (`[cv] enabled = false`) ; dans ce cas la génération de CV est annoncée comme indisponible
 avec le motif, sans que le reste de l'application en souffre.
 
-Vérifié sur une instance vierge : 73 tests hors ligne, construction Docker, démarrage sous
+Vérifié sur une instance vierge : 99 tests hors ligne, construction Docker, démarrage sous
 l'utilisateur non privilégié, page d'initialisation visible et chemins de profil dans `/data`.
 
 ## Démarrage sans Docker
@@ -162,7 +180,7 @@ Un seul fichier compose, aucune dépendance externe à monter :
 
 ```bash
 cd /chemin/vers/jev-webapp
-cp .env.example .env                  # y mettre OPENROUTER_API_KEY
+cp .env.example .env                  # y mettre OPENROUTER_API_KEY et JEV_AUTH_PASSWORD
 cp config.example.toml config.toml    # adapter si besoin
 docker compose up -d --build          # http://localhost:8000
 ```
@@ -205,6 +223,11 @@ Points de portabilité vérifiés :
 | `GET` | `/api/cv` | jobs CV récents, y compris ceux en cours (permet de reprendre le suivi après reload) |
 | `GET` | `/api/cv/{job_id}` | état du job CV + résumé du moteur (pages, titre, écarts) |
 | `GET` | `/api/cv/{job_id}/pdf` | le PDF généré (404 si absent, 403 hors du répertoire de sortie) |
+| `POST` | `/api/runs/{run_id}/cancel`, `/retry` | annulation ou reprise des offres manquantes |
+| `POST` | `/api/cv/{job_id}/cancel`, `/retry` | annulation ou relance explicite d'un CV interrompu |
+| `GET`, `POST` | `/api/backups` | liste et création de sauvegardes intègres |
+| `GET`, `DELETE` | `/api/backups/{name}` | téléchargement et suppression d'une sauvegarde |
+| `POST` | `/api/backups/restore` | restauration validée, avec sauvegarde de sécurité préalable |
 | `GET` | `/api/runs/{run_id}/export?fmt=json\|csv` | export |
 | `GET` | `/healthz` | état + configuration effective **sans aucun secret** |
 
@@ -240,11 +263,13 @@ par l'application.
 - **Évaluer** : saisie des URLs, déduplication avant envoi, lot actif et derniers lots.
 - **Offres** : pagination serveur, recherche, filtres, tri, dernière évaluation par URL par
   défaut et accès à tout l'historique dans un panneau latéral.
-- **Lots** : progression persistée, compteurs, exports et détail complet des résultats.
-- **CV** : tâches en cours, PDF terminés et erreurs, avec reprise du polling après rechargement.
+- **Lots** : progression persistée, reprise après redémarrage, annulation, relance des URL
+  manquantes, compteurs, exports et détail complet des résultats.
+- **CV** : tâches en cours, PDF terminés et erreurs, avec reprise du polling après rechargement ;
+  après un redémarrage, un CV interrompu attend une relance manuelle pour éviter un email en double.
 - **Analyses** : période et vue dernière/toutes les évaluations, KPI cliquables, distribution,
   portes et critères.
-- **Profil** : identité issue du master, seuils et critères d'évaluation.
+- **Profil** : identité issue du master, seuils, critères et sauvegardes/restaurations.
 
 Les scores gardent un affichage visuel : valeur numérique, barre colorée et marqueur du seuil.
 Les petits indicateurs de critères ont désormais une légende textuelle (`bloquant`,
@@ -258,17 +283,15 @@ regrouper les réévaluations d'une même URL.
 ## Tests
 
 ```bash
-python3 tests/test_gates.py       # portes + parsing de dates (20 tests)
-python3 tests/test_analytics.py   # agrégats du dashboard (9 tests)
-python3 tests/test_cv_parse.py    # lecture de la sortie du moteur CV (4 tests)
-python3 tests/test_config.py      # configuration, priorités, clé API, CV
-python3 tests/test_onboarding.py  # import PDF, validation et persistance du profil
-python3 tests/test_store.py       # migration SQLite, pagination, déduplication et jobs CV
-node tests/test_app_js.mjs        # score visuel, légendes de critères et pagination
+uv venv .venv
+uv pip install --python .venv/bin/python -r requirements-dev.txt
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m unittest discover -s tests -p 'test_*.py'
+node tests/test_app_js.mjs
 ```
 
-Tous hors ligne, sans dépendance ni clé API. Le test JS exécute les fonctions UI communes dans
-un contexte Node avec un DOM factice.
+Les 92 tests Python et 7 tests JavaScript sont hors ligne et n'utilisent aucune clé API. Ils
+couvrent notamment migration SQLite, authentification, SSRF, reprise des jobs, sauvegardes,
+API, score visuel et pagination.
 
 ## Limites connues
 

@@ -72,6 +72,8 @@ def evaluate_url(url: str, profile: dict, evaluator: str | None = None) -> dict:
 
 def _worker(args: tuple[str, dict, str | None, str]) -> None:
     url, profile, evaluator, run_id = args
+    if store.run_cancel_requested(run_id):
+        return
     try:
         record = evaluate_url(url, profile, evaluator)
     except Exception:  # noqa: BLE001
@@ -86,9 +88,13 @@ def run_batch(run_id: str, urls: list[str], max_workers: int | None = None) -> N
         max_workers = config.settings()["fetch"]["max_workers"]
     evaluator = jev.evaluator_path()
     try:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as pool:
-            list(pool.map(_worker,
-                          [(url, profile, evaluator, run_id) for url in urls]))
-        store.finish_run(run_id, "done")
-    except Exception:  # noqa: BLE001
-        store.finish_run(run_id, "failed")
+        if urls:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as pool:
+                list(pool.map(_worker,
+                              [(url, profile, evaluator, run_id) for url in urls]))
+        if store.run_cancel_requested(run_id):
+            store.finish_run(run_id, "cancelled")
+        else:
+            store.finish_run(run_id, "done")
+    except Exception as exc:  # noqa: BLE001
+        store.finish_run(run_id, "failed", str(exc))

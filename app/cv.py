@@ -22,11 +22,16 @@ import subprocess
 import sys
 import time
 import uuid
+from collections.abc import Callable
 
 from . import config
 
 
 class CvError(RuntimeError):
+    pass
+
+
+class CvCancelled(CvError):
     pass
 
 
@@ -97,7 +102,8 @@ def _extract_summary(stdout: str) -> dict:
     return {}
 
 
-def generate(url: str, send_email: bool = False, timeout: int | None = None) -> dict:
+def generate(url: str, send_email: bool = False, timeout: int | None = None,
+             should_cancel: Callable[[], bool] | None = None) -> dict:
     """Exécute le moteur pour une offre et renvoie son résumé JSON."""
     ok, why = available()
     if not ok:
@@ -113,13 +119,31 @@ def generate(url: str, send_email: bool = False, timeout: int | None = None) -> 
     env, _ = config.cv_environment()
     env["CV_URL"] = url
 
-    proc = subprocess.run(
-        argv, capture_output=True, text=True, timeout=timeout, env=env,
+    proc = subprocess.Popen(
+        argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env,
         cwd=str(config.APP_DIR),
     )
-    payload = _extract_summary(proc.stdout or "")
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            stdout, stderr = proc.communicate(timeout=0.5)
+            break
+        except subprocess.TimeoutExpired:
+            if should_cancel and should_cancel():
+                proc.terminate()
+                try:
+                    proc.communicate(timeout=5)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    proc.communicate()
+                raise CvCancelled("génération annulée")
+            if time.monotonic() >= deadline:
+                proc.kill()
+                proc.communicate()
+                raise CvError(f"délai de génération dépassé ({timeout} s)")
+    payload = _extract_summary(stdout or "")
     if proc.returncode != 0:
-        detail = (proc.stderr or proc.stdout or "").strip().splitlines()
+        detail = (stderr or stdout or "").strip().splitlines()
         message = "\n".join(detail[-4:]) if detail else f"exit {proc.returncode}"
         raise CvError(message)
     if not payload.get("pdf"):
