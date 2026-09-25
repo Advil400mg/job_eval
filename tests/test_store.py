@@ -150,8 +150,16 @@ class Offers(StoreBase):
         self.assertEqual(result["items"][0]["title"], "Legacy")
         with sqlite3.connect(store.DB_PATH) as check:
             columns = {row[1] for row in check.execute("PRAGMA table_info(results)")}
+            run_columns = {row[1] for row in check.execute("PRAGMA table_info(runs)")}
+            cv_columns = {row[1] for row in check.execute("PRAGMA table_info(cv_jobs)")}
+            version = check.execute("PRAGMA user_version").fetchone()[0]
+            journal_mode = check.execute("PRAGMA journal_mode").fetchone()[0]
         self.assertIn("normalized_url", columns)
         self.assertIn("score", columns)
+        self.assertIn("attempts", run_columns)
+        self.assertIn("cancel_requested", cv_columns)
+        self.assertEqual(version, 3)
+        self.assertEqual(journal_mode.lower(), "wal")
 
 
 if __name__ == "__main__":

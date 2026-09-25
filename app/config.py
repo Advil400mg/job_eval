@@ -41,11 +41,32 @@ DEFAULTS: dict = {
         "email_target": "",
         "timeout_seconds": 900,
     },
+    "security": {
+        "session_hours": 12,
+        "cookie_secure": False,
+        "trust_proxy": False,
+        "login_attempts": 5,
+        "login_window_seconds": 300,
+        "evaluate_per_minute": 10,
+        "cv_per_hour": 20,
+        "onboarding_per_hour": 5,
+        "restore_per_hour": 2,
+    },
+    "jobs": {"stale_seconds": 300, "max_attempts": 3},
+    "backup": {"max_upload_mb": 512},
 }
 
 
 class ConfigError(RuntimeError):
     pass
+
+
+def _bool(value: object, default: bool = False) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
 
 
 def config_path() -> Path:
@@ -86,6 +107,10 @@ def load_raw() -> dict:
         "profile": {"path": env.get("JEV_PROFILE"), "evaluator": env.get("JEV_EVALUATOR")},
         "cv": {"command": env.get("CV_COMMAND"), "out_dir": env.get("CV_OUT_DIR"),
                "env_file": env.get("HERMES_ENV_FILE"), "master": env.get("CV_MASTER")},
+        "security": {
+            "cookie_secure": env.get("JEV_COOKIE_SECURE"),
+            "trust_proxy": env.get("JEV_TRUST_PROXY"),
+        },
     }
     # CV_TAILOR_BIN (ancien nom) reste accepté : chemin d'un binaire appelé comme aujourd'hui
     if env.get("CV_TAILOR_BIN"):
@@ -223,6 +248,27 @@ def settings() -> dict:
             "model": cfg["cv"].get("model") or "",
             "master_path": master_path,
             "timeout_seconds": int(cfg["cv"].get("timeout_seconds") or 900),
+        },
+        "security": {
+            "auth_enabled": bool(os.environ.get("JEV_AUTH_PASSWORD")),
+            "session_hours": max(1, int(cfg["security"].get("session_hours") or 12)),
+            "cookie_secure": _bool(cfg["security"].get("cookie_secure")),
+            "trust_proxy": _bool(cfg["security"].get("trust_proxy")),
+            "allow_insecure_remote": _bool(os.environ.get("JEV_ALLOW_INSECURE_REMOTE")),
+            "login_attempts": max(1, int(cfg["security"].get("login_attempts") or 5)),
+            "login_window_seconds": max(1, int(cfg["security"].get("login_window_seconds") or 300)),
+            "evaluate_per_minute": max(1, int(cfg["security"].get("evaluate_per_minute") or 10)),
+            "cv_per_hour": max(1, int(cfg["security"].get("cv_per_hour") or 20)),
+            "onboarding_per_hour": max(1, int(cfg["security"].get("onboarding_per_hour") or 5)),
+            "restore_per_hour": max(1, int(cfg["security"].get("restore_per_hour") or 2)),
+        },
+        "jobs": {
+            "stale_seconds": max(30, int(cfg["jobs"].get("stale_seconds") or 300)),
+            "max_attempts": max(1, int(cfg["jobs"].get("max_attempts") or 3)),
+        },
+        "backup": {
+            "dir": data_dir / "backups",
+            "max_upload_bytes": max(1, int(cfg["backup"].get("max_upload_mb") or 512)) * 1024 * 1024,
         },
         "config_file": str(config_path()),
         "config_file_exists": config_path().is_file(),

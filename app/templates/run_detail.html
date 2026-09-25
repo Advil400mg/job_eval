@@ -5,7 +5,7 @@
   <section id="run_header" class="page-heading compact"><div><p class="eyebrow">Lot {{ run_id }}</p><h1>Chargement…</h1></div></section>
   <div id="run_progress"></div>
   <div id="run_summary" class="kpis"></div>
-  <div class="run-actions"><a class="secondary-btn" href="/api/runs/{{ run_id }}/export?fmt=csv">Export CSV</a><a class="secondary-btn" href="/api/runs/{{ run_id }}/export?fmt=json">Export JSON</a><a class="secondary-btn" href="/offers?run_id={{ run_id }}">Ouvrir dans les offres</a></div>
+  <div class="run-actions"><a class="secondary-btn" href="/api/runs/{{ run_id }}/export?fmt=csv">Export CSV</a><a class="secondary-btn" href="/api/runs/{{ run_id }}/export?fmt=json">Export JSON</a><a class="secondary-btn" href="/offers?run_id={{ run_id }}">Ouvrir dans les offres</a><span id="run_controls"></span></div>
   <div id="run_offers" class="detail-cards"><div class="loading-card">Chargement des résultats…</div></div>
 </div>
 {% endblock %}

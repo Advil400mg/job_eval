@@ -23,7 +23,12 @@ CREATE TABLE IF NOT EXISTS runs (
     urls TEXT NOT NULL,
     status TEXT NOT NULL,
     progress INTEGER NOT NULL DEFAULT 0,
-    total INTEGER NOT NULL DEFAULT 0
+    total INTEGER NOT NULL DEFAULT 0,
+    started_at TEXT,
+    updated_at TEXT,
+    attempts INTEGER NOT NULL DEFAULT 1,
+    last_error TEXT,
+    cancel_requested INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS results (
     run_id TEXT NOT NULL,
@@ -45,7 +50,13 @@ CREATE TABLE IF NOT EXISTS cv_jobs (
     url TEXT NOT NULL,
     created_at TEXT NOT NULL,
     status TEXT NOT NULL,
-    payload TEXT
+    payload TEXT,
+    started_at TEXT,
+    updated_at TEXT,
+    attempts INTEGER NOT NULL DEFAULT 1,
+    last_error TEXT,
+    cancel_requested INTEGER NOT NULL DEFAULT 0,
+    send_email INTEGER NOT NULL DEFAULT 0
 );
 """
 
@@ -58,9 +69,28 @@ _RESULT_COLUMNS = {
     "score": "REAL",
     "published_at": "TEXT",
 }
+_RUN_COLUMNS = {
+    "started_at": "TEXT",
+    "updated_at": "TEXT",
+    "attempts": "INTEGER NOT NULL DEFAULT 1",
+    "last_error": "TEXT",
+    "cancel_requested": "INTEGER NOT NULL DEFAULT 0",
+}
+_CV_COLUMNS = {
+    "started_at": "TEXT",
+    "updated_at": "TEXT",
+    "attempts": "INTEGER NOT NULL DEFAULT 1",
+    "last_error": "TEXT",
+    "cancel_requested": "INTEGER NOT NULL DEFAULT 0",
+    "send_email": "INTEGER NOT NULL DEFAULT 0",
+}
 _TRACKING_PARAMS = {
     "fbclid", "gclid", "mc_cid", "mc_eid", "ref", "referrer", "source",
 }
+
+
+def _now() -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%S")
 
 
 def normalize_url(url: str) -> str:
@@ -94,11 +124,19 @@ def _payload_columns(url: str, status: str, payload: dict) -> tuple[object, ...]
     )
 
 
-def _migrate(conn: sqlite3.Connection) -> None:
-    columns = {row[1] for row in conn.execute("PRAGMA table_info(results)").fetchall()}
-    for name, sql_type in _RESULT_COLUMNS.items():
+def _add_columns(conn: sqlite3.Connection, table: str, definitions: dict[str, str]) -> None:
+    columns = {row[1] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+    for name, sql_type in definitions.items():
         if name not in columns:
-            conn.execute(f"ALTER TABLE results ADD COLUMN {name} {sql_type}")
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {sql_type}")
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    _add_columns(conn, "runs", _RUN_COLUMNS)
+    _add_columns(conn, "results", _RESULT_COLUMNS)
+    _add_columns(conn, "cv_jobs", _CV_COLUMNS)
+    conn.execute("UPDATE runs SET updated_at = COALESCE(updated_at, created_at)")
+    conn.execute("UPDATE cv_jobs SET updated_at = COALESCE(updated_at, created_at)")
     rows = conn.execute(
         "SELECT run_id, url, status, payload FROM results WHERE normalized_url IS NULL"
     ).fetchall()
@@ -124,6 +162,7 @@ def _migrate(conn: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_cv_jobs_status ON cv_jobs(status, created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_cv_jobs_url ON cv_jobs(url, created_at DESC);
     """)
+    conn.execute("PRAGMA user_version = 3")
 
 
 def _connect() -> sqlite3.Connection:
@@ -132,6 +171,10 @@ def _connect() -> sqlite3.Connection:
         os.makedirs(directory, exist_ok=True)
     conn = sqlite3.connect(DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA busy_timeout = 30000")
+    conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA journal_mode = WAL")
+    conn.execute("PRAGMA synchronous = NORMAL")
     conn.executescript(SCHEMA)
     _migrate(conn)
     return conn
@@ -139,19 +182,20 @@ def _connect() -> sqlite3.Connection:
 
 def create_run(urls: list[str]) -> str:
     run_id = uuid.uuid4().hex[:12]
+    now = _now()
     with _LOCK, _connect() as conn:
         conn.execute(
-            "INSERT INTO runs (id, created_at, urls, status, progress, total) "
-            "VALUES (?, ?, ?, 'running', 0, ?)",
-            (run_id, time.strftime("%Y-%m-%dT%H:%M:%S"), json.dumps(urls, ensure_ascii=False),
-             len(urls)),
+            "INSERT INTO runs (id, created_at, urls, status, progress, total, started_at, "
+            "updated_at, attempts, cancel_requested) "
+            "VALUES (?, ?, ?, 'running', 0, ?, ?, ?, 1, 0)",
+            (run_id, now, json.dumps(urls, ensure_ascii=False), len(urls), now, now),
         )
     return run_id
 
 
 def set_total(run_id: str, total: int) -> None:
     with _LOCK, _connect() as conn:
-        conn.execute("UPDATE runs SET total = ? WHERE id = ?", (total, run_id))
+        conn.execute("UPDATE runs SET total = ?, updated_at = ? WHERE id = ?", (total, _now(), run_id))
 
 
 def save_result(run_id: str, url: str, status: str, payload: dict) -> None:
@@ -162,18 +206,62 @@ def save_result(run_id: str, url: str, status: str, payload: dict) -> None:
             "(run_id, url, created_at, status, payload, normalized_url, title, company, "
             "location, decision_status, score, published_at) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (run_id, url, time.strftime("%Y-%m-%dT%H:%M:%S"), status,
+            (run_id, url, _now(), status,
              json.dumps(payload, ensure_ascii=False), *indexed),
         )
         conn.execute(
-            "UPDATE runs SET progress = (SELECT COUNT(*) FROM results WHERE run_id = ?) "
-            "WHERE id = ?", (run_id, run_id),
+            "UPDATE runs SET progress = (SELECT COUNT(*) FROM results WHERE run_id = ?), "
+            "updated_at = ? WHERE id = ?", (run_id, _now(), run_id),
         )
 
 
-def finish_run(run_id: str, status: str = "done") -> None:
+def finish_run(run_id: str, status: str = "done", last_error: str | None = None) -> None:
     with _LOCK, _connect() as conn:
-        conn.execute("UPDATE runs SET status = ? WHERE id = ?", (status, run_id))
+        conn.execute(
+            "UPDATE runs SET status = ?, updated_at = ?, last_error = ? WHERE id = ?",
+            (status, _now(), last_error, run_id),
+        )
+
+
+def resume_run(run_id: str) -> bool:
+    with _LOCK, _connect() as conn:
+        cursor = conn.execute(
+            "UPDATE runs SET status = 'running', started_at = ?, updated_at = ?, "
+            "attempts = attempts + 1, last_error = NULL, cancel_requested = 0 "
+            "WHERE id = ? AND status IN ('running', 'failed', 'interrupted', 'cancelled')",
+            (_now(), _now(), run_id),
+        )
+        return cursor.rowcount == 1
+
+
+def request_run_cancel(run_id: str) -> bool:
+    with _LOCK, _connect() as conn:
+        cursor = conn.execute(
+            "UPDATE runs SET cancel_requested = 1, updated_at = ? "
+            "WHERE id = ? AND status = 'running'", (_now(), run_id),
+        )
+        return cursor.rowcount == 1
+
+
+def run_cancel_requested(run_id: str) -> bool:
+    with _LOCK, _connect() as conn:
+        row = conn.execute("SELECT cancel_requested FROM runs WHERE id = ?", (run_id,)).fetchone()
+    return bool(row and row["cancel_requested"])
+
+
+def running_runs() -> list[dict]:
+    return list_runs(limit=200, status="running")
+
+
+def missing_run_urls(run_id: str) -> list[str]:
+    with _LOCK, _connect() as conn:
+        row = conn.execute("SELECT urls FROM runs WHERE id = ?", (run_id,)).fetchone()
+        completed = {item["url"] for item in conn.execute(
+            "SELECT url FROM results WHERE run_id = ?", (run_id,),
+        ).fetchall()}
+    if not row:
+        return []
+    return [url for url in json.loads(row["urls"]) if url not in completed]
 
 
 def get_run(run_id: str) -> dict | None:
@@ -424,20 +512,64 @@ def offer_history(url: str) -> list[dict]:
     return output
 
 
-def create_cv_job(url: str) -> str:
+def create_cv_job(url: str, send_email: bool = False) -> str:
     job_id = uuid.uuid4().hex[:12]
+    now = _now()
     with _LOCK, _connect() as conn:
         conn.execute(
-            "INSERT INTO cv_jobs (id, url, created_at, status) VALUES (?, ?, ?, 'running')",
-            (job_id, url, time.strftime("%Y-%m-%dT%H:%M:%S")),
+            "INSERT INTO cv_jobs (id, url, created_at, status, started_at, updated_at, "
+            "attempts, cancel_requested, send_email) "
+            "VALUES (?, ?, ?, 'running', ?, ?, 1, 0, ?)",
+            (job_id, url, now, now, now, int(send_email)),
         )
     return job_id
 
 
-def finish_cv_job(job_id: str, status: str, payload: dict | None = None) -> None:
+def finish_cv_job(job_id: str, status: str, payload: dict | None = None,
+                  last_error: str | None = None) -> None:
     with _LOCK, _connect() as conn:
-        conn.execute("UPDATE cv_jobs SET status = ?, payload = ? WHERE id = ?",
-                     (status, json.dumps(payload or {}, ensure_ascii=False), job_id))
+        conn.execute(
+            "UPDATE cv_jobs SET status = ?, payload = ?, updated_at = ?, last_error = ? "
+            "WHERE id = ?",
+            (status, json.dumps(payload or {}, ensure_ascii=False), _now(), last_error, job_id),
+        )
+
+
+def restart_cv_job(job_id: str) -> bool:
+    with _LOCK, _connect() as conn:
+        cursor = conn.execute(
+            "UPDATE cv_jobs SET status = 'running', payload = NULL, started_at = ?, "
+            "updated_at = ?, attempts = attempts + 1, last_error = NULL, cancel_requested = 0 "
+            "WHERE id = ? AND status IN ('failed', 'interrupted', 'cancelled')",
+            (_now(), _now(), job_id),
+        )
+        return cursor.rowcount == 1
+
+
+def request_cv_cancel(job_id: str) -> bool:
+    with _LOCK, _connect() as conn:
+        cursor = conn.execute(
+            "UPDATE cv_jobs SET cancel_requested = 1, updated_at = ? "
+            "WHERE id = ? AND status = 'running'", (_now(), job_id),
+        )
+        return cursor.rowcount == 1
+
+
+def cv_cancel_requested(job_id: str) -> bool:
+    with _LOCK, _connect() as conn:
+        row = conn.execute("SELECT cancel_requested FROM cv_jobs WHERE id = ?", (job_id,)).fetchone()
+    return bool(row and row["cancel_requested"])
+
+
+def interrupt_running_cv_jobs() -> int:
+    payload = json.dumps({"error": "Génération interrompue par un redémarrage"}, ensure_ascii=False)
+    with _LOCK, _connect() as conn:
+        cursor = conn.execute(
+            "UPDATE cv_jobs SET status = 'interrupted', payload = ?, updated_at = ?, "
+            "last_error = ? WHERE status = 'running'",
+            (payload, _now(), "redémarrage de l’application"),
+        )
+        return cursor.rowcount
 
 
 def get_cv_job(job_id: str) -> dict | None:
@@ -479,6 +611,24 @@ def count_cv_jobs(status: str | None = None) -> int:
         params = (status,)
     with _LOCK, _connect() as conn:
         return int(conn.execute(query, params).fetchone()[0])
+
+
+def active_work_count() -> int:
+    with _LOCK, _connect() as conn:
+        runs = int(conn.execute("SELECT COUNT(*) FROM runs WHERE status = 'running'").fetchone()[0])
+        cvs = int(conn.execute("SELECT COUNT(*) FROM cv_jobs WHERE status = 'running'").fetchone()[0])
+    return runs + cvs
+
+
+def backup_database(destination: str) -> None:
+    os.makedirs(os.path.dirname(destination), exist_ok=True)
+    with _LOCK, _connect() as source:
+        target = sqlite3.connect(destination)
+        try:
+            source.backup(target)
+            target.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        finally:
+            target.close()
 
 
 def latest_cvs_for(urls: list[str]) -> dict[str, dict]:

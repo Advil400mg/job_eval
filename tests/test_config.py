@@ -27,7 +27,9 @@ class ConfigBase(unittest.TestCase):
                        "JEV_DATA_DIR", "JEV_DB", "JEV_PROFILE", "CV_MASTER", "CV_TAILOR_BIN",
                        "CV_COMMAND", "EMAIL_ADDRESS", "EMAIL_PASSWORD",
                        "EMAIL_SMTP_HOST", "EMAIL_SMTP_PORT", "EMAIL_IMAP_HOST",
-                       "EMAIL_IMAP_PORT", "HERMES_ENV_FILE")}
+                       "EMAIL_IMAP_PORT", "HERMES_ENV_FILE", "JEV_AUTH_PASSWORD",
+                       "JEV_SESSION_SECRET", "JEV_COOKIE_SECURE", "JEV_TRUST_PROXY",
+                       "JEV_ALLOW_INSECURE_REMOTE")}
         for key in self.saved:
             os.environ.pop(key, None)
         # isole les tests du config.toml réellement présent dans le dossier
@@ -65,7 +67,8 @@ class Defaults(ConfigBase):
     def test_cles_de_configuration_attendues(self):
         settings = config.settings()
         for key in ("host", "port", "data_dir", "db_file", "openrouter", "profile_path",
-                    "evaluator_path", "fetch", "cv", "api_key_set", "email_target"):
+                    "evaluator_path", "fetch", "cv", "security", "jobs", "backup",
+                    "api_key_set", "email_target"):
             self.assertIn(key, settings)
 
 

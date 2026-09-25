@@ -18,7 +18,10 @@
     <a href="/cv" class="{% if active == 'cv' %}active{% endif %}">CV <span id="nav_cv_badge" class="nav-badge hidden"></span></a>
     <a href="/analytics" class="{% if active == 'analytics' %}active{% endif %}">Analyses</a>
   </nav>
-  <a class="profile-link {% if active == 'profile' %}active{% endif %}" href="/profile" aria-label="Profil candidat">Profil</a>
+  <div class="header-actions">
+    <a class="profile-link {% if active == 'profile' %}active{% endif %}" href="/profile" aria-label="Profil candidat">Profil</a>
+    {% if auth_enabled %}<form method="post" action="/logout"><button class="logout-btn" type="submit">Déconnexion</button></form>{% endif %}
+  </div>
 </header>
 
 {% if not api_key_set %}<div class="global-alert">Clé API absente : l’évaluation et l’analyse du CV échoueront.</div>{% endif %}

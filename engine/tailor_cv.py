@@ -37,6 +37,8 @@ import render_cv_pdf  # noqa: E402
 import validate_tailoring  # noqa: E402
 
 APP_DIR = HERE.parent
+sys.path.insert(0, str(APP_DIR))
+from app import network as safe_network  # noqa: E402
 
 # Chemins configurables : par défaut tout est relatif au dossier de l'application,
 # ce qui rend le moteur utilisable sans aucune installation Hermes.
@@ -121,9 +123,12 @@ GENERIC_TITLE = re.compile(r'^(offre d.emploi|offres? d.emploi|jobs?|careers?|re
 
 
 def fetch_offer(url):
-    req = urllib.request.Request(url, headers={'User-Agent': UA, 'Accept-Language': 'fr-FR,fr;q=0.9,en;q=0.8'})
-    with urllib.request.urlopen(req, timeout=45) as r:
-        raw = r.read().decode('utf-8', errors='replace')
+    raw = safe_network.fetch_text(
+        url,
+        headers={'User-Agent': UA, 'Accept-Language': 'fr-FR,fr;q=0.9,en;q=0.8'},
+        timeout=45,
+        max_bytes=5_000_000,
+    )
     text = html_to_text(raw)
     job = json_ld_job(raw) or {}
     org = job.get('hiringOrganization') or {}
