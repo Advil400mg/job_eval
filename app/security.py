@@ -249,22 +249,38 @@ class RateLimiter:
         self._events: dict[tuple[str, str], deque[float]] = defaultdict(deque)
         self._lock = threading.Lock()
 
-    def enforce(self, key: str, action: str, limit: int, window_seconds: int) -> None:
+    def _bucket(self, key: str, action: str, window_seconds: int) -> deque[float]:
         now = time.monotonic()
         cutoff = now - window_seconds
         bucket_key = (key, action)
+        bucket = self._events[bucket_key]
+        while bucket and bucket[0] <= cutoff:
+            bucket.popleft()
+        return bucket
+
+    def check(self, key: str, action: str, limit: int, window_seconds: int) -> None:
         with self._lock:
-            bucket = self._events[bucket_key]
-            while bucket and bucket[0] <= cutoff:
-                bucket.popleft()
+            bucket = self._bucket(key, action, window_seconds)
             if len(bucket) >= limit:
-                retry_after = max(1, int(window_seconds - (now - bucket[0])))
+                retry_after = max(1, int(window_seconds - (time.monotonic() - bucket[0])))
                 raise HTTPException(
                     HTTP_429_TOO_MANY_REQUESTS,
                     "Trop de requêtes. Réessaie plus tard.",
                     headers={"Retry-After": str(retry_after)},
                 )
-            bucket.append(now)
+
+    def record(self, key: str, action: str, window_seconds: int) -> None:
+        with self._lock:
+            bucket = self._bucket(key, action, window_seconds)
+            bucket.append(time.monotonic())
+
+    def reset(self, key: str, action: str) -> None:
+        with self._lock:
+            self._events.pop((key, action), None)
+
+    def enforce(self, key: str, action: str, limit: int, window_seconds: int) -> None:
+        self.check(key, action, limit, window_seconds)
+        self.record(key, action, window_seconds)
 
 
 LIMITER = RateLimiter()

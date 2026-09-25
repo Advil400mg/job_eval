@@ -315,15 +315,21 @@ def login_page(request: Request, next: str = "/"):
 def login(request: Request, identifier: str = Form(...), password: str = Form(...),
           next: str = Form("/")):
     settings = config.settings()["security"]
-    security.enforce_rate(
-        request, "login", settings["login_attempts"], settings["login_window_seconds"],
+    client = security.client_ip(request)
+    security.LIMITER.check(
+        client, "login", settings["login_attempts"], settings["login_window_seconds"],
     )
     target = security.safe_next(next)
     user = accounts.authenticate(identifier, password)
     if not user:
+        security.LIMITER.record(client, "login", settings["login_window_seconds"])
         return templates.TemplateResponse(request, "login.html", {
             "request": request, "next": target, "error": "Identifiant ou mot de passe incorrect.",
         }, status_code=401)
+    security.LIMITER.reset(client, "login")
+    if target == "/admin" or target.startswith("/admin/"):
+        if user.get("role") != "admin":
+            target = "/"
     response = RedirectResponse(target, status_code=303)
     security.set_user_session_cookie(response, user["id"], int(user["session_version"]))
     return response
