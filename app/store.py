@@ -281,7 +281,10 @@ def get_run(run_id: str) -> dict | None:
 def list_runs(limit: int = 20, offset: int = 0, status: str | None = None) -> list[dict]:
     limit = max(1, min(int(limit), 200))
     offset = max(0, int(offset))
-    query = "SELECT id, created_at, status, progress, total, urls FROM runs"
+    query = (
+        "SELECT id, created_at, status, progress, total, urls, started_at, updated_at, "
+        "attempts, last_error, cancel_requested FROM runs"
+    )
     params: list[object] = []
     if status:
         query += " WHERE status = ?"

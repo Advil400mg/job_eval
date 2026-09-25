@@ -55,6 +55,13 @@ class SecurityTests(unittest.TestCase):
         self.assertTrue(security.verify_password("correct-horse-battery"))
         self.assertFalse(security.verify_password("incorrect"))
 
+    def test_cookie_session_est_http_only_et_same_site_strict(self):
+        response = mock.Mock()
+        security.set_session_cookie(response)
+        kwargs = response.set_cookie.call_args.kwargs
+        self.assertTrue(kwargs["httponly"])
+        self.assertEqual(kwargs["samesite"], "strict")
+
     def test_configuration_refuse_les_secrets_trop_courts(self):
         os.environ["JEV_AUTH_PASSWORD"] = "court"
         with self.assertRaises(RuntimeError):

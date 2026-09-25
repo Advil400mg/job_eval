@@ -63,7 +63,7 @@ class ApiSecurity(unittest.TestCase):
             cookie = response.headers.get("set-cookie", "")
             self.assertIn("jev_session=", cookie)
             self.assertIn("HttpOnly", cookie)
-            self.assertIn("SameSite=lax", cookie)
+            self.assertIn("SameSite=strict", cookie)
             self.assertEqual(client.get("/api/history").status_code, 200)
 
     def test_mauvais_mot_de_passe_ne_pose_pas_de_cookie(self):

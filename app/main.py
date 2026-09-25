@@ -148,20 +148,20 @@ def _render_page(request: Request, template: str, active: str, title: str,
                  extra: dict | None = None):
     setup = onboarding.status()
     if setup["needed"]:
-        return templates.TemplateResponse("setup.html", {
+        return templates.TemplateResponse(request, "setup.html", {
             "request": request, "setup": setup,
             "config_file": config.settings()["config_file"],
         })
     context = _page_context(request, active, title)
     context.update(extra or {})
-    return templates.TemplateResponse(template, context)
+    return templates.TemplateResponse(request, template, context)
 
 
 @app.get("/login", response_class=HTMLResponse)
 def login_page(request: Request, next: str = "/"):
     if not security.auth_enabled():
         return RedirectResponse("/", status_code=303)
-    return templates.TemplateResponse("login.html", {
+    return templates.TemplateResponse(request, "login.html", {
         "request": request, "next": security.safe_next(next), "error": "",
     })
 
@@ -174,7 +174,7 @@ def login(request: Request, password: str = Form(...), next: str = Form("/")):
     )
     target = security.safe_next(next)
     if not security.verify_password(password):
-        return templates.TemplateResponse("login.html", {
+        return templates.TemplateResponse(request, "login.html", {
             "request": request, "next": target, "error": "Mot de passe incorrect.",
         }, status_code=401)
     response = RedirectResponse(target, status_code=303)

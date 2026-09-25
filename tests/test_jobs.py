@@ -47,6 +47,20 @@ class JobRecovery(unittest.TestCase):
         self.assertEqual(run["attempts"], 2)
         self.assertEqual(run["status"], "running")
 
+    def test_reprise_automatique_respecte_le_nombre_maximal_de_tentatives(self):
+        run_id = store.create_run(["https://jobs.test/one"])
+        with store._LOCK, store._connect() as conn:
+            conn.execute("UPDATE runs SET attempts = 3 WHERE id = ?", (run_id,))
+        with mock.patch.object(jobs, "submit_run") as submit:
+            result = jobs.recover_after_restart()
+        submit.assert_not_called()
+        run = store.get_run(run_id)
+        assert run is not None
+        self.assertEqual(result["interrupted_runs"], 1)
+        self.assertEqual(run["status"], "interrupted")
+        self.assertEqual(run["attempts"], 3)
+        self.assertIn("maximal", run["last_error"])
+
     def test_cv_en_cours_devient_interrompu_sans_relance_email(self):
         job_id = store.create_cv_job("https://jobs.test/cv", send_email=True)
         with mock.patch.object(jobs, "submit_run"):

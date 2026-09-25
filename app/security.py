@@ -111,7 +111,7 @@ def set_session_cookie(response) -> None:
         max_age=int(settings["session_hours"]) * 3600,
         httponly=True,
         secure=bool(settings["cookie_secure"]),
-        samesite="lax",
+        samesite="strict",
         path="/",
     )
 
