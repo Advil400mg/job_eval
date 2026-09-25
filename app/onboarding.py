@@ -14,7 +14,7 @@ import urllib.request
 from datetime import date
 from pathlib import Path
 
-from . import config
+from . import config, profile as profile_mod
 
 MAX_PDF_BYTES = 10 * 1024 * 1024
 MIN_TEXT_CHARS = 500
@@ -333,29 +333,7 @@ def build_profile(master: dict, target_roles: str, locations: str,
 
 
 def validate_profile(profile: dict) -> list[str]:
-    errors = []
-    criteria = profile.get("criteria")
-    if not isinstance(criteria, list) or not criteria:
-        return ["criteria doit être une liste non vide"]
-    seen = set()
-    for index, criterion in enumerate(criteria):
-        if not isinstance(criterion, dict):
-            errors.append(f"criteria[{index}] doit être un objet")
-            continue
-        for key in ("id", "name", "description"):
-            if not isinstance(criterion.get(key), str) or not criterion[key].strip():
-                errors.append(f"criteria[{index}].{key} manquant")
-        if criterion.get("id") in seen:
-            errors.append(f"critère dupliqué : {criterion.get('id')}")
-        seen.add(criterion.get("id"))
-        weight = criterion.get("weight", 1)
-        if isinstance(weight, bool) or not isinstance(weight, (int, float)) or weight <= 0:
-            errors.append(f"criteria[{index}].weight invalide")
-        if criterion.get("required"):
-            score = criterion.get("min_score")
-            if isinstance(score, bool) or not isinstance(score, (int, float)) or not 0 <= score <= 100:
-                errors.append(f"criteria[{index}].min_score invalide")
-    return errors
+    return profile_mod.validate_profile(profile)
 
 
 def _atomic_write(path: Path, content: bytes) -> None:

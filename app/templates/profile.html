@@ -1,10 +1,25 @@
 {% extends "base.html" %}
 {% block content %}
 <section class="page-heading compact"><div><p class="eyebrow">Candidat</p><h1>{{ identity.name }}</h1><p>{{ identity.headline_default }}</p></div></section>
-<div class="profile-grid"><section class="panel"><h2>Identité du master</h2><dl class="definition-list"><dt>Email</dt><dd>{{ identity.email or '—' }}</dd><dt>Téléphone</dt><dd>{{ identity.phone or '—' }}</dd><dt>Mobilité</dt><dd>{{ identity.mobility or '—' }}</dd><dt>Langues</dt><dd>{{ identity.languages_line or '—' }}</dd></dl></section><section class="panel"><h2>Seuils</h2><dl class="definition-list"><dt>Score global</dt><dd>{{ thresholds.minimum_global_score }}/100</dd><dt>Confiance</dt><dd>{{ thresholds.minimum_confidence }}</dd><dt>Fraîcheur</dt><dd>{{ thresholds.max_age_days }} jours</dd></dl></section></div>
-<section class="panel"><h2>Critères d’évaluation</h2><div class="criteria-profile">{% for criterion in criteria %}<article><div><strong>{{ criterion.name }}</strong><code>{{ criterion.id }}</code></div><p>{{ criterion.description }}</p><span>Poids {{ criterion.weight }}{% if criterion.required %} · obligatoire ≥ {{ criterion.min_score }}{% endif %}</span></article>{% endfor %}</div></section>
-<section class="panel"><h2>Préférences de recherche</h2><pre class="json-preview">{{ profile.search | tojson(indent=2) }}</pre><p class="muted">Ces données sont stockées dans le répertoire persistant de l’instance, pas dans l’image Docker.</p></section>
+<div class="profile-grid">
+  <section class="panel"><h2>Identité du master</h2><dl class="definition-list"><dt>Email</dt><dd>{{ identity.email or '—' }}</dd><dt>Téléphone</dt><dd>{{ identity.phone or '—' }}</dd><dt>Mobilité</dt><dd>{{ identity.mobility or '—' }}</dd><dt>Langues</dt><dd>{{ identity.languages_line or '—' }}</dd></dl><p class="muted">Ces faits proviennent du CV source et ne sont pas éditables ici.</p></section>
+  <section class="panel"><h2>Édition du profil</h2><p class="muted">Les modifications s’appliquent aux prochains lots. Un lot déjà lancé conserve le profil chargé à son démarrage.</p><p><code id="profile_revision">{{ profile_revision[:12] }}</code></p></section>
+</div>
+<section class="panel">
+  <div class="section-heading"><div><h2>Règles d’évaluation</h2><p>Seuils, préférences, rejets durs et critères Jev.</p></div><button id="profile_save" form="profile_form" type="submit">Enregistrer</button></div>
+  <form id="profile_form" class="stack-form" data-revision="{{ profile_revision }}">
+    <div class="form-grid three"><label>Score global minimum<input id="minimum_global_score" type="number" min="0" max="100" step="0.1" required></label><label>Confiance minimale<input id="minimum_confidence" type="number" min="0" max="1" step="0.01" required></label><label>Fraîcheur maximale<input id="max_age_days" type="number" min="1" max="3650" required></label></div>
+    <div class="form-grid"><label>Postes ciblés<textarea id="target_roles" rows="5" placeholder="Un poste par ligne"></textarea></label><label>Localisations<textarea id="locations" rows="5" placeholder="Une localisation par ligne"></textarea></label></div>
+    <div class="form-grid"><label>Rejeter à partir de N années exigées<input id="reject_experience_years" type="number" min="0" max="50" required></label><label class="check-label"><input id="internships_count" type="checkbox"> Les stages comptent comme expérience professionnelle</label></div>
+    <label>Règles de rejet dur<textarea id="hard_rejection_rules" rows="6" placeholder="Une règle par ligne"></textarea></label>
+    <div class="section-heading"><div><h2>Critères Jev</h2><p>Les identifiants doivent rester uniques et stables.</p></div><button id="criterion_add" class="secondary-btn" type="button">+ Ajouter un critère</button></div>
+    <div id="criteria_editor" class="criteria-editor"></div>
+    <div id="profile_errors" class="error hidden" role="alert"></div>
+  </form>
+</section>
+<section class="panel"><div class="section-heading"><div><h2>Historique du profil</h2><p>Chaque version validée peut être restaurée.</p></div></div><div id="profile_history" class="history-lines"><div class="loading-card">Chargement…</div></div></section>
 <section class="panel"><div class="section-heading"><div><h2>Sauvegardes</h2><p>Base SQLite, profil, master et PDF — aucun secret ni fichier de configuration.</p></div><button id="backup_create" type="button">Créer une sauvegarde</button></div><div id="backup_list" class="backup-list"><div class="loading-card">Chargement…</div></div></section>
 <section class="panel danger-zone"><h2>Restaurer une sauvegarde</h2><p class="muted">La restauration remplace les données persistantes après validation complète de l’archive. Une sauvegarde de sécurité est créée automatiquement.</p><form id="restore_form" class="stack-form"><label>Archive ZIP<input id="restore_file" type="file" accept="application/zip,.zip" required></label><label>Confirmation<input id="restore_confirmation" type="text" placeholder="Saisir RESTAURER" autocomplete="off" required></label><button type="submit">Restaurer les données</button></form></section>
+<script id="profile_data" type="application/json">{{ profile | tojson }}</script>
 {% endblock %}
 {% block scripts %}<script src="/static/profile.js"></script>{% endblock %}

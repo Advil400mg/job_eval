@@ -34,7 +34,8 @@ const sandbox = {
 sandbox.window = sandbox;
 vm.createContext(sandbox);
 vm.runInContext(code, sandbox);
-const { escapeHtml, scoreVisual, criteriaVisual, paginationHtml, statusBadge } = sandbox.JEV;
+const { escapeHtml, scoreVisual, criteriaVisual, paginationHtml, statusBadge,
+  applicationStatusBadge } = sandbox.JEV;
 let passed = 0;
 function check(name, callback) { callback(); passed++; console.log("ok  ", name); }
 
@@ -81,6 +82,12 @@ check("la pagination borne la fenêtre autour de la page courante", () => {
 check("les badges ont toujours un texte en plus de la couleur", () => {
   assert.match(statusBadge("qualified"), /Qualifiée/);
   assert.match(statusBadge("error"), /Erreur technique/);
+});
+
+check("les statuts de candidature ont un libellé explicite", () => {
+  assert.match(applicationStatusBadge("to_review"), /À étudier/);
+  assert.match(applicationStatusBadge("applied"), /Candidature envoyée/);
+  assert.match(applicationStatusBadge("offer"), /Offre reçue/);
 });
 
 check("les valeurs injectées sont échappées", () => {

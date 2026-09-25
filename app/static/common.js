@@ -39,6 +39,19 @@
     return `<span class="badge ${css}">${escapeHtml(label)}</span>`;
   }
 
+  const applicationStatusMap = {
+    to_review: ["À étudier", "unknown"],
+    cv_ready: ["CV prêt", "warn"],
+    applied: ["Candidature envoyée", "running"],
+    interview: ["Entretien", "warn"],
+    rejected: ["Refus", "bad"],
+    offer: ["Offre reçue", "ok"],
+  };
+  function applicationStatusBadge(status) {
+    const [label, css] = applicationStatusMap[status] || [status || "Non suivie", "unknown"];
+    return `<span class="badge ${css}">${escapeHtml(label)}</span>`;
+  }
+
   function scoreVisual(score, threshold = 68, compact = false) {
     if (typeof score !== "number") {
       return `<div class="score-visual ${compact ? "compact" : ""} score-na"><strong>—</strong><span>sans score</span></div>`;
@@ -174,7 +187,7 @@
 
   window.JEV = {
     $, $$, escapeHtml, num, formatDate, fetchJSON, statusBadge, scoreVisual,
-    criteriaVisual, criteriaHtml, gatesHtml, paginationHtml, showToast,
+    criteriaVisual, criteriaHtml, gatesHtml, paginationHtml, showToast, applicationStatusBadge,
     updateQuery, generateCv, pollCv, refreshNavBadges,
   };
   refreshNavBadges();

@@ -9,7 +9,9 @@ import os
 import re
 import tempfile
 from contextlib import asynccontextmanager
+from datetime import date
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
@@ -18,7 +20,9 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 from starlette.requests import Request
 
-from . import analytics, backup, config, cv, jobs, network, onboarding, pipeline, security, store
+from . import analytics, backup, config, cv, jobs, network, onboarding, pipeline
+from . import profile as profile_mod
+from . import security, store
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -31,7 +35,7 @@ async def lifespan(_app: FastAPI):
     jobs.shutdown()
 
 
-app = FastAPI(title="Jev Job Offer Evaluator", version="2.1.0", lifespan=lifespan)
+app = FastAPI(title="Jev Job Offer Evaluator", version="2.2.0", lifespan=lifespan)
 app.add_middleware(security.AuthMiddleware)
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
@@ -44,6 +48,45 @@ class EvaluateRequest(BaseModel):
 class CvRequest(BaseModel):
     url: str
     send_email: bool = False
+
+
+class ManualEvaluateRequest(BaseModel):
+    url: str = Field(..., max_length=2048)
+    text: str = Field(..., min_length=200, max_length=60000)
+    title: str = Field("", max_length=300)
+    company: str = Field("", max_length=300)
+    location: str = Field("", max_length=300)
+    published_at: str | None = Field(None, max_length=10)
+
+
+class ProfileUpdateRequest(BaseModel):
+    profile: dict
+    expected_revision: str = Field(..., min_length=64, max_length=64)
+
+
+class ProfileRestoreRequest(BaseModel):
+    expected_revision: str = Field(..., min_length=64, max_length=64)
+
+
+class ApplicationCreateRequest(BaseModel):
+    url: str = Field(..., max_length=2048)
+    status: str = "to_review"
+    title: str = Field("", max_length=300)
+    company: str = Field("", max_length=300)
+    location: str = Field("", max_length=300)
+
+
+class ApplicationUpdateRequest(BaseModel):
+    revision: int = Field(..., ge=1)
+    status: str | None = None
+    notes: str | None = Field(None, max_length=10000)
+    contact_name: str | None = Field(None, max_length=300)
+    contact_email: str | None = Field(None, max_length=320)
+    applied_at: str | None = Field(None, max_length=10)
+    follow_up_at: str | None = Field(None, max_length=10)
+    title: str | None = Field(None, max_length=300)
+    company: str | None = Field(None, max_length=300)
+    location: str | None = Field(None, max_length=300)
 
 
 def _clean_urls(raw: list[str]) -> list[str]:
@@ -69,6 +112,44 @@ def _clean_urls(raw: list[str]) -> list[str]:
     return urls
 
 
+def _optional_date(value: str | None, field: str) -> str | None:
+    if value is None or not value.strip():
+        return None
+    try:
+        return date.fromisoformat(value.strip()).isoformat()
+    except ValueError as exc:
+        raise HTTPException(400, f"{field} doit être une date ISO AAAA-MM-JJ") from exc
+
+
+def _manual_url(value: str) -> str:
+    """Validate a reference URL without DNS lookup: manual evaluation performs no fetch."""
+    candidate = value.strip()
+    try:
+        parsed = urlsplit(candidate)
+    except ValueError as exc:
+        raise HTTPException(400, "URL invalide") from exc
+    if parsed.scheme.lower() not in ("http", "https") or not parsed.hostname:
+        raise HTTPException(400, "URL invalide (http/https requis)")
+    if parsed.username or parsed.password:
+        raise HTTPException(400, "L’URL ne doit pas contenir d’identifiants")
+    return candidate
+
+
+def _application_changes(payload: ApplicationUpdateRequest) -> dict:
+    changes = payload.model_dump(exclude={"revision"}, exclude_unset=True)
+    for field in ("applied_at", "follow_up_at"):
+        if field in changes:
+            changes[field] = _optional_date(changes[field], field)
+    if changes.get("contact_email") and not re.fullmatch(
+        r"[^\s@]+@[^\s@]+\.[^\s@]+", str(changes["contact_email"]), re.I,
+    ):
+        raise HTTPException(400, "contact_email invalide")
+    for field in ("notes", "contact_name", "contact_email", "title", "company", "location"):
+        if field in changes and changes[field] is not None:
+            changes[field] = str(changes[field]).strip()
+    return changes
+
+
 def _cv_summary(url: str, cv_jobs: dict[str, dict] | None = None) -> dict | None:
     latest = cv_jobs.get(url) if cv_jobs is not None else store.latest_cv_for(url)
     if not latest:
@@ -77,7 +158,8 @@ def _cv_summary(url: str, cv_jobs: dict[str, dict] | None = None) -> dict | None
             "created_at": latest["created_at"]}
 
 
-def _offer_row(item: dict, cv_jobs: dict[str, dict] | None = None) -> dict:
+def _offer_row(item: dict, cv_jobs: dict[str, dict] | None = None,
+               applications: dict[str, dict] | None = None) -> dict:
     """Flatten one stored result for compact offer lists."""
     jev = item.get("jev") or {}
     decision = item.get("decision") or {}
@@ -111,6 +193,7 @@ def _offer_row(item: dict, cv_jobs: dict[str, dict] | None = None) -> dict:
         "jev_model": jev.get("jev_model"), "usage": jev.get("usage"),
         "evaluation_count": item.get("evaluation_count", 1),
         "cv": _cv_summary(item.get("url", ""), cv_jobs),
+        "application": (applications or {}).get(store.normalize_url(item.get("url", ""))),
     }
 
 
@@ -227,15 +310,21 @@ def analytics_page(request: Request):
     return _render_page(request, "analytics.html", "analytics", "Analyses")
 
 
+@app.get("/applications", response_class=HTMLResponse)
+def applications_page(request: Request):
+    return _render_page(request, "applications.html", "applications", "Candidatures")
+
+
 @app.get("/profile", response_class=HTMLResponse)
 def profile_page(request: Request):
     if onboarding.status()["needed"]:
         return _render_page(request, "profile.html", "profile", "Profil")
+    current = profile_mod.current()
     profile, thresholds, criteria = _profile_context()
     master = json.loads(config.settings()["cv"]["master_path"].read_text(encoding="utf-8"))
     return _render_page(request, "profile.html", "profile", "Profil", {
         "profile": profile, "thresholds": thresholds, "criteria": criteria,
-        "identity": master.get("identity", {}),
+        "identity": master.get("identity", {}), "profile_revision": current["revision"],
     })
 
 
@@ -279,7 +368,7 @@ async def create_onboarding(
 
 @app.get("/healthz")
 def healthz():
-    return {"ok": True, "version": "2.1.0", "auth_required": security.auth_enabled()}
+    return {"ok": True, "version": "2.2.0", "auth_required": security.auth_enabled()}
 
 
 @app.post("/api/evaluate")
@@ -294,14 +383,39 @@ def evaluate(request: Request, payload: EvaluateRequest):
     return {"run_id": run_id, "total": len(urls), "url": f"/runs/{run_id}"}
 
 
+@app.post("/api/evaluate/manual")
+def evaluate_manual(request: Request, payload: ManualEvaluateRequest):
+    _require_onboarding_complete()
+    security.enforce_rate(
+        request, "evaluate", config.settings()["security"]["evaluate_per_minute"], 60,
+    )
+    url = _manual_url(payload.url)
+    published_at = _optional_date(payload.published_at, "published_at")
+    run_id = store.create_run([url])
+    try:
+        record = pipeline.evaluate_text(
+            url, payload.text, pipeline.load_profile(),
+            metadata={"title": payload.title, "company": payload.company,
+                      "location": payload.location, "published_at": published_at},
+        )
+        store.save_result(run_id, url, record.get("status", "error"), record)
+        store.finish_run(run_id, "done")
+    except Exception as exc:  # noqa: BLE001
+        store.finish_run(run_id, "failed", str(exc))
+        raise HTTPException(500, "Évaluation manuelle impossible") from exc
+    return {"run_id": run_id, "total": 1, "url": f"/runs/{run_id}", "result": record}
+
+
 @app.get("/api/runs/{run_id}")
 def get_run(run_id: str):
     run = store.get_run(run_id)
     if not run:
         raise HTTPException(404, "Lot inconnu")
     cv_jobs = store.latest_cvs_for([item.get("url", "") for item in run["results"]])
+    applications = store.applications_for_urls([item.get("url", "") for item in run["results"]])
     for item in run["results"]:
         item["cv"] = _cv_summary(item.get("url", ""), cv_jobs)
+        item["application"] = applications.get(store.normalize_url(item.get("url", "")))
     run["summary"] = analytics.run_summary(run)
     return run
 
@@ -348,7 +462,8 @@ def get_offers(
     )
     items = result.pop("items")
     cv_jobs = store.latest_cvs_for([item.get("url", "") for item in items])
-    result["offers"] = [_offer_row(item, cv_jobs) for item in items]
+    applications = store.applications_for_urls([item.get("url", "") for item in items])
+    result["offers"] = [_offer_row(item, cv_jobs, applications) for item in items]
     result["facets"] = store.offer_facets(view=view)
     return result
 
@@ -361,8 +476,9 @@ def get_offer_history(url: str):
     if not items:
         raise HTTPException(404, "Offre inconnue")
     cv_jobs = store.latest_cvs_for([item.get("url", "") for item in items])
-    return {"offer": _offer_row(items[0], cv_jobs),
-            "history": [_offer_row(item, cv_jobs) for item in items]}
+    applications = store.applications_for_urls([item.get("url", "") for item in items])
+    return {"offer": _offer_row(items[0], cv_jobs, applications),
+            "history": [_offer_row(item, cv_jobs, applications) for item in items]}
 
 
 @app.get("/api/history")
@@ -392,8 +508,122 @@ def get_criteria():
 @app.get("/api/profile")
 def get_profile():
     _require_onboarding_complete()
+    current = profile_mod.current()
     profile, thresholds, criteria = _profile_context()
-    return {"profile": profile, "thresholds": thresholds, "criteria": criteria}
+    return {"profile": profile, "thresholds": thresholds, "criteria": criteria,
+            "revision": current["revision"]}
+
+
+@app.put("/api/profile")
+def update_profile(payload: ProfileUpdateRequest):
+    _require_onboarding_complete()
+    try:
+        return profile_mod.update_profile(payload.profile, payload.expected_revision)
+    except profile_mod.ProfileConflict as exc:
+        raise HTTPException(409, str(exc)) from exc
+    except profile_mod.ProfileError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.get("/api/profile/history")
+def profile_history(limit: int = Query(50, ge=1, le=200)):
+    _require_onboarding_complete()
+    return {"versions": profile_mod.history(limit)}
+
+
+@app.post("/api/profile/history/{version_id}/restore")
+def restore_profile(version_id: str, payload: ProfileRestoreRequest):
+    _require_onboarding_complete()
+    try:
+        return profile_mod.restore(version_id, payload.expected_revision)
+    except profile_mod.ProfileConflict as exc:
+        raise HTTPException(409, str(exc)) from exc
+    except profile_mod.ProfileNotFound as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except profile_mod.ProfileError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.get("/api/applications")
+def list_applications(
+    page: int = Query(1, ge=1), page_size: int = Query(25, ge=5, le=100),
+    q: str = "", status: str = "", due: str = "", sort: str = "updated",
+):
+    if status and status not in store.APPLICATION_STATUSES:
+        raise HTTPException(400, "statut de candidature invalide")
+    if due not in ("", "overdue", "upcoming"):
+        raise HTTPException(400, "filtre de relance invalide")
+    if sort not in ("updated", "follow_up", "company", "status"):
+        raise HTTPException(400, "tri de candidature invalide")
+    return store.list_applications(
+        page=page, page_size=page_size, q=q, status=status, due=due, sort=sort,
+    )
+
+
+@app.post("/api/applications")
+def create_application(payload: ApplicationCreateRequest):
+    _require_onboarding_complete()
+    url = _clean_urls([payload.url])[0]
+    try:
+        return store.create_application(
+            url, payload.status, title=payload.title, company=payload.company,
+            location=payload.location,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.get("/api/applications/export")
+def export_applications(fmt: str = "csv"):
+    applications = store.all_applications()
+    if fmt == "json":
+        return JSONResponse(applications)
+    if fmt != "csv":
+        raise HTTPException(400, "format attendu : csv ou json")
+    output = io.StringIO()
+    fields = [
+        "id", "url", "title", "company", "location", "status", "notes",
+        "contact_name", "contact_email", "applied_at", "follow_up_at",
+        "created_at", "updated_at", "revision",
+    ]
+    writer = csv.DictWriter(output, fieldnames=fields, extrasaction="ignore")
+    writer.writeheader()
+    writer.writerows(applications)
+    return StreamingResponse(
+        iter([output.getvalue()]), media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": "attachment; filename=jev-applications.csv"},
+    )
+
+
+@app.get("/api/applications/{application_id}")
+def get_application(application_id: str):
+    application = store.get_application(application_id)
+    if not application:
+        raise HTTPException(404, "Candidature inconnue")
+    application["events"] = store.application_events(application_id)
+    return application
+
+
+@app.patch("/api/applications/{application_id}")
+def update_application(application_id: str, payload: ApplicationUpdateRequest):
+    try:
+        application = store.update_application(
+            application_id, _application_changes(payload), payload.revision,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    if not application:
+        raise HTTPException(404, "Candidature inconnue")
+    return application
+
+
+@app.delete("/api/applications/{application_id}")
+def delete_application(application_id: str):
+    if not store.delete_application(application_id):
+        raise HTTPException(404, "Candidature inconnue")
+    return {"deleted": application_id}
 
 
 @app.get("/api/cv")

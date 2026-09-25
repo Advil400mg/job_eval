@@ -40,7 +40,7 @@ jev-webapp/
 ├── scripts/
 │   ├── evaluate_job.py      # notation Jev (script du skill Job Hunt + surcharges optionnelles)
 │   └── serve.py             # démarrage : affiche la config effective puis lance uvicorn
-└── tests/                   # 99 tests hors ligne (Python + Node)
+└── tests/                   # 113 tests hors ligne (Python + Node)
 ```
 
 ## Ce que fait l'application
@@ -60,6 +60,12 @@ jev-webapp/
 5. **Verdict** : `qualified` / `jev_excluded` / `rejected` / `unverified` (Jev injoignable,
    aucune donnée inventée).
 6. **CV adapté** à la demande, via le moteur embarqué configurable.
+7. **Profil éditable et historisé** : rôles, lieux, seuils, critères et règles de rejet,
+   avec validation, écriture atomique, restauration et protection contre les conflits d'onglets.
+8. **Suivi des candidatures** lié aux offres : `À étudier`, `CV prêt`, candidature envoyée,
+   entretien, refus ou offre reçue, avec journal d'événements, relances et exports CSV/JSON.
+9. **Fallback manuel** pour les sites dynamiques ou inaccessibles au serveur : coller le texte
+   de l'annonce sans requête sortante ni navigateur Chromium dans l'image.
 
 ### Premier lancement
 
@@ -152,7 +158,7 @@ et tous les chemins par défaut sont relatifs au dossier. Le moteur reste désac
 (`[cv] enabled = false`) ; dans ce cas la génération de CV est annoncée comme indisponible
 avec le motif, sans que le reste de l'application en souffre.
 
-Vérifié sur une instance vierge : 99 tests hors ligne, construction Docker, démarrage sous
+Vérifié sur une instance vierge : 113 tests hors ligne, construction Docker, démarrage sous
 l'utilisateur non privilégié, page d'initialisation visible et chemins de profil dans `/data`.
 
 ## Démarrage sans Docker
@@ -209,16 +215,23 @@ Points de portabilité vérifiés :
 | `GET` | `/` | nouvelle évaluation et reprise des lots en cours |
 | `GET` | `/offers` | espace de travail paginé, filtré et dédupliqué par URL |
 | `GET` | `/runs`, `/runs/{id}` | historique et détail des lots |
-| `GET` | `/cv`, `/analytics`, `/profile` | CV persistants, analyses et profil candidat |
+| `GET` | `/cv`, `/analytics`, `/profile`, `/applications` | CV persistants, analyses, profil éditable et candidatures |
 | `GET` | `/api/onboarding` | état du premier lancement et fichiers manquants |
 | `POST` | `/api/onboarding` | formulaire multipart avec `cv_pdf` et préférences → initialise le profil |
 | `POST` | `/api/evaluate` | `{"urls": ["https://…", …]}` → `{"run_id": …}` |
+| `POST` | `/api/evaluate/manual` | URL + texte collé d'une offre dynamique → évaluation persistée |
 | `GET` | `/api/runs/{run_id}` | état du lot + résultats complets + résumé agrégé |
 | `GET` | `/api/stats?view=latest\|all&days=N` | KPI filtrables, scores, critères et portes |
 | `GET` | `/api/offers` | pagination, recherche, filtres, tri et vue dernière/toutes les évaluations |
 | `GET` | `/api/offers/history?url=…` | détail et historique des évaluations d'une URL normalisée |
 | `GET` | `/api/history?page=N` | lots paginés, filtrables par état |
 | `GET` | `/api/criteria` | critères et seuils du profil chargé |
+| `GET`, `PUT` | `/api/profile` | lecture et mise à jour validée du profil avec révision optimiste |
+| `GET` | `/api/profile/history` | historique des versions du profil |
+| `POST` | `/api/profile/history/{id}/restore` | restauration d'une version du profil |
+| `GET`, `POST` | `/api/applications` | recherche/liste paginée et création d'une candidature |
+| `GET`, `PATCH`, `DELETE` | `/api/applications/{id}` | détail, mise à jour et suppression d'une candidature |
+| `GET` | `/api/applications/export?fmt=csv\|json` | export du suivi des candidatures |
 | `POST` | `/api/cv` | `{"url": "…", "send_email": false}` → `{"job_id": …}` |
 | `GET` | `/api/cv` | jobs CV récents, y compris ceux en cours (permet de reprendre le suivi après reload) |
 | `GET` | `/api/cv/{job_id}` | état du job CV + résumé du moteur (pages, titre, écarts) |

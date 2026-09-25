@@ -80,7 +80,7 @@ def create_backup(kind: str = "manual") -> dict:
                 "format": "jev-backup",
                 "version": FORMAT_VERSION,
                 "created_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
-                "app_version": "2.1.0",
+                "app_version": "2.2.0",
                 "kind": kind,
                 "files": entries,
             }

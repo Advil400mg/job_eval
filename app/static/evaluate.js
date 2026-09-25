@@ -70,6 +70,22 @@
     }
   }
 
+  $("#manual_form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const button = event.submitter;
+    button.disabled = true; $("#manual_status").textContent = "Évaluation…";
+    const body = {
+      url: $("#manual_url").value.trim(), text: $("#manual_text").value.trim(),
+      title: $("#manual_title").value.trim(), company: $("#manual_company").value.trim(),
+      location: $("#manual_location").value.trim(),
+      published_at: $("#manual_published_at").value || null,
+    };
+    try {
+      const result = await fetchJSON("/api/evaluate/manual", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      window.location.href = result.url;
+    } catch (error) { $("#manual_status").textContent = error.message; button.disabled = false; }
+  });
+
   textarea.addEventListener("input", updateCount);
   $("#run").addEventListener("click", startRun);
   updateCount(); loadRecent().catch((error) => { $("#recent_runs").innerHTML = `<div class="error">${escapeHtml(error.message)}</div>`; });
