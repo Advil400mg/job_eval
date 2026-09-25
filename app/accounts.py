@@ -99,7 +99,10 @@ def get_user(user_id: str, include_disabled: bool = False) -> dict | None:
 
 def list_users() -> list[dict]:
     with store._LOCK, store._connect() as conn:
-        rows = conn.execute("SELECT * FROM users ORDER BY created_at, username_normalized").fetchall()
+        rows = conn.execute(
+            "SELECT * FROM users ORDER BY "
+            "CASE role WHEN 'admin' THEN 0 ELSE 1 END, active DESC, username_normalized"
+        ).fetchall()
     return [_public(row) for row in rows]
 
 

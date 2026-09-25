@@ -80,6 +80,20 @@ class AccountsTest(unittest.TestCase):
         self.assertGreater(int(disabled["session_version"]), before)
         self.assertIsNone(accounts.authenticate("user", "another-correct-password"))
 
+    def test_list_users_regroupe_les_administrateurs(self):
+        accounts.create_user("z-user", "correct-horse-battery")
+        accounts.create_user("b-admin", "another-correct-password", role="admin")
+        accounts.create_user("a-user", "third-correct-password")
+        accounts.create_user("a-admin", "fourth-correct-password", role="admin")
+        users = accounts.list_users()
+        self.assertEqual(
+            [(user["role"], user["username"]) for user in users],
+            [
+                ("admin", "a-admin"), ("admin", "b-admin"),
+                ("user", "a-user"), ("user", "z-user"),
+            ],
+        )
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
