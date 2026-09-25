@@ -10,7 +10,7 @@ import re
 import smtplib
 import tempfile
 from contextlib import asynccontextmanager
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from email.message import EmailMessage
 from urllib.parse import urlsplit
@@ -863,8 +863,29 @@ def download_cv(request: Request, job_id: str):
 @app.get("/admin", response_class=HTMLResponse)
 def admin_page(request: Request):
     _require_admin(request)
+    users = accounts.list_users()
+    invitations = accounts.list_invitations()
+    now = datetime.now().replace(microsecond=0).isoformat()
+    for invitation in invitations:
+        if invitation["accepted_at"]:
+            invitation["status"] = "used"
+        elif invitation["revoked_at"]:
+            invitation["status"] = "revoked"
+        elif invitation["expires_at"] <= now:
+            invitation["status"] = "expired"
+        else:
+            invitation["status"] = "active"
     return _render_page(request, "admin.html", "admin", "Administration", {
-        "users": accounts.list_users(), "invitations": accounts.list_invitations(),
+        "users": users,
+        "invitations": invitations,
+        "admin_stats": {
+            "users": len(users),
+            "active_users": sum(1 for user in users if user["active"]),
+            "admins": sum(1 for user in users if user["role"] == "admin"),
+            "active_invitations": sum(
+                1 for invitation in invitations if invitation["status"] == "active"
+            ),
+        },
     })
 
 

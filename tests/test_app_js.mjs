@@ -7,9 +7,13 @@ const code = fs.readFileSync(new URL("../app/static/common.js", import.meta.url)
 const elements = new Map();
 function makeEl() {
   return {
-    textContent: "", innerHTML: "", className: "", children: [],
+    textContent: "", innerHTML: "", className: "", children: [], value: "",
     classList: { toggle() {}, add() {}, remove() {} },
-    append(child) { this.children.push(child); }, remove() {},
+    append(...children) { this.children.push(...children); },
+    get firstChild() { return this.children[0] || null; },
+    removeChild(child) { this.children = this.children.filter((item) => item !== child); },
+    setAttribute(name, value) { this[name] = value; },
+    addEventListener() {}, focus() {}, select() {}, remove() {},
   };
 }
 const sandbox = {
@@ -92,6 +96,29 @@ check("les statuts de candidature ont un libellé explicite", () => {
 
 check("les valeurs injectées sont échappées", () => {
   assert.equal(escapeHtml('<script>"x"</script>'), "&lt;script&gt;&quot;x&quot;&lt;/script&gt;");
+});
+
+const adminResult = makeEl();
+elements.set("#invite_result", adminResult);
+const adminCode = fs.readFileSync(new URL("../app/static/admin.js", import.meta.url), "utf8");
+sandbox.navigator = { clipboard: { writeText: async () => {} } };
+vm.runInContext(adminCode, sandbox);
+
+check("les dates invalides de l’administration restent lisibles", () => {
+  assert.equal(sandbox.JEVAdmin.formatAdminDate("date-invalide"), "date-invalide");
+  assert.equal(sandbox.JEVAdmin.formatAdminDate(""), "—");
+});
+
+check("le résultat d’invitation n’injecte pas de HTML", () => {
+  sandbox.JEVAdmin.renderInviteResult({
+    url: 'https://app.test/register?token=<script>',
+    email_error: '<img src=x onerror=alert(1)>',
+    email_sent: false,
+  }, true);
+  const copy = adminResult.children[0];
+  assert.equal(copy.children[1].textContent, '<img src=x onerror=alert(1)>');
+  assert.equal(copy.children[2].value, 'https://app.test/register?token=<script>');
+  assert.equal(adminResult.innerHTML, "");
 });
 
 console.log(`\n${passed} tests JS OK`);

@@ -1,31 +1,79 @@
 {% extends "base.html" %}
+{% block shell_class %}wide-shell{% endblock %}
 {% block content %}
-<section class="page-header">
-  <div><p class="eyebrow">Instance</p><h1>Administration</h1><p class="muted">Comptes et invitations à usage unique.</p></div>
+<section class="page-heading admin-heading">
+  <div>
+    <p class="eyebrow">Gestion de l’instance</p>
+    <h1>Administration</h1>
+    <p>Gère les accès, vérifie l’état des comptes et crée des invitations à usage unique.</p>
+  </div>
 </section>
-<section class="panel">
-  <h2>Créer une invitation</h2>
-  <form id="invite_form" class="stack-form">
-    <label for="invite_email">Email réservé (facultatif)</label>
-    <input id="invite_email" type="email" maxlength="320">
-    <label for="invite_hours">Validité en heures</label>
-    <input id="invite_hours" type="number" min="1" max="720" value="72">
-    <label><input id="invite_send" type="checkbox"> Envoyer aussi par email</label>
+
+<section class="admin-kpis" aria-label="Résumé de l’instance">
+  <article class="admin-kpi"><span>Comptes</span><strong>{{ admin_stats.users }}</strong><small>{{ admin_stats.active_users }} actif{% if admin_stats.active_users != 1 %}s{% endif %}</small></article>
+  <article class="admin-kpi"><span>Administrateurs</span><strong>{{ admin_stats.admins }}</strong><small>accès complet</small></article>
+  <article class="admin-kpi"><span>Invitations actives</span><strong>{{ admin_stats.active_invitations }}</strong><small>en attente</small></article>
+</section>
+
+<section class="panel admin-invite-panel">
+  <div class="admin-section-head">
+    <div><p class="eyebrow">Nouvel accès</p><h2>Créer une invitation</h2><p>Le lien est utilisable une seule fois et expire automatiquement.</p></div>
+  </div>
+  <form id="invite_form" class="admin-invite-form">
+    <label for="invite_email"><span>Email réservé</span><small>Facultatif — empêche l’utilisation par une autre adresse.</small><input id="invite_email" type="email" maxlength="320" placeholder="prenom@exemple.com"></label>
+    <label for="invite_hours"><span>Durée de validité</span><small>Entre 1 heure et 30 jours.</small><div class="input-suffix"><input id="invite_hours" type="number" min="1" max="720" value="72"><span>heures</span></div></label>
+    <label class="admin-check"><input id="invite_send" type="checkbox"><span><strong>Envoyer par email</strong><small>Nécessite une configuration SMTP.</small></span></label>
     <button class="primary-btn" type="submit">Créer l’invitation</button>
   </form>
-  <div id="invite_result" class="hidden"></div>
+  <div id="invite_result" class="admin-invite-result hidden" role="status" aria-live="polite"></div>
 </section>
-<section class="panel">
-  <h2>Utilisateurs</h2>
-  <div class="table-wrap"><table><thead><tr><th>Utilisateur</th><th>Email</th><th>Rôle</th><th>État</th><th>Action</th></tr></thead><tbody id="users_body">
-  {% for user in users %}<tr data-user-id="{{ user.id }}"><td>{{ user.display_name or user.username }}<br><span class="muted">{{ user.username }}</span></td><td>{{ user.email or '—' }}</td><td>{{ user.role }}</td><td>{{ 'actif' if user.active else 'désactivé' }}</td><td>{% if user.id != current_user.id %}<button class="secondary-btn user-toggle" data-active="{{ 'false' if user.active else 'true' }}">{{ 'Désactiver' if user.active else 'Réactiver' }}</button>{% endif %}</td></tr>{% endfor %}
-  </tbody></table></div>
+
+<section class="panel admin-data-panel">
+  <div class="admin-section-head">
+    <div><p class="eyebrow">Accès</p><h2>Utilisateurs</h2><p>{{ admin_stats.users }} compte{% if admin_stats.users != 1 %}s{% endif %} enregistré{% if admin_stats.users != 1 %}s{% endif %} sur cette instance.</p></div>
+  </div>
+  <div class="admin-table-wrap">
+    <table class="admin-table">
+      <thead><tr><th>Utilisateur</th><th>Contact</th><th>Rôle</th><th>État</th><th class="admin-action-column">Action</th></tr></thead>
+      <tbody id="users_body">
+      {% for user in users %}
+        <tr data-user-id="{{ user.id }}">
+          <td data-label="Utilisateur"><div class="admin-identity"><span class="admin-avatar" aria-hidden="true">{{ (user.display_name or user.username)[0]|upper }}</span><span><strong>{{ user.display_name or user.username }}</strong><small>@{{ user.username }}{% if user.id == current_user.id %} · compte actuel{% endif %}</small></span></div></td>
+          <td data-label="Contact"><span class="admin-email">{{ user.email or 'Aucun email' }}</span></td>
+          <td data-label="Rôle"><span class="admin-pill role-{{ user.role }}">{{ 'Administrateur' if user.role == 'admin' else 'Utilisateur' }}</span></td>
+          <td data-label="État"><span class="admin-state {{ 'is-active' if user.active else 'is-disabled' }}"><i></i>{{ 'Actif' if user.active else 'Désactivé' }}</span></td>
+          <td data-label="Action" class="admin-action-column">{% if user.id != current_user.id %}<button class="secondary-btn compact user-toggle" data-active="{{ 'false' if user.active else 'true' }}">{{ 'Désactiver' if user.active else 'Réactiver' }}</button>{% else %}<span class="muted small">Session actuelle</span>{% endif %}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="5"><div class="empty-state"><strong>Aucun utilisateur</strong><p>Les comptes apparaîtront ici.</p></div></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </section>
-<section class="panel">
-  <h2>Invitations</h2>
-  <div class="table-wrap"><table><thead><tr><th>Email</th><th>Expiration</th><th>État</th><th>Action</th></tr></thead><tbody>
-  {% for invite in invitations %}<tr><td>{{ invite.email or 'Lien libre' }}</td><td>{{ invite.expires_at }}</td><td>{% if invite.accepted_at %}utilisée{% elif invite.revoked_at %}révoquée{% else %}active{% endif %}</td><td>{% if not invite.accepted_at and not invite.revoked_at %}<button class="secondary-btn invite-revoke" data-id="{{ invite.id }}">Révoquer</button>{% endif %}</td></tr>{% endfor %}
-  </tbody></table></div>
+
+<section class="panel admin-data-panel">
+  <div class="admin-section-head">
+    <div><p class="eyebrow">Invitations</p><h2>Historique des invitations</h2><p>Les liens expirés ou utilisés restent visibles pour le suivi.</p></div>
+  </div>
+  <div class="admin-table-wrap">
+    <table class="admin-table admin-invitations-table">
+      <thead><tr><th>Destinataire</th><th>Créée</th><th>Expiration</th><th>État</th><th class="admin-action-column">Action</th></tr></thead>
+      <tbody>
+      {% for invite in invitations %}
+        <tr>
+          <td data-label="Destinataire"><div class="admin-invite-recipient"><strong>{{ invite.email or 'Lien partageable' }}</strong><small>{{ 'Réservée à cette adresse' if invite.email else 'Aucune adresse imposée' }}</small></div></td>
+          <td data-label="Créée"><time data-local-time datetime="{{ invite.created_at }}">{{ invite.created_at }}</time></td>
+          <td data-label="Expiration"><time data-local-time datetime="{{ invite.expires_at }}">{{ invite.expires_at }}</time></td>
+          <td data-label="État"><span class="admin-pill invite-{{ invite.status }}">{% if invite.status == 'used' %}Utilisée{% elif invite.status == 'revoked' %}Révoquée{% elif invite.status == 'expired' %}Expirée{% else %}Active{% endif %}</span></td>
+          <td data-label="Action" class="admin-action-column">{% if invite.status == 'active' %}<button class="secondary-btn compact invite-revoke" data-id="{{ invite.id }}">Révoquer</button>{% else %}<span class="muted small">Aucune action</span>{% endif %}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="5"><div class="empty-state"><strong>Aucune invitation</strong><p>Crée le premier accès avec le formulaire ci-dessus.</p></div></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </section>
 {% endblock %}
 {% block scripts %}<script src="/static/admin.js"></script>{% endblock %}
