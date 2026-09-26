@@ -19,7 +19,6 @@
     fail_msg: >-
       JEV v2.4 requires Ubuntu 24.04 or Debian 12 amd64, a bare DNS name,
       an ACME email, an OpenRouter key and a session secret of at least 32 characters.
-  no_log: true
 
 - name: Install the container runtime
   ansible.builtin.import_tasks: install.yml
