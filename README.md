@@ -40,7 +40,7 @@ jev-webapp/
 ├── scripts/
 │   ├── evaluate_job.py      # notation Jev (script du skill Job Hunt + surcharges optionnelles)
 │   └── serve.py             # démarrage : affiche la config effective puis lance uvicorn
-└── tests/                   # 113 tests hors ligne (Python + Node)
+└── tests/                   # 195 tests hors ligne (Python + Node)
 ```
 
 ## Ce que fait l'application
@@ -62,17 +62,23 @@ jev-webapp/
 6. **CV adapté** à la demande, via le moteur embarqué configurable.
 7. **Profil éditable et historisé** : rôles, lieux, seuils, critères et règles de rejet,
    avec validation, écriture atomique, restauration et protection contre les conflits d'onglets.
-8. **Suivi des candidatures** lié aux offres : `À étudier`, `CV prêt`, candidature envoyée,
+8. **Multi-utilisateur isolé** : comptes créés sur invitation, mots de passe Argon2id,
+   sessions révocables et données SQLite/fichiers séparées par utilisateur.
+9. **Suivi des candidatures** lié aux offres : `À étudier`, `CV prêt`, candidature envoyée,
    entretien, refus ou offre reçue, avec journal d'événements, relances et exports CSV/JSON.
-9. **Fallback manuel** pour les sites dynamiques ou inaccessibles au serveur : coller le texte
+10. **Fallback manuel** pour les sites dynamiques ou inaccessibles au serveur : coller le texte
    de l'annonce sans requête sortante ni navigateur Chromium dans l'image.
 
 ### Premier lancement
 
-Tant que le profil n'existe pas, l'interface demande un CV PDF avec une couche texte. Le CV
+Au premier démarrage, l'interface crée le premier administrateur si les variables de bootstrap
+ne sont pas définies. Les comptes suivants sont créés uniquement avec une invitation à usage
+unique, expirables et révocables. Tant que le profil de l'utilisateur connecté n'existe pas,
+l'interface demande un CV PDF avec une couche texte. Le CV
 est extrait puis analysé par le modèle CV configuré ; aucun fait absent du document ne doit
 être ajouté. L'utilisateur complète uniquement les préférences non déductibles du CV
-(postes, localisations et seuils). L'application écrit dans `data_dir` :
+(postes, localisations et seuils). L'application écrit dans
+`<data_dir>/users/<user_id>/` :
 
 - `CV_MASTER.json`, source factuelle du générateur de CV ;
 - `PROFILE.json`, critères et préférences d'évaluation ;
@@ -111,12 +117,12 @@ configuration effective — jamais les secrets.
 | `app` | `db_file` | `<data_dir>/jev.db` | base SQLite |
 | `openrouter` | `endpoint` | API OpenRouter | point d'entrée Jev |
 | `openrouter` | `model` | `typesafe/jev-1.13` | modèle de notation |
-| `profile` | `path` | `<data_dir>/PROFILE.json` | critères, seuils, rejets durs générés à l'initialisation |
+| `profile` | `path` | ancien chemin mono-utilisateur | source migrée automatiquement en v2.3 |
 | `profile` | `evaluator` | `./scripts/evaluate_job.py` | script de notation |
 | `fetch` | `max_workers` | `4` | offres évaluées en parallèle (1-8) |
 | `cv` | `enabled` | `true` | `false` = bouton CV désactivé, avec explication |
 | `cv` | `command` | `cv-tailor {url} …` | commande du moteur, placeholders `{url}` `{out_dir}` `{extra}` |
-| `cv` | `out_dir` | `<data_dir>/cv` | PDF générés |
+| `cv` | `out_dir` | ancien chemin mono-utilisateur | source migrée automatiquement en v2.3 |
 | `cv` | `env_file` | — | fichier `KEY=VALUE` chargé pour le moteur (clé, emails SMTP) |
 | `security` | `session_hours` | `12` | durée du cookie de session signé |
 | `security` | `login_attempts` | `5` | tentatives de connexion par fenêtre de cinq minutes |
@@ -124,19 +130,23 @@ configuration effective — jamais les secrets.
 
 Surcharges d'environnement acceptées : `OPENROUTER_API_KEY`, `JEV_CONFIG`, `HOST`, `PORT`,
 `JEV_DATA_DIR`, `JEV_DB`, `JEV_PROFILE`, `JEV_EVALUATOR`, `CV_MASTER`, `CV_COMMAND`, `CV_OUT_DIR`,
-`CV_TAILOR_BIN` (ancien nom, conservé), `HERMES_ENV_FILE`, `JEV_AUTH_PASSWORD`,
+`CV_TAILOR_BIN` (ancien nom, conservé), `HERMES_ENV_FILE`, `JEV_ADMIN_USERNAME`,
+`JEV_ADMIN_EMAIL`, `JEV_AUTH_PASSWORD`,
 `JEV_SESSION_SECRET`, `JEV_COOKIE_SECURE`, `JEV_TRUST_PROXY` et
 `JEV_ALLOW_INSECURE_REMOTE`.
 
 ### Sécurité de l'interface
 
-Définir `JEV_AUTH_PASSWORD` (12 caractères minimum) active l'authentification sur toutes
-les pages et API, sauf `/healthz`, `/login` et les ressources statiques. Le cookie de
-session est signé, `HttpOnly` et `SameSite=Strict`. `JEV_SESSION_SECRET` est recommandé
-en production et doit contenir au moins 32 caractères. Utiliser `JEV_COOKIE_SECURE=true`
+L'authentification est obligatoire. `JEV_AUTH_PASSWORD` (12 caractères minimum) sert à
+créer automatiquement le premier administrateur avec `JEV_ADMIN_USERNAME` et
+`JEV_ADMIN_EMAIL`; sans ces variables, une page de création est proposée. Les mots de passe
+sont hachés en Argon2id et la connexion accepte l'email ou le nom d'utilisateur. Le cookie de
+session contient l'identifiant et une version révocable, est signé, `HttpOnly` et
+`SameSite=Strict`. `JEV_SESSION_SECRET` doit contenir au moins 32 caractères pour une écoute
+distante et conserver les sessions après redémarrage. Utiliser `JEV_COOKIE_SECURE=true`
 derrière HTTPS et `JEV_TRUST_PROXY=true` uniquement derrière un reverse proxy de confiance.
 
-Une écoute non locale sans mot de passe est refusée par défaut. Ne définir
+Une écoute non locale sans secret de session stable est refusée par défaut. Ne définir
 `JEV_ALLOW_INSECURE_REMOTE=true` que pour un environnement de développement isolé.
 Les URL d'offres sont validées contre les destinations privées, locales, réservées et les
 métadonnées cloud ; chaque redirection est revalidée avant connexion.
@@ -158,8 +168,8 @@ et tous les chemins par défaut sont relatifs au dossier. Le moteur reste désac
 (`[cv] enabled = false`) ; dans ce cas la génération de CV est annoncée comme indisponible
 avec le motif, sans que le reste de l'application en souffre.
 
-Vérifié sur une instance vierge : 113 tests hors ligne, construction Docker, démarrage sous
-l'utilisateur non privilégié, page d'initialisation visible et chemins de profil dans `/data`.
+Vérifié sur une instance vierge : 195 tests hors ligne, isolation entre deux comptes,
+migration SQLite v5 et chemins utilisateur sous `/data/users/`.
 
 ## Démarrage sans Docker
 
@@ -186,7 +196,7 @@ Un seul fichier compose, aucune dépendance externe à monter :
 
 ```bash
 cd /chemin/vers/jev-webapp
-cp .env.example .env                  # y mettre OPENROUTER_API_KEY et JEV_AUTH_PASSWORD
+cp .env.example .env                  # y mettre OPENROUTER_API_KEY et JEV_SESSION_SECRET
 cp config.example.toml config.toml    # adapter si besoin
 docker compose up -d --build          # http://localhost:8000
 ```
@@ -243,6 +253,13 @@ Points de portabilité vérifiés :
 | `POST` | `/api/backups/restore` | restauration validée, avec sauvegarde de sécurité préalable |
 | `GET` | `/api/runs/{run_id}/export?fmt=json\|csv` | export |
 | `GET` | `/healthz` | état + configuration effective **sans aucun secret** |
+| `GET`, `POST` | `/setup-admin` | création du premier administrateur si aucun compte actif |
+| `GET`, `POST` | `/register?token=…` | création d'un compte avec une invitation valide |
+| `GET` | `/admin` | gestion basique des comptes et invitations (administrateur) |
+| `GET` | `/api/auth/me` | compte actuellement connecté |
+| `POST` | `/api/auth/change-password`, `/api/auth/logout-all` | mot de passe et révocation des sessions |
+| `GET`, `POST`, `DELETE` | `/api/admin/invitations` | création, liste et révocation des invitations |
+| `GET`, `PATCH` | `/api/admin/users` | liste et activation/désactivation des comptes |
 
 ```bash
 curl -s localhost:8000/healthz | jq
@@ -264,7 +281,7 @@ en cours après un rechargement de la page :
   recruteur depuis cette application.
 
 Le moteur est celui que vous configurez — par défaut celui embarqué dans `engine/` (sélection
-LLM bornée par `<data_dir>/CV_MASTER.json`, validateur anti-invention, rendu PDF une page avec les
+LLM bornée par `<data_dir>/users/<user_id>/CV_MASTER.json`, validateur anti-invention, rendu PDF une page avec les
 polices embarquées). L'application ne fabrique rien : elle affiche ce que le moteur renvoie
 (pages, titre retenu, priorités, écarts, avertissements) et, en cas d'échec, son message
 d'erreur tel quel. Variables lues par le moteur : `CV_MASTER`, `CV_PROFILE`, `CV_DATA_DIR`,
@@ -288,9 +305,10 @@ Les scores gardent un affichage visuel : valeur numérique, barre colorée et ma
 Les petits indicateurs de critères ont désormais une légende textuelle (`bloquant`,
 `confiance faible`, `satisfait`) afin de ne pas dépendre uniquement de la couleur.
 
-SQLite migre automatiquement les anciennes bases en ajoutant les colonnes indexées nécessaires
-aux recherches. Les résultats JSON complets restent conservés ; aucune ancienne évaluation n'est
-supprimée. Les paramètres `utm_*`, `fbclid`, `gclid`, fragments et slash final sont ignorés pour
+SQLite migre automatiquement les anciennes bases vers le schéma v5, rattache les données au
+premier administrateur et remplace les unicités globales par des unicités par utilisateur.
+Les résultats JSON complets restent conservés ; aucune ancienne évaluation n'est supprimée.
+Les paramètres `utm_*`, `fbclid`, `gclid`, fragments et slash final sont ignorés pour
 regrouper les réévaluations d'une même URL.
 
 ## Tests
@@ -302,7 +320,7 @@ PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m unittest discover -s tests -p 'tes
 node tests/test_app_js.mjs
 ```
 
-Les 92 tests Python et 7 tests JavaScript sont hors ligne et n'utilisent aucune clé API. Ils
+Les 185 tests Python et 10 tests JavaScript sont hors ligne et n'utilisent aucune clé API. Ils
 couvrent notamment migration SQLite, authentification, SSRF, reprise des jobs, sauvegardes,
 API, score visuel et pagination.
 

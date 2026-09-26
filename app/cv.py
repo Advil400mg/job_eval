@@ -47,8 +47,8 @@ def enabled() -> bool:
     return bool(_settings().get("enabled", True)) and bool(command_template())
 
 
-def out_dir() -> str:
-    return str(_settings()["out_dir"])
+def out_dir(user_id: str | None = None) -> str:
+    return str(config.user_dir(user_id) / "cv")
 
 
 def _expand(template: str, url: str, directory: str, extra: str) -> list[str]:
@@ -103,7 +103,8 @@ def _extract_summary(stdout: str) -> dict:
 
 
 def generate(url: str, send_email: bool = False, timeout: int | None = None,
-             should_cancel: Callable[[], bool] | None = None) -> dict:
+             should_cancel: Callable[[], bool] | None = None,
+             user_id: str | None = None) -> dict:
     """Exécute le moteur pour une offre et renvoie son résumé JSON."""
     ok, why = available()
     if not ok:
@@ -111,12 +112,13 @@ def generate(url: str, send_email: bool = False, timeout: int | None = None,
 
     settings = _settings()
     timeout = timeout or settings["timeout_seconds"]
-    directory = os.path.join(out_dir(), f"{time.strftime('%Y%m%dT%H%M%S')}-{uuid.uuid4().hex[:6]}")
+    directory = os.path.join(out_dir(user_id),
+                             f"{time.strftime('%Y%m%dT%H%M%S')}-{uuid.uuid4().hex[:6]}")
     os.makedirs(directory, exist_ok=True)
 
     extra = "" if send_email else "--dry-run"
     argv = _expand(command_template(), url, directory, extra)
-    env, _ = config.cv_environment()
+    env, _ = config.cv_environment(user_id=user_id)
     env["CV_URL"] = url
 
     proc = subprocess.Popen(

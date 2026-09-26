@@ -11,7 +11,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from fastapi.testclient import TestClient  # noqa: E402
-from app import config, security, store  # noqa: E402
+from app import accounts, config, security, store  # noqa: E402
 from app.main import app  # noqa: E402
 
 
@@ -47,7 +47,7 @@ class ApiSecurity(unittest.TestCase):
         with TestClient(app) as client:
             health = client.get("/healthz")
             self.assertEqual(health.status_code, 200)
-            self.assertEqual(health.json(), {"ok": True, "version": "2.2.0", "auth_required": True})
+            self.assertEqual(health.json(), {"ok": True, "version": "2.3.0", "auth_required": True})
             self.assertEqual(client.get("/api/history").status_code, 401)
             page = client.get("/offers", follow_redirects=False)
             self.assertEqual(page.status_code, 303)
@@ -56,7 +56,8 @@ class ApiSecurity(unittest.TestCase):
     def test_login_pose_un_cookie_signe_et_donne_acces(self):
         with TestClient(app) as client:
             response = client.post(
-                "/login", data={"password": "integration-password", "next": "/api/history"},
+                "/login", data={"identifier": "admin", "password": "integration-password",
+                                "next": "/api/history"},
                 follow_redirects=False,
             )
             self.assertEqual(response.status_code, 303)
@@ -69,11 +70,63 @@ class ApiSecurity(unittest.TestCase):
     def test_mauvais_mot_de_passe_ne_pose_pas_de_cookie(self):
         with TestClient(app) as client:
             response = client.post(
-                "/login", data={"password": "wrong-password", "next": "/"},
+                "/login", data={"identifier": "admin", "password": "wrong-password", "next": "/"},
                 follow_redirects=False,
             )
             self.assertEqual(response.status_code, 401)
             self.assertNotIn("jev_session=", response.headers.get("set-cookie", ""))
+
+    def test_connexions_reussies_ne_declenchent_pas_la_limite(self):
+        with TestClient(app) as client:
+            for _ in range(8):
+                response = client.post(
+                    "/login", data={"identifier": "admin", "password": "integration-password",
+                                    "next": "/"},
+                    follow_redirects=False,
+                )
+                self.assertEqual(response.status_code, 303)
+
+    def test_seuls_les_echecs_de_connexion_sont_limites(self):
+        with TestClient(app) as client:
+            for _ in range(5):
+                response = client.post(
+                    "/login", data={"identifier": "admin", "password": "wrong-password",
+                                    "next": "/"},
+                    follow_redirects=False,
+                )
+                self.assertEqual(response.status_code, 401)
+            response = client.post(
+                "/login", data={"identifier": "admin", "password": "wrong-password",
+                                "next": "/"},
+                follow_redirects=False,
+            )
+            self.assertEqual(response.status_code, 429)
+
+    def test_non_admin_ne_revient_pas_sur_la_page_admin_apres_login(self):
+        accounts.create_user("member", "member-password-123", user_id="member-user")
+        with TestClient(app) as client:
+            response = client.post(
+                "/login", data={"identifier": "member", "password": "member-password-123",
+                                "next": "/admin"},
+                follow_redirects=False,
+            )
+            self.assertEqual(response.status_code, 303)
+            self.assertEqual(response.headers["location"], "/")
+
+    def test_logout_sans_origin_supprime_la_session(self):
+        with TestClient(app) as client:
+            login = client.post(
+                "/login", data={"identifier": "admin", "password": "integration-password",
+                                "next": "/"},
+                follow_redirects=False,
+            )
+            self.assertEqual(login.status_code, 303)
+            self.assertEqual(client.get("/api/history").status_code, 200)
+            logout = client.post("/logout", follow_redirects=False)
+            self.assertEqual(logout.status_code, 303)
+            self.assertEqual(logout.headers["location"], "/login")
+            self.assertIn("jev_session=", logout.headers.get("set-cookie", ""))
+            self.assertEqual(client.get("/api/history").status_code, 401)
 
 
 if __name__ == "__main__":

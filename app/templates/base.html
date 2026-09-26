@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{ page_title }} — Jev</title>
-<link rel="stylesheet" href="/static/style.css">
+<link rel="stylesheet" href="/static/style.css?v=2.3.0">
 </head>
 <body data-page="{{ active }}">
 <header class="app-header">
@@ -20,7 +20,9 @@
     <a href="/analytics" class="{% if active == 'analytics' %}active{% endif %}"{% if active == 'analytics' %} aria-current="page"{% endif %}>Analyses</a>
   </nav>
   <div class="header-actions">
+    {% if is_admin %}<a class="profile-link {% if active == 'admin' %}active{% endif %}" href="/admin">Administration</a>{% endif %}
     <a class="profile-link {% if active == 'profile' %}active{% endif %}" href="/profile" aria-label="Profil candidat"{% if active == 'profile' %} aria-current="page"{% endif %}>Profil</a>
+    {% if current_user %}<span class="muted">{{ current_user.display_name or current_user.username }}</span>{% endif %}
     {% if auth_enabled %}<form method="post" action="/logout"><button class="logout-btn" type="submit">Déconnexion</button></form>{% endif %}
   </div>
 </header>

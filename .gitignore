@@ -6,4 +6,5 @@ __pycache__/
 .env
 /PROFILE.json
 /engine/CV_MASTER.json
+.restore-*
 

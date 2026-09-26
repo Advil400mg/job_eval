@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Créer l’administrateur — Jev</title>
+<link rel="stylesheet" href="/static/style.css?v=2.3.0">
+</head>
+<body class="login-body">
+<main class="login-shell">
+  <section class="login-card">
+    <div class="brand login-brand"><span class="brand-mark">J</span><span><strong>Jev</strong><small>Initialisation sécurisée</small></span></div>
+    <h1>Premier administrateur</h1>
+    <p class="muted">Crée le compte qui administrera cette instance.</p>
+    {% if error %}<div class="error">{{ error }}</div>{% endif %}
+    <form method="post" action="/setup-admin" class="stack-form">
+      <label for="username">Nom d’utilisateur</label>
+      <input id="username" name="username" value="{{ username or '' }}" minlength="3" maxlength="64" required autofocus autocomplete="username">
+      <label for="display_name">Nom affiché</label>
+      <input id="display_name" name="display_name" value="{{ display_name or '' }}" maxlength="120" autocomplete="name">
+      <label for="email">Email</label>
+      <input id="email" name="email" type="email" value="{{ email or '' }}" maxlength="320" autocomplete="email">
+      <label for="password">Mot de passe</label>
+      <input id="password" name="password" type="password" minlength="12" maxlength="512" required autocomplete="new-password">
+      <p class="muted">12 caractères minimum.</p>
+      <button class="primary-btn" type="submit">Créer l’administrateur</button>
+    </form>
+  </section>
+</main>
+</body>
+</html>

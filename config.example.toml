@@ -24,7 +24,7 @@ timeout_seconds = 120
 max_retries = 3
 
 [profile]
-path = ""                            # défaut : <data_dir>/PROFILE.json, créé au premier lancement
+path = ""                            # ancien chemin mono-utilisateur, utilisé seulement à la migration
 evaluator = "./scripts/evaluate_job.py"
 # minimum_global_score = 68        # laisser commenté pour utiliser PROFILE.json
 # minimum_confidence = 0.5
@@ -35,8 +35,8 @@ max_workers = 4                    # offres évaluées en parallèle (1 à 8)
 max_text_chars = 60000
 
 [security]
-# Le mot de passe et le secret de session viennent uniquement de l'environnement :
-# JEV_AUTH_PASSWORD (12 caractères minimum) et JEV_SESSION_SECRET (32 minimum, optionnel).
+# Comptes sur invitation. JEV_AUTH_PASSWORD peut amorcer le premier administrateur ;
+# JEV_SESSION_SECRET (32 caractères minimum) stabilise les sessions entre redémarrages.
 session_hours = 12
 cookie_secure = false              # true derrière HTTPS
 trust_proxy = false                # true seulement derrière un proxy de confiance
@@ -62,9 +62,9 @@ max_upload_mb = 512
 # alors une explication au lieu de faire semblant.
 enabled = true
 command = "{python} engine/tailor_cv.py {url} --json --out-dir {out_dir} --no-jev --no-telegram {extra}"
-out_dir = ""                       # défaut : <data_dir>/cv
+out_dir = ""                       # ancien chemin mono-utilisateur, utilisé à la migration
 env_file = ""                      # fichier KEY=VALUE pour le moteur (clé API, SMTP)
 email_target = ""                  # adresse affichée ; sinon EMAIL_ADDRESS du env_file
 model = ""                         # modèle de reformulation du CV (défaut du moteur)
-master = ""                        # défaut : <data_dir>/CV_MASTER.json, créé au premier lancement
+master = ""                        # ancien chemin mono-utilisateur, utilisé à la migration
 timeout_seconds = 900

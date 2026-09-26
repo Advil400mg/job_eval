@@ -29,8 +29,8 @@ class ProfileNotFound(ProfileError):
     pass
 
 
-def path() -> Path:
-    return Path(config.settings()["profile_path"])
+def path(user_id: str | None = None) -> Path:
+    return config.user_dir(user_id) / "PROFILE.json"
 
 
 def revision(profile: dict) -> str:
@@ -38,9 +38,9 @@ def revision(profile: dict) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
-def load_profile() -> dict:
+def load_profile(user_id: str | None = None) -> dict:
     try:
-        value = json.loads(path().read_text(encoding="utf-8"))
+        value = json.loads(path(user_id).read_text(encoding="utf-8"))
     except OSError as exc:
         raise ProfileError(f"PROFILE.json illisible : {exc}") from exc
     except json.JSONDecodeError as exc:
@@ -160,8 +160,8 @@ def editable_profile(current: dict, proposed: dict) -> dict:
     return result
 
 
-def _atomic_write(profile: dict) -> None:
-    target = path()
+def _atomic_write(profile: dict, user_id: str | None = None) -> None:
+    target = path(user_id)
     target.parent.mkdir(parents=True, exist_ok=True)
     content = json.dumps(profile, ensure_ascii=False, indent=2).encode("utf-8") + b"\n"
     descriptor, temporary = tempfile.mkstemp(prefix=f".{target.name}.", dir=target.parent)
@@ -178,19 +178,20 @@ def _atomic_write(profile: dict) -> None:
             pass
 
 
-def current() -> dict:
-    profile = load_profile()
+def current(user_id: str | None = None) -> dict:
+    profile = load_profile(user_id)
     errors = validate_profile(profile)
     if errors:
         raise ProfileError("PROFILE.json invalide : " + " | ".join(errors[:12]))
     current_revision = revision(profile)
-    store.save_profile_version(profile, current_revision, "initial")
+    store.save_profile_version(profile, current_revision, "initial", user_id)
     return {"profile": profile, "revision": current_revision}
 
 
-def update_profile(proposed: dict, expected_revision: str, source: str = "manual") -> dict:
+def update_profile(proposed: dict, expected_revision: str, source: str = "manual",
+                   user_id: str | None = None) -> dict:
     with _LOCK:
-        current_profile = load_profile()
+        current_profile = load_profile(user_id)
         current_revision = revision(current_profile)
         if expected_revision != current_revision:
             raise ProfileConflict("Le profil a été modifié depuis son chargement")
@@ -199,28 +200,28 @@ def update_profile(proposed: dict, expected_revision: str, source: str = "manual
         if errors:
             raise ProfileError(" | ".join(errors[:20]))
         updated_revision = revision(updated)
-        store.save_profile_version(current_profile, current_revision, "initial")
+        store.save_profile_version(current_profile, current_revision, "initial", user_id)
         if updated_revision == current_revision:
             return {"profile": current_profile, "revision": current_revision, "changed": False}
-        _atomic_write(updated)
+        _atomic_write(updated, user_id)
         try:
-            version = store.save_profile_version(updated, updated_revision, source)
+            version = store.save_profile_version(updated, updated_revision, source, user_id)
         except Exception:
-            _atomic_write(current_profile)
+            _atomic_write(current_profile, user_id)
             raise
         return {"profile": updated, "revision": updated_revision, "version": version, "changed": True}
 
 
-def history(limit: int = 50) -> list[dict]:
-    current()
-    return store.list_profile_versions(limit)
+def history(limit: int = 50, user_id: str | None = None) -> list[dict]:
+    current(user_id)
+    return store.list_profile_versions(limit, user_id)
 
 
-def restore(version_id: str, expected_revision: str) -> dict:
-    version = store.get_profile_version(version_id)
+def restore(version_id: str, expected_revision: str, user_id: str | None = None) -> dict:
+    version = store.get_profile_version(version_id, user_id)
     if not version:
         raise ProfileNotFound("Version du profil inconnue")
     return update_profile(
         version["profile"], expected_revision,
-        source=f"restore:{version_id}",
+        source=f"restore:{version_id}", user_id=user_id,
     )

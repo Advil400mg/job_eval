@@ -5,13 +5,15 @@ from __future__ import annotations
 import os
 import sys
 import tempfile
+import time
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app import config, jobs, store  # noqa: E402
+from app import accounts, config, jobs, store  # noqa: E402
 
 
 class JobRecovery(unittest.TestCase):
@@ -47,6 +49,45 @@ class JobRecovery(unittest.TestCase):
         self.assertEqual(run["attempts"], 2)
         self.assertEqual(run["status"], "running")
 
+    def test_submit_run_transmet_user_id_comme_argument_nomme(self):
+        user = accounts.create_user("member", "member-password-123")
+        run_id = store.create_run(["https://jobs.test/member"], user["id"])
+        pool = mock.Mock()
+        with mock.patch.object(jobs, "_pools", return_value=(pool, mock.Mock())):
+            jobs.submit_run(run_id, ["https://jobs.test/member"])
+        pool.submit.assert_called_once_with(
+            jobs.pipeline.run_batch,
+            run_id,
+            ["https://jobs.test/member"],
+            user_id=user["id"],
+        )
+
+    def test_lot_non_admin_produit_un_resultat(self):
+        user = accounts.create_user("analyst", "analyst-password-123")
+        url = "https://jobs.test/analyst"
+        run_id = store.create_run([url], user["id"])
+        pool = ThreadPoolExecutor(max_workers=1)
+        record = {"url": url, "status": "ok", "jev": {"global_score": 75}}
+        try:
+            with (mock.patch.object(jobs, "_pools", return_value=(pool, mock.Mock())),
+                  mock.patch.object(jobs.pipeline, "load_profile", return_value={}),
+                  mock.patch.object(jobs.pipeline.jev, "evaluator_path", return_value="evaluator"),
+                  mock.patch.object(jobs.pipeline, "evaluate_url", return_value=record)):
+                jobs.submit_run(run_id, [url])
+                deadline = time.monotonic() + 2
+                while time.monotonic() < deadline:
+                    run = store.get_run(run_id, user["id"])
+                    if run and run["status"] != "running":
+                        break
+                    time.sleep(0.01)
+        finally:
+            pool.shutdown(wait=True)
+        run = store.get_run(run_id, user["id"])
+        assert run is not None
+        self.assertEqual(run["status"], "done")
+        self.assertEqual(run["progress"], 1)
+        self.assertEqual(run["results"][0]["url"], url)
+
     def test_reprise_automatique_respecte_le_nombre_maximal_de_tentatives(self):
         run_id = store.create_run(["https://jobs.test/one"])
         with store._LOCK, store._connect() as conn:
@@ -65,7 +106,7 @@ class JobRecovery(unittest.TestCase):
         job_id = store.create_cv_job("https://jobs.test/cv", send_email=True)
         with mock.patch.object(jobs, "submit_run"):
             result = jobs.recover_after_restart()
-        job = store.get_cv_job(job_id)
+        job = store.get_cv_job_system(job_id)
         assert job is not None
         self.assertEqual(result["interrupted_cv"], 1)
         self.assertEqual(job["status"], "interrupted")
@@ -78,7 +119,7 @@ class JobRecovery(unittest.TestCase):
         with mock.patch.object(jobs, "submit_cv") as submit:
             self.assertTrue(jobs.retry_cv(job_id))
         submit.assert_called_once_with(job_id)
-        job = store.get_cv_job(job_id)
+        job = store.get_cv_job_system(job_id)
         assert job is not None
         self.assertEqual(job["status"], "running")
         self.assertEqual(job["attempts"], 2)

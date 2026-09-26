@@ -26,12 +26,12 @@ class OnboardingError(RuntimeError):
     pass
 
 
-def paths() -> tuple[Path, Path, Path]:
-    settings = config.settings()
+def paths(user_id: str | None = None) -> tuple[Path, Path, Path]:
+    u_dir = config.user_dir(user_id)
     return (
-        Path(settings["profile_path"]),
-        Path(settings["cv"]["master_path"]),
-        Path(settings["data_dir"]) / "source_cv.pdf",
+        u_dir / "PROFILE.json",
+        u_dir / "CV_MASTER.json",
+        u_dir / "source_cv.pdf",
     )
 
 
@@ -43,8 +43,8 @@ def _load_json(path: Path) -> dict | None:
     return value if isinstance(value, dict) else None
 
 
-def status() -> dict:
-    profile_path, master_path, _ = paths()
+def status(user_id: str | None = None) -> dict:
+    profile_path, master_path, _ = paths(user_id)
     profile = _load_json(profile_path)
     master = _load_json(master_path)
     missing = []
@@ -353,7 +353,8 @@ def _atomic_write(path: Path, content: bytes) -> None:
 
 
 def initialize(pdf_bytes: bytes, filename: str, target_roles: str = "", locations: str = "",
-               reject_experience_years: int = 2, max_age_days: int = 30) -> dict:
+               reject_experience_years: int = 2, max_age_days: int = 30,
+               user_id: str | None = None) -> dict:
     if not 1 <= reject_experience_years <= 50:
         raise OnboardingError("Le seuil d'expérience doit être compris entre 1 et 50 ans.")
     if not 1 <= max_age_days <= 365:
@@ -366,7 +367,7 @@ def initialize(pdf_bytes: bytes, filename: str, target_roles: str = "", location
         profile_errors = validate_profile(profile)
         if profile_errors:
             raise OnboardingError("PROFILE invalide : " + " | ".join(profile_errors[:12]))
-        profile_path, master_path, source_path = paths()
+        profile_path, master_path, source_path = paths(user_id)
         _atomic_write(master_path, json.dumps(master, ensure_ascii=False, indent=2).encode("utf-8") + b"\n")
         _atomic_write(profile_path, json.dumps(profile, ensure_ascii=False, indent=2).encode("utf-8") + b"\n")
         _atomic_write(source_path, pdf_bytes)

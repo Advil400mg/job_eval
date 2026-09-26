@@ -25,13 +25,12 @@ def describe(settings: dict) -> str:
     exists = "absente (valeurs par défaut)" if not settings["config_file_exists"] else "lue"
     lines = [
         f"config     : {settings['config_file']} — {exists}",
-        f"profil     : {settings['profile_path']} — {'OK' if Path(settings['profile_path']).is_file() else 'À CRÉER AU PREMIER LANCEMENT'}",
-        f"master CV  : {settings['cv']['master_path']} — {'OK' if Path(settings['cv']['master_path']).is_file() else 'À CRÉER AU PREMIER LANCEMENT'}",
+        f"données    : {settings['data_dir'] / 'users'} — isolées par utilisateur",
         f"évaluateur : {settings['evaluator_path']}",
         f"modèle Jev : {settings['openrouter']['model']}",
         f"base       : {settings['db_file']}",
         f"clé API    : {'OK' if settings['api_key_set'] else 'ABSENTE — l’évaluation échouera'}",
-        f"accès web  : {'protégé par mot de passe' if settings['security']['auth_enabled'] else 'SANS AUTHENTIFICATION'}",
+        "accès web  : comptes sur invitation, authentification obligatoire",
         f"moteur CV  : {'OK' if cv_ok else 'indisponible'} — {cv_why}",
     ]
     return "\n".join("  " + line for line in lines)
@@ -62,11 +61,11 @@ def main() -> int:
     port = int(args.port or os.environ.get("PORT") or settings["port"])
     security.validate_configuration()
     local_hosts = {"127.0.0.1", "localhost", "::1"}
-    if (host not in local_hosts and not settings["security"]["auth_enabled"]
+    if (host not in local_hosts and not os.environ.get("JEV_SESSION_SECRET")
             and not settings["security"]["allow_insecure_remote"]):
         print(
-            "ERREUR : écoute distante refusée sans JEV_AUTH_PASSWORD. "
-            "Définis un mot de passe ou JEV_ALLOW_INSECURE_REMOTE=true.",
+            "ERREUR : écoute distante refusée sans JEV_SESSION_SECRET stable. "
+            "Définis un secret d’au moins 32 caractères ou JEV_ALLOW_INSECURE_REMOTE=true.",
             file=sys.stderr,
         )
         return 2

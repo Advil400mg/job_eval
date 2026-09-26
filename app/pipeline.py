@@ -12,12 +12,12 @@ from . import jev, profile as profile_mod, store
 from .extract import FetchError, extract, fetch_html
 
 
-def profile_path() -> str:
-    return str(config.settings()["profile_path"])
+def profile_path(user_id: str | None = None) -> str:
+    return str(config.user_dir(user_id) / "PROFILE.json")
 
 
-def load_profile() -> dict:
-    return profile_mod.load_profile()
+def load_profile(user_id: str | None = None) -> dict:
+    return profile_mod.load_profile(user_id)
 
 
 def evaluate_url(url: str, profile: dict, evaluator: str | None = None) -> dict:
@@ -122,8 +122,9 @@ def _worker(args: tuple[str, dict, str | None, str]) -> None:
     store.save_result(run_id, url, record.get("status", "error"), record)
 
 
-def run_batch(run_id: str, urls: list[str], max_workers: int | None = None) -> None:
-    profile = load_profile()
+def run_batch(run_id: str, urls: list[str], max_workers: int | None = None,
+              user_id: str | None = None) -> None:
+    profile = load_profile(user_id)
     if max_workers is None:
         max_workers = config.settings()["fetch"]["max_workers"]
     evaluator = jev.evaluator_path()

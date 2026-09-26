@@ -24,11 +24,13 @@ def _pools() -> tuple[ThreadPoolExecutor, ThreadPoolExecutor]:
 
 def submit_run(run_id: str, urls: list[str]) -> None:
     run_pool, _ = _pools()
-    run_pool.submit(pipeline.run_batch, run_id, urls)
+    run = store.get_run(run_id)
+    job_user_id = run.get("user_id") if run else None
+    run_pool.submit(pipeline.run_batch, run_id, urls, user_id=job_user_id)
 
 
 def _execute_cv(job_id: str) -> None:
-    job = store.get_cv_job(job_id)
+    job = store.get_cv_job_system(job_id)
     if not job:
         return
     if store.cv_cancel_requested(job_id):
@@ -39,9 +41,10 @@ def _execute_cv(job_id: str) -> None:
             job["url"],
             send_email=bool(job.get("send_email")),
             should_cancel=lambda: store.cv_cancel_requested(job_id),
+            user_id=job.get("user_id"),
         )
         store.finish_cv_job(job_id, "done", payload)
-        store.mark_application_cv_ready(job["url"])
+        store.mark_application_cv_ready(job["url"], job.get("user_id"))
     except cv.CvCancelled as exc:
         store.finish_cv_job(job_id, "cancelled", {"error": str(exc)}, str(exc))
     except cv.CvError as exc:
@@ -67,7 +70,7 @@ def retry_run(run_id: str) -> bool:
 
 
 def retry_cv(job_id: str) -> bool:
-    job = store.get_cv_job(job_id)
+    job = store.get_cv_job_system(job_id)
     if not job or int(job.get("attempts") or 1) >= config.settings()["jobs"]["max_attempts"]:
         return False
     if not store.restart_cv_job(job_id):
