@@ -74,6 +74,7 @@ class DeploymentArtifacts(unittest.TestCase):
         validation = (ROOT / "deploy/ansible/roles/jev/tasks/main.yml").read_text(encoding="utf-8")
         self.assertNotIn("[:space:]", validation)
         self.assertIn("[^@\\s]+@[^@\\s]+", validation)
+        self.assertIn('distribution_major_version in ["24", "26"]', validation)
 
     def test_ansible_role_contains_release_and_operations_paths(self):
         required = [

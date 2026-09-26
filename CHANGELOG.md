@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.4.1 — Non publié
+
+- Prise en charge d’Ubuntu 26.04 LTS par le rôle Ansible de production.
+- Correction de la validation de l’adresse email ACME et affichage de la précondition en échec.
+
 ## 2.4.0 — 2026-09-26
 
 - Ajout d’un déploiement de production automatisé par Ansible pour Ubuntu 24.04 et Debian 12.

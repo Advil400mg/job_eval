@@ -1,6 +1,6 @@
 # Déploiement de production JEV v2.4
 
-Ce dossier déploie une instance JEV sur Ubuntu 24.04 LTS ou Debian 12 amd64 :
+Ce dossier déploie une instance JEV sur Ubuntu 24.04/26.04 LTS ou Debian 12 amd64 :
 
 - application FastAPI dans un conteneur non privilégié ;
 - Caddy comme seul service publié sur les ports 80 et 443 ;
@@ -20,7 +20,7 @@ Sur la machine de contrôle :
 
 Sur le serveur :
 
-- Ubuntu 24.04 LTS ou Debian 12 amd64 ;
+- Ubuntu 24.04/26.04 LTS ou Debian 12 amd64 ;
 - au moins 2 Go de RAM et 10 Go de stockage disponible ;
 - ports TCP 22, 80 et 443 accessibles ;
 - port UDP 443 recommandé pour HTTP/3 ;

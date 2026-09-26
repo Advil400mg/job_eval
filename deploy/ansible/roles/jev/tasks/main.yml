@@ -4,7 +4,7 @@
     that:
       - ansible_facts.os_family == "Debian"
       - >-
-        (ansible_facts.distribution == "Ubuntu" and ansible_facts.distribution_major_version == "24")
+        (ansible_facts.distribution == "Ubuntu" and ansible_facts.distribution_major_version in ["24", "26"])
         or
         (ansible_facts.distribution == "Debian" and ansible_facts.distribution_major_version == "12")
       - ansible_facts.architecture in ["x86_64", "amd64"]
@@ -17,7 +17,7 @@
       - jev_admin_bootstrap_password | length == 0 or jev_admin_bootstrap_password | length >= 12
       - jev_backup_retention_days | int >= 1
     fail_msg: >-
-      JEV v2.4 requires Ubuntu 24.04 or Debian 12 amd64, a bare DNS name,
+      JEV v2.4 requires Ubuntu 24.04/26.04 or Debian 12 amd64, a bare DNS name,
       an ACME email, an OpenRouter key and a session secret of at least 32 characters.
 
 - name: Install the container runtime

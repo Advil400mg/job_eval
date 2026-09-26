@@ -225,7 +225,7 @@ La pile de production se trouve dans `deploy/` :
 
 - `compose.production.yml` ne publie que Caddy sur 80/443 ; JEV reste sur un réseau Docker ;
 - Caddy obtient et renouvelle automatiquement le certificat HTTPS ;
-- le rôle Ansible prend en charge Ubuntu 24.04 LTS et Debian 12 amd64 ;
+- le rôle Ansible prend en charge Ubuntu 24.04/26.04 LTS et Debian 12 amd64 ;
 - les secrets sont fournis par Ansible Vault et écrits avec le mode `0600` ;
 - une sauvegarde vérifiée est créée avant chaque mise à jour ;
 - un timer systemd effectue les sauvegardes quotidiennes ;
