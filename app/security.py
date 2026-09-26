@@ -38,7 +38,7 @@ _EPHEMERAL_SECRET = secrets.token_urlsafe(48)
 # ── Helpers ──────────────────────────────────────────────────────────
 
 def auth_password() -> str:
-    return os.environ.get("JEV_AUTH_PASSWORD", "")
+    return config.secret_value("JEV_AUTH_PASSWORD")
 
 
 def auth_enabled() -> bool:
@@ -51,11 +51,15 @@ def _multi_user_mode() -> bool:
     return not bool(auth_password())
 
 
+def session_secret() -> str:
+    return config.secret_value("JEV_SESSION_SECRET")
+
+
 def validate_configuration() -> None:
     password = auth_password()
     if password and len(password) < 12:
         raise RuntimeError("JEV_AUTH_PASSWORD doit contenir au moins 12 caractères")
-    secret = os.environ.get("JEV_SESSION_SECRET", "")
+    secret = session_secret()
     if password and secret and len(secret) < 32:
         raise RuntimeError("JEV_SESSION_SECRET doit contenir au moins 32 caractères")
     if _multi_user_mode() and secret and len(secret) < 32:
@@ -79,7 +83,7 @@ def _signing_key(password: str, explicit_secret: str) -> bytes:
 
 def _key() -> bytes:
     password = auth_password()
-    secret = os.environ.get("JEV_SESSION_SECRET", "")
+    secret = session_secret()
     return _signing_key(password, secret or _EPHEMERAL_SECRET)
 
 
@@ -347,6 +351,12 @@ class ResponseHeadersMiddleware(BaseHTTPMiddleware):
         response.headers.setdefault("Referrer-Policy", "no-referrer")
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault(
+            "Content-Security-Policy",
+            "default-src 'self'; script-src 'self'; style-src 'self'; "
+            "img-src 'self' data:; font-src 'self'; connect-src 'self'; "
+            "form-action 'self'; base-uri 'self'; frame-ancestors 'none'",
+        )
         return response
 
 

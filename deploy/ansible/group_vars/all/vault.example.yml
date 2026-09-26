@@ -1,0 +1,17 @@
+---
+# Copier vers group_vars/all/vault.yml puis chiffrer :
+# ansible-vault encrypt group_vars/all/vault.yml
+jev_openrouter_api_key: "replace-me"
+jev_session_secret: "replace-with-at-least-32-random-characters"
+
+# Requis uniquement au premier démarrage pour créer l’administrateur.
+# Peut ensuite être vidé et le playbook rejoué.
+jev_admin_bootstrap_password: "replace-with-at-least-12-characters"
+
+# SMTP/IMAP optionnels.
+jev_email_address: ""
+jev_email_password: ""
+jev_email_smtp_host: ""
+jev_email_smtp_port: 465
+jev_email_imap_host: ""
+jev_email_imap_port: 993

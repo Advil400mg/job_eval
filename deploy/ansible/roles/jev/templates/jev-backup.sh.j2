@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ $# -gt 1 || ( $# -eq 1 && "$1" != "--print-path" ) ]]; then
+  echo "Usage: jev-backup [--print-path]" >&2
+  exit 2
+fi
+print_path=false
+[[ "${1:-}" == "--print-path" ]] && print_path=true
+
+exec 9>/run/lock/jev-backup.lock
+flock -n 9 || { echo "Une sauvegarde JEV est déjà en cours." >&2; exit 1; }
+
+COMPOSE=(docker compose --project-name {{ jev_compose_project }} --env-file {{ jev_env_file }} -f {{ jev_current_dir }}/deploy/compose.production.yml)
+result="$("${COMPOSE[@]}" exec -T jev python -c 'import json; from app import backup; print(json.dumps(backup.create_backup("scheduled")))')"
+name="$(printf '%s' "$result" | python3 -c 'import json,sys; print(json.load(sys.stdin)["name"])')"
+archive="{{ jev_backup_dir }}/$name"
+
+if $print_path; then
+  python3 {{ jev_current_dir }}/deploy/scripts/verify-backup.py "$archive" >/dev/null
+else
+  python3 {{ jev_current_dir }}/deploy/scripts/verify-backup.py "$archive"
+fi
+find {{ jev_backup_dir | quote }} -maxdepth 1 -type f -name 'jev-backup-*.zip' -mtime +{{ jev_backup_retention_days | int }} -delete
+
+if $print_path; then
+  printf '%s\n' "$archive"
+else
+  echo "Sauvegarde JEV vérifiée : $archive"
+fi

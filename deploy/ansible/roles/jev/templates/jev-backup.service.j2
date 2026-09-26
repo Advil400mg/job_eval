@@ -1,0 +1,19 @@
+[Unit]
+Description=Create and verify a JEV backup
+Requires=docker.service
+After=docker.service
+ConditionPathExists={{ jev_current_dir }}/deploy/compose.production.yml
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/jev-backup
+User=root
+Group=root
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths={{ jev_backup_dir }} /run/lock

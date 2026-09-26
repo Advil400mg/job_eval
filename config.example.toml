@@ -52,6 +52,8 @@ stale_seconds = 300
 max_attempts = 3
 
 [backup]
+# Répertoire des archives. Vide = <data_dir>/backups.
+dir = ""
 max_upload_mb = 512
 
 [cv]

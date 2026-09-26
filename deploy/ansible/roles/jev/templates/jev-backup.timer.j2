@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily JEV backup
+
+[Timer]
+OnCalendar={{ jev_backup_schedule }}
+Persistent=true
+RandomizedDelaySec=10m
+Unit=jev-backup.service
+
+[Install]
+WantedBy=timers.target

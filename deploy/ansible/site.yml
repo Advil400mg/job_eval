@@ -1,0 +1,8 @@
+---
+- name: Deploy JEV v2.4
+  hosts: jev
+  become: true
+  gather_facts: true
+
+  roles:
+    - role: jev

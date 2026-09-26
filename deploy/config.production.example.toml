@@ -1,0 +1,46 @@
+# Configuration de production JEV v2.4.
+# Les secrets restent dans /etc/jev/production.env, jamais dans ce fichier.
+
+[app]
+host = "0.0.0.0"
+port = 8000
+data_dir = "/data"
+
+[openrouter]
+api_key_file = "/run/secrets/openrouter_api_key"
+endpoint = "https://openrouter.ai/api/alpha/decisions"
+model = "typesafe/jev-1.13"
+timeout_seconds = 120
+max_retries = 3
+
+[profile]
+evaluator = "./scripts/evaluate_job.py"
+
+[fetch]
+timeout_seconds = 30
+max_workers = 4
+max_text_chars = 60000
+
+[security]
+session_hours = 12
+cookie_secure = true
+trust_proxy = true
+login_attempts = 5
+login_window_seconds = 300
+evaluate_per_minute = 10
+cv_per_hour = 20
+onboarding_per_hour = 5
+restore_per_hour = 2
+
+[jobs]
+stale_seconds = 300
+max_attempts = 3
+
+[backup]
+dir = "/backups"
+max_upload_mb = 512
+
+[cv]
+enabled = true
+command = "{python} engine/tailor_cv.py {url} --json --out-dir {out_dir} --no-jev --no-telegram {extra}"
+timeout_seconds = 900

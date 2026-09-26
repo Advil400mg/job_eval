@@ -28,7 +28,9 @@ class ConfigBase(unittest.TestCase):
                        "CV_COMMAND", "EMAIL_ADDRESS", "EMAIL_PASSWORD",
                        "EMAIL_SMTP_HOST", "EMAIL_SMTP_PORT", "EMAIL_IMAP_HOST",
                        "EMAIL_IMAP_PORT", "HERMES_ENV_FILE", "JEV_AUTH_PASSWORD",
-                       "JEV_SESSION_SECRET", "JEV_COOKIE_SECURE", "JEV_TRUST_PROXY",
+                       "JEV_SESSION_SECRET", "JEV_SESSION_SECRET_FILE", "JEV_AUTH_PASSWORD_FILE",
+                       "OPENROUTER_API_KEY_FILE", "EMAIL_PASSWORD_FILE",
+                       "JEV_COOKIE_SECURE", "JEV_TRUST_PROXY",
                        "JEV_ALLOW_INSECURE_REMOTE")}
         for key in self.saved:
             os.environ.pop(key, None)
@@ -107,6 +109,10 @@ class FileAndEnv(ConfigBase):
         self.assertEqual(settings["profile_path"], self.dir / "autre" / "PROFILE.json")
         self.assertEqual(settings["cv"]["master_path"], self.dir / "master-custom.json")
 
+    def test_chemin_de_sauvegarde_personnalise(self):
+        self.write_config('[backup]\ndir = "./archives"\n')
+        self.assertEqual(config.settings()["backup"]["dir"], config.APP_DIR / "archives")
+
     def test_chemin_de_config_inexistant_echoue_clairement(self):
         os.environ["JEV_CONFIG"] = str(self.dir / "absent.toml")
         config.reset_cache()
@@ -129,6 +135,13 @@ class ApiKey(ConfigBase):
         os.environ["OPENROUTER_API_KEY"] = "depuis-env"
         config.reset_cache()
         self.assertEqual(config.resolve_api_key(), "depuis-env")
+
+    def test_variable_fichier_secret_prioritaire(self):
+        secret = self.dir / "openrouter.secret"
+        secret.write_text("depuis-secret-file\n", encoding="utf-8")
+        os.environ["OPENROUTER_API_KEY_FILE"] = str(secret)
+        config.reset_cache()
+        self.assertEqual(config.resolve_api_key(), "depuis-secret-file")
 
     def test_fichier_key_value(self):
         env_file = self.dir / "keys.env"

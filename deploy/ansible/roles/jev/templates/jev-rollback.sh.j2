@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+previous_dir="{{ jev_install_root }}/previous"
+previous_env="{{ jev_env_file }}.previous"
+previous_backup_pointer="{{ jev_config_dir }}/previous-backup"
+[[ -L "$previous_dir" ]] || { echo "Aucune release précédente disponible." >&2; exit 1; }
+[[ -f "$previous_env" ]] || { echo "Aucun environnement précédent disponible." >&2; exit 1; }
+[[ -f "$previous_backup_pointer" ]] || { echo "Aucun snapshot précédent disponible." >&2; exit 1; }
+previous_backup="$(<"$previous_backup_pointer")"
+[[ -f "$previous_backup" ]] || { echo "Snapshot précédent absent: $previous_backup" >&2; exit 1; }
+
+source {{ jev_env_file | quote }}
+current_image="${JEV_IMAGE:-{{ jev_image }}}"
+COMPOSE=(docker compose --project-name {{ jev_compose_project }} --env-file {{ jev_env_file }} -f {{ jev_current_dir }}/deploy/compose.production.yml)
+container="$("${COMPOSE[@]}" ps -q jev)"
+[[ -n "$container" ]] || { echo "Conteneur JEV actif introuvable." >&2; exit 1; }
+current_image_id="$(docker inspect "$container" | python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["Image"])')"
+docker image inspect "$current_image:rollback" >/dev/null
+
+current_backup="$(/usr/local/sbin/jev-backup --print-path)"
+docker tag "$current_image_id" "$current_image:rollback-next"
+/usr/local/sbin/jev-restore "$previous_backup"
+
+current_target="$(readlink -f {{ jev_current_dir | quote }})"
+previous_target="$(readlink -f "$previous_dir")"
+env_swap="$(mktemp {{ jev_config_dir | quote }}/.production.env.swap.XXXXXX)"
+cp {{ jev_env_file | quote }} "$env_swap"
+install -o root -g root -m 0600 "$previous_env" {{ jev_env_file | quote }}
+install -o root -g root -m 0600 "$env_swap" "$previous_env"
+rm -f "$env_swap"
+ln -sfn "$previous_target" {{ jev_current_dir | quote }}
+ln -sfn "$current_target" "$previous_dir"
+
+source {{ jev_env_file | quote }}
+docker tag "$current_image:rollback" "${JEV_IMAGE:-{{ jev_image }}}:${JEV_VERSION}"
+COMPOSE=(docker compose --project-name {{ jev_compose_project }} --env-file {{ jev_env_file }} -f {{ jev_current_dir }}/deploy/compose.production.yml)
+"${COMPOSE[@]}" up -d --force-recreate --no-build
+
+for _ in $(seq 1 30); do
+  if "${COMPOSE[@]}" exec -T jev python -c 'import urllib.request; urllib.request.urlopen("http://127.0.0.1:8000/healthz", timeout=3)' >/dev/null 2>&1; then
+    pointer_swap="$(mktemp {{ jev_config_dir | quote }}/.previous-backup.swap.XXXXXX)"
+    printf '%s\n' "$current_backup" >"$pointer_swap"
+    install -o root -g root -m 0600 "$pointer_swap" "$previous_backup_pointer"
+    rm -f "$pointer_swap"
+    docker tag "$current_image:rollback-next" "$current_image:rollback"
+    docker image rm "$current_image:rollback-next" >/dev/null 2>&1 || true
+    echo "Rollback JEV terminé : code, environnement et données restaurés."
+    exit 0
+  fi
+  sleep 2
+done
+
+echo "Le rollback a été appliqué, mais JEV n’est pas sain." >&2
+exit 1

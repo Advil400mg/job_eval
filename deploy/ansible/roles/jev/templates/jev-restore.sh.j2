@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ $# -ne 1 ]]; then
+  echo "Usage: jev-restore /chemin/jev-backup-....zip" >&2
+  exit 2
+fi
+
+exec 9>/run/lock/jev-restore.lock
+flock -n 9 || { echo "Une restauration JEV est déjà en cours." >&2; exit 1; }
+
+source_path="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$1")"
+[[ -f "$source_path" ]] || { echo "Archive absente: $source_path" >&2; exit 2; }
+name="$(basename "$source_path")"
+[[ "$name" == jev-backup-*.zip ]] || { echo "Nom d’archive JEV invalide." >&2; exit 2; }
+
+destination="{{ jev_backup_dir }}/$name"
+if [[ "$source_path" != "$destination" ]]; then
+  install -o {{ jev_app_uid }} -g {{ jev_app_gid }} -m 0600 "$source_path" "$destination"
+fi
+
+python3 {{ jev_current_dir }}/deploy/scripts/verify-backup.py "$destination"
+
+COMPOSE=(docker compose --project-name {{ jev_compose_project }} --env-file {{ jev_env_file }} -f {{ jev_current_dir }}/deploy/compose.production.yml)
+"${COMPOSE[@]}" exec -T -e JEV_RESTORE_ARCHIVE="/backups/$name" jev python -c 'import json,os; from pathlib import Path; from app import backup; print(json.dumps(backup.restore_backup(Path(os.environ["JEV_RESTORE_ARCHIVE"]))))'
+"${COMPOSE[@]}" restart jev
+
+for _ in $(seq 1 30); do
+  if "${COMPOSE[@]}" exec -T jev python -c 'import urllib.request; urllib.request.urlopen("http://127.0.0.1:8000/healthz", timeout=3)' >/dev/null 2>&1; then
+    echo "Restauration JEV terminée et service sain."
+    exit 0
+  fi
+  sleep 2
+done
+
+echo "La restauration est terminée, mais le service JEV n’est pas redevenu sain." >&2
+exit 1
