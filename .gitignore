@@ -7,4 +7,7 @@ __pycache__/
 /PROFILE.json
 /engine/CV_MASTER.json
 .restore-*
+/deploy/ansible/inventory.ini
+/deploy/ansible/group_vars/all/main.yml
+/deploy/ansible/group_vars/all/vault.yml
 

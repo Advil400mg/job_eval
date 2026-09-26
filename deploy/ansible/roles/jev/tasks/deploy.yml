@@ -1,0 +1,477 @@
+---
+- name: Define release paths
+  ansible.builtin.set_fact:
+    jev_release_dir: "{{ jev_releases_dir }}/{{ jev_version }}"
+    jev_release_archive: "{{ jev_releases_dir }}/jev-{{ jev_version }}.tar.gz"
+
+- name: Create the release directory
+  ansible.builtin.file:
+    path: "{{ jev_release_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Download the immutable JEV release archive
+  ansible.builtin.get_url:
+    url: "{{ jev_release_url }}"
+    dest: "{{ jev_release_archive }}"
+    checksum: "{{ jev_release_checksum if jev_release_checksum else omit }}"
+    force: false
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Extract the JEV release
+  ansible.builtin.unarchive:
+    src: "{{ jev_release_archive }}"
+    dest: "{{ jev_release_dir }}"
+    remote_src: true
+    extra_opts:
+      - --strip-components=1
+    creates: "{{ jev_release_dir }}/Dockerfile"
+
+- name: Verify required production files are present
+  ansible.builtin.stat:
+    path: "{{ jev_release_dir }}/{{ item }}"
+  loop:
+    - Dockerfile
+    - deploy/compose.production.yml
+    - deploy/Caddyfile
+    - deploy/scripts/verify-backup.py
+  register: jev_release_files
+
+- name: Refuse an incomplete release archive
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+      - item.stat.isreg
+    fail_msg: "Release {{ jev_version }} incomplete: {{ item.item }} is missing"
+  loop: "{{ jev_release_files.results }}"
+
+- name: Install the production application configuration
+  ansible.builtin.template:
+    src: config.production.toml.j2
+    dest: "{{ jev_release_dir }}/deploy/config.production.toml"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Check for an existing deployment
+  ansible.builtin.stat:
+    path: "{{ jev_current_dir }}/deploy/compose.production.yml"
+  register: jev_existing_deployment
+
+- name: Check for an existing production environment
+  ansible.builtin.stat:
+    path: "{{ jev_env_file }}"
+  register: jev_existing_environment
+
+- name: Resolve the previous release target
+  ansible.builtin.command:
+    argv: [readlink, -f, "{{ jev_current_dir }}"]
+  register: jev_previous_release
+  changed_when: false
+  when: jev_existing_deployment.stat.exists
+
+- name: Preserve the previous release pointer
+  ansible.builtin.file:
+    src: "{{ jev_previous_release.stdout }}"
+    dest: "{{ jev_install_root }}/previous"
+    state: link
+    force: true
+  when:
+    - jev_previous_release is not skipped
+    - jev_previous_release.stdout | default('') | length > 0
+
+- name: Preserve the previous production environment
+  ansible.builtin.copy:
+    src: "{{ jev_env_file }}"
+    dest: "{{ jev_env_file }}.previous"
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  when: jev_existing_environment.stat.exists
+
+- name: Resolve the previous image tag
+  ansible.builtin.shell: |
+    set -a
+    source {{ jev_env_file | quote }}
+    printf '%s:%s' "${JEV_IMAGE:-{{ jev_image }}}" "${JEV_VERSION}"
+  args:
+    executable: /bin/bash
+  register: jev_previous_image_tag
+  changed_when: false
+  no_log: true
+  when: jev_existing_environment.stat.exists
+
+- name: Resolve the current image before the update
+  ansible.builtin.shell: >-
+    set -o pipefail;
+    docker image inspect {{ jev_previous_image_tag.stdout | quote }}
+    | python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["Id"])'
+  args:
+    executable: /bin/bash
+  register: jev_previous_image
+  changed_when: false
+  failed_when: false
+  when:
+    - jev_previous_image_tag is not skipped
+    - jev_previous_image_tag.stdout | default('') | length > 0
+
+- name: Preserve the current image for rollback
+  ansible.builtin.command:
+    argv:
+      - docker
+      - tag
+      - "{{ jev_previous_image.stdout }}"
+      - "{{ jev_image }}:rollback"
+  changed_when: true
+  when:
+    - jev_previous_image is not skipped
+    - jev_previous_image.rc | default(1) == 0
+    - jev_previous_image.stdout | default('') | length > 0
+
+- name: Ensure the previous JEV service is running for backup
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - --project-name
+      - "{{ jev_compose_project }}"
+      - --env-file
+      - "{{ jev_env_file }}"
+      - -f
+      - "{{ jev_current_dir }}/deploy/compose.production.yml"
+      - up
+      - -d
+      - jev
+  register: jev_previous_up
+  changed_when: >-
+    'Started' in jev_previous_up.stdout or
+    'Created' in jev_previous_up.stdout or
+    'Recreated' in jev_previous_up.stdout
+  when:
+    - jev_existing_deployment.stat.exists
+    - jev_existing_environment.stat.exists
+
+- name: Wait for the previous JEV service before backup
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - --project-name
+      - "{{ jev_compose_project }}"
+      - --env-file
+      - "{{ jev_env_file }}"
+      - -f
+      - "{{ jev_current_dir }}/deploy/compose.production.yml"
+      - exec
+      - -T
+      - jev
+      - python
+      - -c
+      - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)"
+  register: jev_previous_health
+  retries: 20
+  delay: 3
+  until: jev_previous_health.rc == 0
+  changed_when: false
+  when:
+    - jev_existing_deployment.stat.exists
+    - jev_existing_environment.stat.exists
+
+- name: Create and verify a pre-deployment backup
+  ansible.builtin.command:
+    argv: [/usr/local/sbin/jev-backup, --print-path]
+  register: jev_predeploy_backup
+  changed_when: true
+  when:
+    - jev_existing_deployment.stat.exists
+    - jev_existing_environment.stat.exists
+
+- name: Preserve the data snapshot associated with the previous release
+  ansible.builtin.copy:
+    content: "{{ jev_predeploy_backup.stdout }}\n"
+    dest: "{{ jev_config_dir }}/previous-backup"
+    owner: root
+    group: root
+    mode: "0600"
+  when:
+    - jev_predeploy_backup is not skipped
+    - jev_predeploy_backup.stdout | default('') | length > 0
+
+- name: Point the current release symlink at the candidate
+  ansible.builtin.file:
+    src: "{{ jev_release_dir }}"
+    dest: "{{ jev_current_dir }}"
+    state: link
+    force: true
+
+- name: Install the production environment
+  ansible.builtin.template:
+    src: production.env.j2
+    dest: "{{ jev_env_file }}"
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+
+- name: Validate the rendered production Compose model
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - --project-name
+      - "{{ jev_compose_project }}"
+      - --env-file
+      - "{{ jev_env_file }}"
+      - -f
+      - "{{ jev_current_dir }}/deploy/compose.production.yml"
+      - config
+      - --quiet
+  changed_when: false
+
+- name: Deploy the candidate and verify HTTPS
+  block:
+    - name: Pull the reverse-proxy image
+      ansible.builtin.command:
+        argv:
+          - docker
+          - compose
+          - --project-name
+          - "{{ jev_compose_project }}"
+          - --env-file
+          - "{{ jev_env_file }}"
+          - -f
+          - "{{ jev_current_dir }}/deploy/compose.production.yml"
+          - pull
+          - caddy
+      register: jev_caddy_pull
+      changed_when: "'Pulled' in jev_caddy_pull.stdout or 'Downloaded' in jev_caddy_pull.stdout"
+
+    - name: Check whether the candidate image already exists
+      ansible.builtin.command:
+        argv: [docker, image, inspect, "{{ jev_image }}:{{ jev_version }}"]
+      register: jev_candidate_image
+      changed_when: false
+      failed_when: false
+
+    - name: Build the candidate JEV image
+      ansible.builtin.command:
+        argv:
+          - docker
+          - compose
+          - --project-name
+          - "{{ jev_compose_project }}"
+          - --env-file
+          - "{{ jev_env_file }}"
+          - -f
+          - "{{ jev_current_dir }}/deploy/compose.production.yml"
+          - build
+          - --pull
+          - jev
+      register: jev_build
+      changed_when: true
+      when: jev_candidate_image.rc != 0
+
+    - name: Start the production stack
+      ansible.builtin.command:
+        argv:
+          - docker
+          - compose
+          - --project-name
+          - "{{ jev_compose_project }}"
+          - --env-file
+          - "{{ jev_env_file }}"
+          - -f
+          - "{{ jev_current_dir }}/deploy/compose.production.yml"
+          - up
+          - -d
+          - --remove-orphans
+      register: jev_compose_up
+      changed_when: >-
+        'Started' in jev_compose_up.stdout or
+        'Created' in jev_compose_up.stdout or
+        'Recreated' in jev_compose_up.stdout
+
+    - name: Wait for the public HTTPS health endpoint
+      ansible.builtin.uri:
+        url: "https://{{ jev_domain }}/healthz"
+        method: GET
+        return_content: true
+        validate_certs: true
+        status_code: 200
+      register: jev_public_health
+      until:
+        - jev_public_health.status | default(0) == 200
+        - jev_public_health.json.ok | default(false) | bool
+        - jev_public_health.json.version | default('') == jev_version
+      retries: "{{ jev_health_retries | int }}"
+      delay: "{{ jev_health_delay | int }}"
+      changed_when: false
+
+    - name: Enable the verified backup timer
+      ansible.builtin.systemd_service:
+        name: jev-backup.timer
+        enabled: true
+        state: started
+
+  rescue:
+    - name: Check whether a rollback image exists
+      ansible.builtin.command:
+        argv: [docker, image, inspect, "{{ jev_image }}:rollback"]
+      register: jev_rollback_image
+      changed_when: false
+      failed_when: false
+
+    - name: Restore the previous release symlink
+      ansible.builtin.file:
+        src: "{{ jev_previous_release.stdout }}"
+        dest: "{{ jev_current_dir }}"
+        state: link
+        force: true
+      when:
+        - jev_rollback_image.rc == 0
+        - jev_previous_release is not skipped
+        - jev_previous_release.stdout | default('') | length > 0
+
+    - name: Restore the previous production environment
+      ansible.builtin.copy:
+        src: "{{ jev_env_file }}.previous"
+        dest: "{{ jev_env_file }}"
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0600"
+      no_log: true
+      when:
+        - jev_rollback_image.rc == 0
+        - jev_existing_environment.stat.exists
+
+    - name: Restore the previous image tag
+      ansible.builtin.command:
+        argv:
+          - docker
+          - tag
+          - "{{ jev_image }}:rollback"
+          - "{{ jev_previous_image_tag.stdout }}"
+      changed_when: true
+      no_log: true
+      when:
+        - jev_rollback_image.rc == 0
+        - jev_previous_image_tag is not skipped
+        - jev_previous_image_tag.stdout | default('') | length > 0
+
+    - name: Restore the pre-deployment data snapshot
+      ansible.builtin.command:
+        argv:
+          - docker
+          - compose
+          - --project-name
+          - "{{ jev_compose_project }}"
+          - --env-file
+          - "{{ jev_env_file }}"
+          - -f
+          - "{{ jev_current_dir }}/deploy/compose.production.yml"
+          - exec
+          - -T
+          - -e
+          - >-
+            JEV_RESTORE_ARCHIVE=/backups/{{ jev_predeploy_backup.stdout | basename }}
+          - jev
+          - python
+          - -c
+          - >-
+            import os; from pathlib import Path; from app import backup;
+            backup.restore_backup(Path(os.environ['JEV_RESTORE_ARCHIVE']))
+      changed_when: true
+      when:
+        - jev_rollback_image.rc == 0
+        - jev_predeploy_backup is not skipped
+        - jev_predeploy_backup.stdout | default('') | length > 0
+
+    - name: Recreate JEV from the previous release
+      ansible.builtin.command:
+        argv:
+          - docker
+          - compose
+          - --project-name
+          - "{{ jev_compose_project }}"
+          - --env-file
+          - "{{ jev_env_file }}"
+          - -f
+          - "{{ jev_current_dir }}/deploy/compose.production.yml"
+          - up
+          - -d
+          - --force-recreate
+          - --no-build
+      changed_when: true
+      when:
+        - jev_rollback_image.rc == 0
+        - jev_previous_release is not skipped
+
+    - name: Verify the restored JEV service
+      ansible.builtin.command:
+        argv:
+          - docker
+          - compose
+          - --project-name
+          - "{{ jev_compose_project }}"
+          - --env-file
+          - "{{ jev_env_file }}"
+          - -f
+          - "{{ jev_current_dir }}/deploy/compose.production.yml"
+          - exec
+          - -T
+          - jev
+          - python
+          - -c
+          - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)"
+      register: jev_rollback_health
+      retries: 20
+      delay: 3
+      until: jev_rollback_health.rc == 0
+      changed_when: false
+      when:
+        - jev_rollback_image.rc == 0
+        - jev_previous_release is not skipped
+
+    - name: Verify public HTTPS after rollback
+      ansible.builtin.uri:
+        url: "https://{{ jev_domain }}/healthz"
+        method: GET
+        return_content: true
+        validate_certs: true
+        status_code: 200
+      register: jev_rollback_public_health
+      until:
+        - jev_rollback_public_health.status | default(0) == 200
+        - jev_rollback_public_health.json.ok | default(false) | bool
+      retries: "{{ jev_health_retries | int }}"
+      delay: "{{ jev_health_delay | int }}"
+      changed_when: false
+      when:
+        - jev_rollback_image.rc == 0
+        - jev_previous_release is not skipped
+
+    - name: Restart the backup timer after rollback
+      ansible.builtin.systemd_service:
+        name: jev-backup.timer
+        enabled: true
+        state: started
+      when:
+        - jev_rollback_image.rc == 0
+        - jev_previous_release is not skipped
+
+    - name: Report the failed deployment
+      ansible.builtin.fail:
+        msg: >-
+          JEV {{ jev_version }} failed its HTTPS health check.
+          {% if jev_rollback_image.rc == 0 and jev_previous_release is not skipped %}
+          The previous release, environment and image were restored.
+          {% else %}
+          No complete rollback state existed on this first deployment.
+          {% endif %}

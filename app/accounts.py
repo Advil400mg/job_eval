@@ -206,7 +206,7 @@ def _migrate_legacy_files(user_id: str) -> None:
 
 
 def bootstrap_from_environment() -> dict | None:
-    password = os.environ.get("JEV_AUTH_PASSWORD", "")
+    password = config.secret_value("JEV_AUTH_PASSWORD")
     if not password:
         return None
     with store._LOCK, store._connect() as conn:

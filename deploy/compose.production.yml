@@ -1,0 +1,108 @@
+name: jev
+
+services:
+  jev:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: "${JEV_IMAGE:-jev-webapp}:${JEV_VERSION:-2.4.0}"
+    env_file:
+      - "${JEV_ENV_FILE:-/etc/jev/production.env}"
+    environment:
+      JEV_CONFIG: /config/config.toml
+      JEV_DATA_DIR: /data
+      JEV_COOKIE_SECURE: "true"
+      JEV_TRUST_PROXY: "true"
+      JEV_FORWARDED_ALLOW_IPS: "${JEV_FORWARDED_ALLOW_IPS:-172.30.240.254,127.0.0.1}"
+      JEV_ALLOW_INSECURE_REMOTE: "false"
+      OPENROUTER_API_KEY_FILE: /run/secrets/openrouter_api_key
+      JEV_SESSION_SECRET_FILE: /run/secrets/session_secret
+      JEV_AUTH_PASSWORD_FILE: /run/secrets/admin_bootstrap_password
+      EMAIL_PASSWORD_FILE: /run/secrets/email_password
+      HOME: /tmp
+      TZ: "${TZ:-Europe/Paris}"
+    volumes:
+      - "${JEV_CONFIG_FILE:-./config.production.toml}:/config/config.toml:ro"
+      - "${JEV_SECRET_DIR:-/etc/jev/secrets}/openrouter_api_key:/run/secrets/openrouter_api_key:ro"
+      - "${JEV_SECRET_DIR:-/etc/jev/secrets}/session_secret:/run/secrets/session_secret:ro"
+      - "${JEV_SECRET_DIR:-/etc/jev/secrets}/admin_bootstrap_password:/run/secrets/admin_bootstrap_password:ro"
+      - "${JEV_SECRET_DIR:-/etc/jev/secrets}/email_password:/run/secrets/email_password:ro"
+      - jev-data:/data
+      - "${JEV_BACKUP_DIR:-/var/backups/jev}:/backups"
+    expose:
+      - "8000"
+    networks:
+      - backend
+      - egress
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=512m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=4)"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  caddy:
+    image: caddy:2-alpine
+    environment:
+      JEV_SITE_ADDRESS: "${JEV_SITE_ADDRESS:?JEV_SITE_ADDRESS must be set}"
+      ACME_EMAIL: "${ACME_EMAIL:-}"
+    ports:
+      - "${JEV_HTTP_PORT:-80}:80"
+      - "${JEV_HTTPS_PORT:-443}:443"
+      - "${JEV_HTTPS_PORT:-443}:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      frontend:
+      backend:
+        ipv4_address: "${JEV_CADDY_BACKEND_IP:-172.30.240.254}"
+    depends_on:
+      jev:
+        condition: service_healthy
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m,mode=1777
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+
+networks:
+  frontend:
+  egress:
+  backend:
+    internal: true
+    ipam:
+      config:
+        - subnet: "${JEV_BACKEND_SUBNET:-172.30.240.0/24}"
+
+volumes:
+  jev-data:
+    name: "${JEV_DATA_VOLUME:-jev-data}"
+  caddy-data:
+    name: "${JEV_CADDY_DATA_VOLUME:-jev-caddy-data}"
+  caddy-config:
+    name: "${JEV_CADDY_CONFIG_VOLUME:-jev-caddy-config}"

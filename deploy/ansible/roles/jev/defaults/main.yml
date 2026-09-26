@@ -1,0 +1,46 @@
+---
+jev_version: "2.4.0"
+jev_repository: "Advil400mg/job_eval"
+jev_release_url: "https://github.com/{{ jev_repository }}/archive/refs/tags/v{{ jev_version }}.tar.gz"
+jev_release_checksum: ""
+
+jev_install_root: "/opt/jev"
+jev_releases_dir: "{{ jev_install_root }}/releases"
+jev_current_dir: "{{ jev_install_root }}/current"
+jev_config_dir: "/etc/jev"
+jev_secret_dir: "{{ jev_config_dir }}/secrets"
+jev_env_file: "{{ jev_config_dir }}/production.env"
+jev_backup_dir: "/var/backups/jev"
+jev_app_uid: 10001
+jev_app_gid: 10001
+jev_image: "jev-webapp"
+jev_compose_project: "jev"
+jev_data_volume: "jev-data"
+jev_caddy_data_volume: "jev-caddy-data"
+jev_caddy_config_volume: "jev-caddy-config"
+jev_backend_subnet: "172.30.240.0/24"
+jev_caddy_backend_ip: "172.30.240.254"
+
+jev_domain: ""
+jev_acme_email: ""
+jev_timezone: "Europe/Paris"
+jev_admin_username: "admin"
+jev_admin_email: ""
+
+jev_openrouter_api_key: ""
+jev_session_secret: ""
+jev_admin_bootstrap_password: ""
+jev_email_address: ""
+jev_email_password: ""
+jev_email_smtp_host: ""
+jev_email_smtp_port: 465
+jev_email_imap_host: ""
+jev_email_imap_port: 993
+
+jev_backup_schedule: "*-*-* 03:15:00"
+jev_backup_retention_days: 14
+jev_health_retries: 30
+jev_health_delay: 6
+
+jev_manage_firewall: false
+jev_ssh_port: 22

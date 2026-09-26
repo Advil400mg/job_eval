@@ -73,7 +73,7 @@ DEFAULTS: dict = {
         "restore_per_hour": 2,
     },
     "jobs": {"stale_seconds": 300, "max_attempts": 3},
-    "backup": {"max_upload_mb": 512},
+    "backup": {"dir": "", "max_upload_mb": 512},
 }
 
 
@@ -160,11 +160,26 @@ def read_env_file(path: str | os.PathLike) -> dict:
     return values
 
 
+def secret_value(name: str) -> str:
+    """Return NAME or the contents of NAME_FILE without logging either value."""
+    direct = os.environ.get(name, "")
+    if direct:
+        return direct
+    secret_file = os.environ.get(f"{name}_FILE", "").strip()
+    if not secret_file:
+        return ""
+    try:
+        return Path(secret_file).read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
 def resolve_api_key(cfg: dict | None = None) -> str:
-    """OPENROUTER_API_KEY (env) > config.toml > api_key_file > HERMES_ENV_FILE."""
+    """OPENROUTER_API_KEY (env/file) > config.toml > api_key_file > HERMES_ENV_FILE."""
     cfg = cfg or load_raw()
-    if os.environ.get("OPENROUTER_API_KEY"):
-        return os.environ["OPENROUTER_API_KEY"]
+    secret = secret_value("OPENROUTER_API_KEY")
+    if secret:
+        return secret
     if cfg["openrouter"].get("api_key"):
         return str(cfg["openrouter"]["api_key"]).strip()
     source = cfg["openrouter"].get("api_key_file")
@@ -205,6 +220,10 @@ def cv_environment(cfg: dict | None = None, user_id: str | None = None) -> tuple
         # C'est notamment nécessaire en conteneur, où les secrets SMTP sont injectés
         # par Compose/Ansible plutôt que lus depuis un chemin propre à l'hôte.
         for name, value in read_env_file(_resolve_path(env_file, APP_DIR)).items():
+            env.setdefault(name, value)
+    for name in ("EMAIL_PASSWORD",):
+        value = secret_value(name)
+        if value:
             env.setdefault(name, value)
 
     u_dir = user_dir(user_id)
@@ -292,7 +311,8 @@ def settings() -> dict:
             "max_attempts": max(1, int(cfg["jobs"].get("max_attempts") or 3)),
         },
         "backup": {
-            "dir": data_dir / "backups",
+            "dir": (_resolve_path(cfg["backup"]["dir"], APP_DIR)
+                    if cfg["backup"].get("dir") else data_dir / "backups"),
             "max_upload_bytes": max(1, int(cfg["backup"].get("max_upload_mb") or 512)) * 1024 * 1024,
         },
         "config_file": str(config_path()),

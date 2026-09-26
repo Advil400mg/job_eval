@@ -61,7 +61,7 @@ def main() -> int:
     port = int(args.port or os.environ.get("PORT") or settings["port"])
     security.validate_configuration()
     local_hosts = {"127.0.0.1", "localhost", "::1"}
-    if (host not in local_hosts and not os.environ.get("JEV_SESSION_SECRET")
+    if (host not in local_hosts and not security.session_secret()
             and not settings["security"]["allow_insecure_remote"]):
         print(
             "ERREUR : écoute distante refusée sans JEV_SESSION_SECRET stable. "
@@ -72,7 +72,16 @@ def main() -> int:
     print(f"\n→ http://{host}:{port}")
 
     import uvicorn
-    uvicorn.run("app.main:app", host=host, port=port, reload=args.reload)
+    trust_proxy = bool(settings["security"]["trust_proxy"])
+    forwarded_allow_ips = os.environ.get("JEV_FORWARDED_ALLOW_IPS", "127.0.0.1")
+    uvicorn.run(
+        "app.main:app",
+        host=host,
+        port=port,
+        reload=args.reload,
+        proxy_headers=trust_proxy,
+        forwarded_allow_ips=forwarded_allow_ips,
+    )
     return 0
 
 

@@ -17,7 +17,8 @@ jev-webapp/
 ├── config.example.toml      # modèle de configuration commenté  → copier en config.toml
 ├── .env.example             # variables d'environnement (clé API, SMTP) → copier en .env
 ├── Dockerfile               # image auto-portante
-├── docker-compose.yml       # l'unique fichier compose
+├── docker-compose.yml       # lancement local
+├── deploy/                  # Compose de production, Caddy, Ansible et procédures d’exploitation
 ├── requirements.txt         # dépendances web, import PDF et moteur de CV
 ├── app/                     # sources de l'application web
 │   ├── config.py            # lecture de config.toml + surcharges d'environnement
@@ -40,7 +41,7 @@ jev-webapp/
 ├── scripts/
 │   ├── evaluate_job.py      # notation Jev (script du skill Job Hunt + surcharges optionnelles)
 │   └── serve.py             # démarrage : affiche la config effective puis lance uvicorn
-└── tests/                   # 195 tests hors ligne (Python + Node)
+└── tests/                   # 204 tests hors ligne (Python + Node)
 ```
 
 ## Ce que fait l'application
@@ -168,7 +169,7 @@ et tous les chemins par défaut sont relatifs au dossier. Le moteur reste désac
 (`[cv] enabled = false`) ; dans ce cas la génération de CV est annoncée comme indisponible
 avec le motif, sans que le reste de l'application en souffre.
 
-Vérifié sur une instance vierge : 195 tests hors ligne, isolation entre deux comptes,
+Vérifié sur une instance vierge : 204 tests hors ligne, isolation entre deux comptes,
 migration SQLite v5 et chemins utilisateur sous `/data/users/`.
 
 ## Démarrage sans Docker
@@ -217,6 +218,35 @@ Points de portabilité vérifiés :
 | polices embarquées dans `engine/fonts` | rendu identique sans paquet de polices système |
 | `TZ=Europe/Paris` | horodatages cohérents avec le fuseau attendu |
 | `HOME=/tmp` | dossier inscriptible pour les bibliothèques tierces |
+
+## Déploiement de production — v2.4
+
+La pile de production se trouve dans `deploy/` :
+
+- `compose.production.yml` ne publie que Caddy sur 80/443 ; JEV reste sur un réseau Docker ;
+- Caddy obtient et renouvelle automatiquement le certificat HTTPS ;
+- le rôle Ansible prend en charge Ubuntu 24.04 LTS et Debian 12 amd64 ;
+- les secrets sont fournis par Ansible Vault et écrits avec le mode `0600` ;
+- une sauvegarde vérifiée est créée avant chaque mise à jour ;
+- un timer systemd effectue les sauvegardes quotidiennes ;
+- le déploiement restaure l’image précédente si `/healthz` ne valide pas la nouvelle version.
+
+Guide complet : [`deploy/README.md`](deploy/README.md).
+
+Résumé du premier déploiement :
+
+```bash
+cd deploy/ansible
+cp inventory.example.ini inventory.ini
+mkdir -p group_vars/all
+cp group_vars/all/main.example.yml group_vars/all/main.yml
+cp group_vars/all/vault.example.yml group_vars/all/vault.yml
+ansible-vault encrypt group_vars/all/vault.yml
+ansible-playbook site.yml --ask-vault-pass
+```
+
+La production utilise l’archive immuable du tag `v2.4.0`. Créer ce tag uniquement après la
+fusion du PR dans `main`.
 
 ## API
 
@@ -320,7 +350,7 @@ PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m unittest discover -s tests -p 'tes
 node tests/test_app_js.mjs
 ```
 
-Les 185 tests Python et 10 tests JavaScript sont hors ligne et n'utilisent aucune clé API. Ils
+Les 194 tests Python et 10 tests JavaScript sont hors ligne et n'utilisent aucune clé API. Ils
 couvrent notamment migration SQLite, authentification, SSRF, reprise des jobs, sauvegardes,
 API, score visuel et pagination.
 

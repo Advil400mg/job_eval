@@ -1,0 +1,79 @@
+---
+- name: Create JEV deployment directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - {path: "{{ jev_install_root }}", owner: root, group: root, mode: "0755"}
+    - {path: "{{ jev_releases_dir }}", owner: root, group: root, mode: "0755"}
+    - {path: "{{ jev_config_dir }}", owner: root, group: root, mode: "0750"}
+    - {path: "{{ jev_secret_dir }}", owner: root, group: root, mode: "0750"}
+    - {path: "{{ jev_backup_dir }}", owner: "{{ jev_app_uid }}", group: "{{ jev_app_gid }}", mode: "0750"}
+
+- name: Install JEV secret files
+  ansible.builtin.copy:
+    content: "{{ item.value }}\n"
+    dest: "{{ jev_secret_dir }}/{{ item.name }}"
+    owner: "{{ jev_app_uid }}"
+    group: "{{ jev_app_gid }}"
+    mode: "0400"
+  loop:
+    - {name: openrouter_api_key, value: "{{ jev_openrouter_api_key }}"}
+    - {name: session_secret, value: "{{ jev_session_secret }}"}
+    - {name: admin_bootstrap_password, value: "{{ jev_admin_bootstrap_password }}"}
+    - {name: email_password, value: "{{ jev_email_password }}"}
+  no_log: true
+
+- name: Install the JEV backup command
+  ansible.builtin.template:
+    src: jev-backup.sh.j2
+    dest: /usr/local/sbin/jev-backup
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Install the JEV restore command
+  ansible.builtin.template:
+    src: jev-restore.sh.j2
+    dest: /usr/local/sbin/jev-restore
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Install the JEV rollback command
+  ansible.builtin.template:
+    src: jev-rollback.sh.j2
+    dest: /usr/local/sbin/jev-rollback
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Install the backup service
+  ansible.builtin.template:
+    src: jev-backup.service.j2
+    dest: /etc/systemd/system/jev-backup.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd
+
+- name: Install the backup timer
+  ansible.builtin.template:
+    src: jev-backup.timer.j2
+    dest: /etc/systemd/system/jev-backup.timer
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd
+
+- name: Apply pending systemd unit changes
+  ansible.builtin.meta: flush_handlers
+
+- name: Keep the backup timer disabled during deployment
+  ansible.builtin.systemd_service:
+    name: jev-backup.timer
+    enabled: true
+    state: stopped

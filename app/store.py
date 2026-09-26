@@ -1178,15 +1178,19 @@ def active_work_count() -> int:
     return runs + cvs
 
 
-def backup_database(destination: str) -> None:
+def backup_database_from_connection(source: sqlite3.Connection, destination: str) -> None:
     os.makedirs(os.path.dirname(destination), exist_ok=True)
+    target = sqlite3.connect(destination)
+    try:
+        source.backup(target)
+        target.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    finally:
+        target.close()
+
+
+def backup_database(destination: str) -> None:
     with _LOCK, _connect() as source:
-        target = sqlite3.connect(destination)
-        try:
-            source.backup(target)
-            target.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-        finally:
-            target.close()
+        backup_database_from_connection(source, destination)
 
 
 def latest_cvs_for(urls: list[str], user_id: str | None = None) -> dict[str, dict]:

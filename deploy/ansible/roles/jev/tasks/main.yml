@@ -1,0 +1,31 @@
+---
+- name: Validate the target and required variables
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family == "Debian"
+      - >-
+        (ansible_facts.distribution == "Ubuntu" and ansible_facts.distribution_major_version == "24")
+        or
+        (ansible_facts.distribution == "Debian" and ansible_facts.distribution_major_version == "12")
+      - ansible_facts.architecture in ["x86_64", "amd64"]
+      - jev_domain | length > 3
+      - jev_domain is match('^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)+$')
+      - "'..' not in jev_domain"
+      - jev_acme_email is match('^[^@[:space:]]+@[^@[:space:]]+$')
+      - jev_openrouter_api_key | length > 0
+      - jev_session_secret | length >= 32
+      - jev_admin_bootstrap_password | length == 0 or jev_admin_bootstrap_password | length >= 12
+      - jev_backup_retention_days | int >= 1
+    fail_msg: >-
+      JEV v2.4 requires Ubuntu 24.04 or Debian 12 amd64, a bare DNS name,
+      an ACME email, an OpenRouter key and a session secret of at least 32 characters.
+  no_log: true
+
+- name: Install the container runtime
+  ansible.builtin.import_tasks: install.yml
+
+- name: Install JEV operations tooling
+  ansible.builtin.import_tasks: operations.yml
+
+- name: Deploy JEV with rollback protection
+  ansible.builtin.import_tasks: deploy.yml

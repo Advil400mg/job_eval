@@ -12,9 +12,13 @@ import tempfile
 import time
 import uuid
 import zipfile
+from contextlib import contextmanager
 from pathlib import Path, PurePosixPath
 
+import fcntl
+
 from . import config, store
+from .version import APP_VERSION
 
 FORMAT_VERSION = 1
 _ALLOWED_ROOT_FILES = {"jev.db", "PROFILE.json", "CV_MASTER.json", "source_cv.pdf"}
@@ -23,6 +27,18 @@ _ALLOWED_PREFIXES = ("cv/", "cv-runs/", "users/")
 
 class BackupError(RuntimeError):
     pass
+
+
+@contextmanager
+def _maintenance_lock():
+    data_dir = Path(config.settings()["data_dir"])
+    data_dir.mkdir(parents=True, exist_ok=True)
+    with (data_dir / ".maintenance.lock").open("a+") as handle:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
 def _sha256(path: Path) -> str:
@@ -45,7 +61,7 @@ def _archive_name(kind: str) -> str:
     return f"jev-backup-{stamp}-{kind}-{uuid.uuid4().hex[:6]}.zip"
 
 
-def create_backup(kind: str = "manual") -> dict:
+def _create_backup(kind: str = "manual", database_connection: sqlite3.Connection | None = None) -> dict:
     settings = config.settings()
     backup_dir = Path(settings["backup"]["dir"])
     backup_dir.mkdir(parents=True, exist_ok=True)
@@ -53,7 +69,10 @@ def create_backup(kind: str = "manual") -> dict:
     temp_path = final_path.with_suffix(".zip.tmp")
     with tempfile.TemporaryDirectory(dir=settings["data_dir"], prefix=".backup-") as temporary:
         database = Path(temporary) / "jev.db"
-        store.backup_database(str(database))
+        if database_connection is None:
+            store.backup_database(str(database))
+        else:
+            store.backup_database_from_connection(database_connection, str(database))
         entries: list[dict] = []
         with zipfile.ZipFile(temp_path, "w", compression=zipfile.ZIP_DEFLATED,
                              compresslevel=6) as archive:
@@ -76,13 +95,18 @@ def create_backup(kind: str = "manual") -> dict:
                 "format": "jev-backup",
                 "version": FORMAT_VERSION,
                 "created_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
-                "app_version": "2.3.0",
+                "app_version": APP_VERSION,
                 "kind": kind,
                 "files": entries,
             }
             archive.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
     os.replace(temp_path, final_path)
     return backup_info(final_path)
+
+
+def create_backup(kind: str = "manual") -> dict:
+    with _maintenance_lock():
+        return _create_backup(kind)
 
 
 def backup_info(path: Path) -> dict:
@@ -207,29 +231,37 @@ def _atomic_directory(source: Path | None, target: Path) -> None:
 
 
 def restore_backup(archive_path: Path) -> dict:
-    if store.active_work_count():
-        raise BackupError("Restauration refusée pendant une tâche active")
     settings = config.settings()
     data_dir = Path(settings["data_dir"])
     data_dir.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=data_dir, prefix=".restore-") as temporary:
         stage = Path(temporary)
         manifest = _validate_archive(archive_path, stage)
-        safety = create_backup("pre-restore")
-        with store._LOCK:
-            _atomic_file(stage / "jev.db", Path(store.DB_PATH))
-            Path(str(store.DB_PATH) + "-wal").unlink(missing_ok=True)
-            Path(str(store.DB_PATH) + "-shm").unlink(missing_ok=True)
-            _atomic_file(stage / "PROFILE.json" if (stage / "PROFILE.json").is_file() else None,
-                         Path(settings["profile_path"]))
-            _atomic_file(stage / "CV_MASTER.json" if (stage / "CV_MASTER.json").is_file() else None,
-                         Path(settings["cv"]["master_path"]))
-            _atomic_file(stage / "source_cv.pdf" if (stage / "source_cv.pdf").is_file() else None,
-                         data_dir / "source_cv.pdf")
-            _atomic_directory(stage / "cv" if (stage / "cv").is_dir() else None,
-                              Path(settings["cv"]["out_dir"]))
-            _atomic_directory(stage / "cv-runs" if (stage / "cv-runs").is_dir() else None,
-                              data_dir / "cv-runs")
-            _atomic_directory(stage / "users" if (stage / "users").is_dir() else None,
-                              data_dir / "users")
+        with _maintenance_lock():
+            with store._LOCK:
+                with store._connect() as connection:
+                    runs = int(connection.execute(
+                        "SELECT COUNT(*) FROM runs WHERE status = 'running'",
+                    ).fetchone()[0])
+                    cvs = int(connection.execute(
+                        "SELECT COUNT(*) FROM cv_jobs WHERE status = 'running'",
+                    ).fetchone()[0])
+                    if runs + cvs:
+                        raise BackupError("Restauration refusée pendant une tâche active")
+                    safety = _create_backup("pre-restore", database_connection=connection)
+                _atomic_file(stage / "jev.db", Path(store.DB_PATH))
+                Path(str(store.DB_PATH) + "-wal").unlink(missing_ok=True)
+                Path(str(store.DB_PATH) + "-shm").unlink(missing_ok=True)
+                _atomic_file(stage / "PROFILE.json" if (stage / "PROFILE.json").is_file() else None,
+                             Path(settings["profile_path"]))
+                _atomic_file(stage / "CV_MASTER.json" if (stage / "CV_MASTER.json").is_file() else None,
+                             Path(settings["cv"]["master_path"]))
+                _atomic_file(stage / "source_cv.pdf" if (stage / "source_cv.pdf").is_file() else None,
+                             data_dir / "source_cv.pdf")
+                _atomic_directory(stage / "cv" if (stage / "cv").is_dir() else None,
+                                  Path(settings["cv"]["out_dir"]))
+                _atomic_directory(stage / "cv-runs" if (stage / "cv-runs").is_dir() else None,
+                                  data_dir / "cv-runs")
+                _atomic_directory(stage / "users" if (stage / "users").is_dir() else None,
+                                  data_dir / "users")
     return {"restored": True, "manifest": manifest, "safety_backup": safety}

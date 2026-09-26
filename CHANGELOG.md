@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.4.0 — 2026-09-26
+
+- Ajout d’un déploiement de production automatisé par Ansible pour Ubuntu 24.04 et Debian 12.
+- Ajout d’une pile Docker Compose de production derrière Caddy avec HTTPS automatique.
+- Ajout de sauvegardes planifiées, de contrôles de santé, d’une procédure de mise à jour et de rollback.
+- Centralisation de la version applicative et passage de l’application à 2.4.0.
+
 ## 2.3.0 — 2026-09-25
 
 - Ajout des comptes multi-utilisateur créés uniquement sur invitation.

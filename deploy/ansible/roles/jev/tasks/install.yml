@@ -1,0 +1,94 @@
+---
+- name: Install operating-system prerequisites
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - curl
+      - gnupg
+      - python3
+      - tar
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Create the APT keyring directory
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install Docker's repository signing key
+  ansible.builtin.get_url:
+    url: "https://download.docker.com/linux/{{ ansible_facts.distribution | lower }}/gpg"
+    dest: /etc/apt/keyrings/docker.asc
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Configure Docker's stable APT repository
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc]
+      https://download.docker.com/linux/{{ ansible_facts.distribution | lower }}
+      {{ ansible_facts.distribution_release }} stable
+    filename: docker
+    state: present
+    update_cache: true
+
+- name: Install Docker Engine and Compose
+  ansible.builtin.apt:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+    state: present
+
+- name: Enable and start Docker
+  ansible.builtin.systemd_service:
+    name: docker
+    enabled: true
+    state: started
+
+- name: Create the JEV system account
+  ansible.builtin.user:
+    name: jev
+    system: true
+    create_home: false
+    shell: /usr/sbin/nologin
+
+- name: Install UFW when firewall management is enabled
+  ansible.builtin.apt:
+    name: ufw
+    state: present
+  when: jev_manage_firewall | bool
+
+- name: Allow SSH and web traffic through UFW
+  ansible.builtin.shell: |
+    set -o pipefail
+    if ufw status | grep -Fq "{{ item.port }}/{{ item.protocol }}"; then
+      echo existing
+    else
+      ufw allow "{{ item.port }}/{{ item.protocol }}"
+      echo added
+    fi
+  args:
+    executable: /bin/bash
+  loop:
+    - {port: "{{ jev_ssh_port }}", protocol: tcp}
+    - {port: 80, protocol: tcp}
+    - {port: 443, protocol: tcp}
+    - {port: 443, protocol: udp}
+  register: jev_ufw_rules
+  changed_when: "'added' in (jev_ufw_rules.stdout | default(''))"
+  when: jev_manage_firewall | bool
+
+- name: Enable UFW
+  ansible.builtin.command:
+    argv: [ufw, --force, enable]
+  register: jev_ufw_enable
+  changed_when: "'already enabled' not in jev_ufw_enable.stdout | lower"
+  when: jev_manage_firewall | bool

@@ -25,6 +25,7 @@ from starlette.requests import Request
 from . import accounts, analytics, backup, config, cv, jobs, network, onboarding, pipeline
 from . import profile as profile_mod
 from . import security, store
+from .version import APP_VERSION
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -38,11 +39,12 @@ async def lifespan(_app: FastAPI):
     jobs.shutdown()
 
 
-app = FastAPI(title="Jev Job Offer Evaluator", version="2.3.0", lifespan=lifespan)
+app = FastAPI(title="Jev Job Offer Evaluator", version=APP_VERSION, lifespan=lifespan)
 app.add_middleware(security.AuthMiddleware)
 app.add_middleware(security.ResponseHeadersMiddleware)
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
+templates.env.globals["asset_version"] = APP_VERSION
 
 
 class EvaluateRequest(BaseModel):
@@ -186,7 +188,7 @@ def _require_admin(request: Request) -> dict:
 def _send_invitation_email(recipient: str, invitation_url: str) -> None:
     host = os.environ.get("EMAIL_SMTP_HOST", "")
     username = os.environ.get("EMAIL_ADDRESS", "")
-    password = os.environ.get("EMAIL_PASSWORD", "")
+    password = config.secret_value("EMAIL_PASSWORD")
     if not host or not username or not password:
         raise RuntimeError("Configuration SMTP incomplète")
     port = int(os.environ.get("EMAIL_SMTP_PORT", "587"))
@@ -495,7 +497,7 @@ async def create_onboarding(
 
 @app.get("/healthz")
 def healthz():
-    return {"ok": True, "version": "2.3.0", "auth_required": True}
+    return {"ok": True, "version": APP_VERSION, "auth_required": True}
 
 
 @app.post("/api/evaluate")
