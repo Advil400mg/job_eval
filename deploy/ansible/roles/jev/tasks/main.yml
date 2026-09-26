@@ -11,7 +11,7 @@
       - jev_domain | length > 3
       - jev_domain is match('^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)+$')
       - "'..' not in jev_domain"
-      - jev_acme_email is match('^[^@[:space:]]+@[^@[:space:]]+$')
+      - jev_acme_email is match('^[^@\s]+@[^@\s]+\.[^@\s]+$')
       - jev_openrouter_api_key | length > 0
       - jev_session_secret | length >= 32
       - jev_admin_bootstrap_password | length == 0 or jev_admin_bootstrap_password | length >= 12

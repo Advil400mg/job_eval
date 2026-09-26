@@ -71,6 +71,9 @@ class DeploymentArtifacts(unittest.TestCase):
         self.assertIn("previous_backup_pointer", rollback)
         self.assertIn("jev-restore", rollback)
         self.assertIn('"${COMPOSE[@]}" up', rollback)
+        validation = (ROOT / "deploy/ansible/roles/jev/tasks/main.yml").read_text(encoding="utf-8")
+        self.assertNotIn("[:space:]", validation)
+        self.assertIn("[^@\\s]+@[^@\\s]+", validation)
 
     def test_ansible_role_contains_release_and_operations_paths(self):
         required = [
