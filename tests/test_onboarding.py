@@ -14,7 +14,7 @@ import pymupdf
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app import onboarding
+from app import onboarding, store
 from engine import render_cv_pdf
 
 
@@ -49,6 +49,8 @@ class OnboardingTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name)
+        self.previous_db = store.DB_PATH
+        store.DB_PATH = str(self.root / "jev.db")
         # onboarding.paths() now uses config.user_dir() → data_dir/users/legacy-admin/*
         u_dir = self.root / "users" / "legacy-admin"
         u_dir.mkdir(parents=True, exist_ok=True)
@@ -64,6 +66,7 @@ class OnboardingTest(unittest.TestCase):
 
     def tearDown(self):
         self.settings_patch.stop()
+        store.DB_PATH = self.previous_db
         self.tmp.cleanup()
 
     @staticmethod
@@ -106,6 +109,10 @@ class OnboardingTest(unittest.TestCase):
         self.assertEqual(profile["search"]["experience_filter"]["reject_if_minimum_required_years_gte"], 3)
         self.assertEqual(profile["search"]["max_age_days"], 45)
         self.assertTrue((self.root / "users" / "legacy-admin" / "source_cv.pdf").is_file())
+        job = store.get_onboarding_job()
+        self.assertIsNotNone(job)
+        assert job is not None
+        self.assertEqual(job["status"], "done")
 
     def test_image_only_pdf_is_rejected_without_partial_files(self):
         document = pymupdf.open()
@@ -116,6 +123,20 @@ class OnboardingTest(unittest.TestCase):
             onboarding.initialize(content, "scan.pdf", "", "", 2, 30)
         self.assertFalse(self.settings["profile_path"].exists())
         self.assertFalse(self.settings["cv"]["master_path"].exists())
+        job = store.get_onboarding_job()
+        self.assertIsNotNone(job)
+        assert job is not None
+        self.assertEqual(job["status"], "failed")
+        self.assertIn("couche texte", job["last_error"])
+
+    def test_duplicate_initialization_is_rejected_while_running(self):
+        self.assertTrue(store.start_onboarding())
+        with self.assertRaisesRegex(onboarding.OnboardingInProgress, "déjà en cours"):
+            onboarding.initialize(self.text_pdf(), "ada.pdf")
+        job = store.get_onboarding_job()
+        self.assertIsNotNone(job)
+        assert job is not None
+        self.assertEqual(job["status"], "running")
 
     def test_invalid_llm_answer_is_retried_once(self):
         valid = MASTER

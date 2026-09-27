@@ -482,8 +482,15 @@ async def create_onboarding(
         request, "onboarding", config.settings()["security"]["onboarding_per_hour"], 3600,
     )
     user_id = _user_id(request)
-    if not onboarding.status(user_id)["needed"]:
-        raise HTTPException(409, "L'application est déjà initialisée. Réinitialiser les données avant un nouvel import.")
+    setup = onboarding.status(user_id)
+    if setup["processing"]:
+        raise HTTPException(409, detail={
+            "message": "L’analyse du CV est déjà en cours.", "onboarding": setup,
+        })
+    if not setup["needed"]:
+        raise HTTPException(409, detail={
+            "message": "L’onboarding est déjà terminé.", "onboarding": setup,
+        })
     if cv_pdf.content_type not in ("application/pdf", "application/x-pdf", "application/octet-stream"):
         raise HTTPException(400, "Un fichier PDF est requis.")
     content = await cv_pdf.read(onboarding.MAX_PDF_BYTES + 1)
@@ -498,6 +505,14 @@ async def create_onboarding(
             max_age_days,
             user_id=user_id,
         )
+    except onboarding.OnboardingInProgress as exc:
+        raise HTTPException(409, detail={
+            "message": str(exc), "onboarding": onboarding.status(user_id),
+        }) from exc
+    except onboarding.OnboardingComplete as exc:
+        raise HTTPException(409, detail={
+            "message": str(exc), "onboarding": onboarding.status(user_id),
+        }) from exc
     except onboarding.OnboardingError as exc:
         raise HTTPException(400, str(exc)) from exc
 

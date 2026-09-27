@@ -14,7 +14,11 @@
 </header>
 
 <section class="panel">
-  <form id="setup_form">
+  {% set onboarding_job = setup.job or {} %}
+  <form id="setup_form"
+        data-processing="{{ 'true' if setup.processing else 'false' }}"
+        data-api-key-set="{{ 'true' if setup.api_key_set else 'false' }}"
+        data-error="{{ (onboarding_job.last_error or '') | replace('\n', ' ') }}">
     <label for="cv_pdf">CV au format PDF <span class="hint">(obligatoire, 10 Mo maximum, PDF texte)</span></label>
     <input id="cv_pdf" name="cv_pdf" type="file" accept="application/pdf,.pdf" required>
 
@@ -34,12 +38,19 @@
     </div>
 
     <div class="row">
-      <button id="setup_submit" type="submit" {% if not setup.api_key_set %}disabled{% endif %}>Analyser le CV et initialiser</button>
-      <span id="setup_status" class="status"></span>
+      <button id="setup_submit" type="submit"
+              {% if not setup.api_key_set or setup.processing %}disabled{% endif %}>Analyser le CV et initialiser</button>
+      <span id="setup_status" class="status" role="status" aria-live="polite">
+        {% if setup.processing %}
+          Analyse du CV en cours… Vous pouvez quitter ou actualiser cette page.
+        {% elif onboarding_job.status in ['failed', 'interrupted'] and onboarding_job.last_error %}
+          {{ onboarding_job.last_error }}
+        {% endif %}
+      </span>
     </div>
   </form>
   <p class="muted small">Le PDF source et les deux fichiers générés sont conservés dans le répertoire de données persistant, jamais dans l'image Docker. Les préférences qui ne figurent pas dans le CV ne sont pas inventées.</p>
 </section>
-<script src="/static/setup.js"></script>
+<script src="/static/setup.js?v={{ asset_version }}"></script>
 </body>
 </html>

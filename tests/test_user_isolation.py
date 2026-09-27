@@ -1,4 +1,4 @@
-"""Tests pour l'isolation des fichiers par utilisateur (v5).
+"""Tests pour l'isolation des fichiers par utilisateur (v6).
 
 Vérifie que chaque module utilise bien data/users/{IDENTIFIANT}/ pour ses
 chemins, et que user_id=None → legacy-admin en rétrocompatibilité.
@@ -16,7 +16,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app import config, cv, onboarding, pipeline, profile, store
+from app import accounts, config, cv, onboarding, pipeline, profile, store
 
 
 class UserDirHelperTest(unittest.TestCase):
@@ -66,10 +66,13 @@ class OnboardingPathsTest(unittest.TestCase):
         os.environ["JEV_CONFIG"] = str(self.root / "absent.toml")
         os.environ["JEV_DATA_DIR"] = str(self.root)
         config.reset_cache()
+        self.previous_db = store.DB_PATH
+        store.DB_PATH = str(self.root / "jev.db")
         # Pré-créer le répertoire legacy-admin pour les tests status()
         (config.user_dir()).mkdir(parents=True, exist_ok=True)
 
     def tearDown(self):
+        store.DB_PATH = self.previous_db
         for key, value in self.saved.items():
             if value is None:
                 os.environ.pop(key, None)
@@ -100,6 +103,7 @@ class OnboardingPathsTest(unittest.TestCase):
         self.assertIn("legacy-admin", st["profile_path"])
 
     def test_initialize_writes_to_user_dir(self):
+        accounts.create_user("bob", "bob-password-123", user_id="bob-456")
         u_dir = config.user_dir("bob-456")
         u_dir.mkdir(parents=True, exist_ok=True)
         master = {

@@ -51,7 +51,7 @@ class ApiSecurity(unittest.TestCase):
         with TestClient(app) as client:
             health = client.get("/healthz")
             self.assertEqual(health.status_code, 200)
-            self.assertEqual(health.json(), {"ok": True, "version": "2.4.1", "auth_required": True})
+            self.assertEqual(health.json(), {"ok": True, "version": "2.4.2", "auth_required": True})
             self.assertIn("default-src 'self'", health.headers["content-security-policy"])
             self.assertEqual(client.get("/api/history").status_code, 401)
             page = client.get("/offers", follow_redirects=False)
@@ -92,6 +92,73 @@ class ApiSecurity(unittest.TestCase):
         self.assertEqual(health.status_code, 200)
         self.assertLess(elapsed, 0.75, f"/healthz a attendu {elapsed:.2f} s")
         self.assertEqual(response.status_code, 200)
+
+    def test_refresh_exposes_running_onboarding_and_rejects_duplicate(self):
+        entered = threading.Event()
+        release = threading.Event()
+        master = {
+            "identity": {
+                "name": "Ada Example", "headline_default": "Security Engineer",
+                "email": "ada@example.test", "phone": "", "linkedin": "",
+                "mobility": "Brussels", "languages_line": "Français, anglais",
+            },
+            "experiences": [], "education": [], "skill_groups": [], "projects": [],
+            "headline_words": ["Security", "Engineer"], "profile_facts": [],
+            "eligibility_defense_only": [], "gap_notes_for_email": [],
+        }
+
+        def slow_master(*args, **kwargs):
+            entered.set()
+            release.wait(timeout=3)
+            return master
+
+        with TestClient(app) as client:
+            login = client.post(
+                "/login",
+                data={"identifier": "admin", "password": "integration-password", "next": "/"},
+                follow_redirects=False,
+            )
+            self.assertEqual(login.status_code, 303)
+            client.headers["Origin"] = "http://testserver"
+            with (mock.patch.object(onboarding, "extract_pdf_text", return_value="CV text " * 200),
+                  mock.patch.object(onboarding, "_generate_master", side_effect=slow_master)):
+                with ThreadPoolExecutor(max_workers=1) as executor:
+                    pending = executor.submit(
+                        client.post,
+                        "/api/onboarding",
+                        files={"cv_pdf": ("cv.pdf", b"%PDF-test", "application/pdf")},
+                    )
+                    self.assertTrue(entered.wait(timeout=1), "l'analyse CV n'a pas démarré")
+
+                    status_response = client.get("/api/onboarding")
+                    self.assertEqual(status_response.status_code, 200)
+                    setup = status_response.json()
+                    self.assertTrue(setup["needed"])
+                    self.assertTrue(setup["processing"])
+                    self.assertEqual(setup["job"]["status"], "running")
+
+                    page = client.get("/")
+                    self.assertEqual(page.status_code, 200)
+                    self.assertIn("Analyse du CV en cours", page.text)
+                    self.assertIn('data-processing="true"', page.text)
+
+                    duplicate = client.post(
+                        "/api/onboarding",
+                        files={"cv_pdf": ("cv.pdf", b"%PDF-test", "application/pdf")},
+                    )
+                    self.assertEqual(duplicate.status_code, 409)
+                    detail = duplicate.json()["detail"]
+                    self.assertEqual(detail["message"], "L’analyse du CV est déjà en cours.")
+                    self.assertTrue(detail["onboarding"]["processing"])
+
+                    release.set()
+                    completed = pending.result(timeout=2)
+
+            self.assertEqual(completed.status_code, 200)
+            final_status = client.get("/api/onboarding").json()
+            self.assertFalse(final_status["needed"])
+            self.assertFalse(final_status["processing"])
+            self.assertEqual(final_status["job"]["status"], "done")
 
     def test_login_pose_un_cookie_signe_et_donne_acces(self):
         with TestClient(app) as client:

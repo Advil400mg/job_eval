@@ -91,6 +91,17 @@ CREATE TABLE IF NOT EXISTS cv_jobs (
     send_email INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
+CREATE TABLE IF NOT EXISTS onboarding_jobs (
+    user_id TEXT PRIMARY KEY,
+    status TEXT NOT NULL CHECK (status IN ('running', 'done', 'failed', 'interrupted')),
+    created_at TEXT NOT NULL,
+    started_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    completed_at TEXT,
+    attempts INTEGER NOT NULL DEFAULT 1,
+    last_error TEXT,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
 CREATE TABLE IF NOT EXISTS profile_versions (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,
@@ -370,6 +381,7 @@ def _migrate(conn: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_cv_jobs_status ON cv_jobs(status, created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_cv_jobs_url ON cv_jobs(url, created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_cv_jobs_user_created ON cv_jobs(user_id, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_onboarding_jobs_status ON onboarding_jobs(status, updated_at DESC);
         CREATE INDEX IF NOT EXISTS idx_profile_versions_created ON profile_versions(user_id, created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_applications_status ON applications(user_id, status, updated_at DESC);
         CREATE INDEX IF NOT EXISTS idx_applications_follow_up ON applications(user_id, follow_up_at, status);
@@ -377,7 +389,7 @@ def _migrate(conn: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_application_events_app ON application_events(application_id, id DESC);
         CREATE INDEX IF NOT EXISTS idx_invitations_creator ON invitations(created_by, created_at DESC);
     """)
-    conn.execute("PRAGMA user_version = 5")
+    conn.execute("PRAGMA user_version = 6")
 
 
 def _connect() -> sqlite3.Connection:
@@ -394,6 +406,60 @@ def _connect() -> sqlite3.Connection:
     _migrate(conn)
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
+
+
+def get_onboarding_job(user_id: str | None = None) -> dict | None:
+    with _LOCK, _connect() as conn:
+        owner = _ensure_user(conn, user_id)
+        row = conn.execute(
+            "SELECT user_id, status, created_at, started_at, updated_at, completed_at, "
+            "attempts, last_error FROM onboarding_jobs WHERE user_id = ?",
+            (owner,),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def start_onboarding(user_id: str | None = None) -> bool:
+    """Atomically claim one onboarding execution for a user, including across workers."""
+    now = _now()
+    with _LOCK, _connect() as conn:
+        owner = _ensure_user(conn, user_id)
+        cursor = conn.execute(
+            "INSERT INTO onboarding_jobs (user_id, status, created_at, started_at, updated_at, "
+            "attempts) VALUES (?, 'running', ?, ?, ?, 1) "
+            "ON CONFLICT(user_id) DO UPDATE SET status = 'running', started_at = excluded.started_at, "
+            "updated_at = excluded.updated_at, completed_at = NULL, "
+            "attempts = onboarding_jobs.attempts + 1, last_error = NULL "
+            "WHERE onboarding_jobs.status != 'running'",
+            (owner, now, now, now),
+        )
+        return cursor.rowcount == 1
+
+
+def finish_onboarding(user_id: str | None, status: str, last_error: str | None = None) -> None:
+    if status not in ("done", "failed", "interrupted"):
+        raise ValueError("statut onboarding invalide")
+    now = _now()
+    error = (last_error or "")[:2000] or None
+    with _LOCK, _connect() as conn:
+        owner = _ensure_user(conn, user_id)
+        conn.execute(
+            "UPDATE onboarding_jobs SET status = ?, updated_at = ?, completed_at = ?, "
+            "last_error = ? WHERE user_id = ?",
+            (status, now, now, error, owner),
+        )
+
+
+def interrupt_running_onboarding() -> int:
+    now = _now()
+    error = "Analyse interrompue par un redémarrage de l’application. Vous pouvez la relancer."
+    with _LOCK, _connect() as conn:
+        cursor = conn.execute(
+            "UPDATE onboarding_jobs SET status = 'interrupted', updated_at = ?, completed_at = ?, "
+            "last_error = ? WHERE status = 'running'",
+            (now, now, error),
+        )
+        return cursor.rowcount
 
 
 def create_run(urls: list[str], user_id: str | None = None) -> str:

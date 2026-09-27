@@ -42,6 +42,7 @@ const { escapeHtml, scoreVisual, criteriaVisual, paginationHtml, statusBadge,
   applicationStatusBadge } = sandbox.JEV;
 let passed = 0;
 function check(name, callback) { callback(); passed++; console.log("ok  ", name); }
+async function checkAsync(name, callback) { await callback(); passed++; console.log("ok  ", name); }
 
 check("le score visuel affiche valeur, barre et seuil", () => {
   const html = scoreVisual(74.2, 68, true);
@@ -119,6 +120,87 @@ check("le résultat d’invitation n’injecte pas de HTML", () => {
   assert.equal(copy.children[1].textContent, '<img src=x onerror=alert(1)>');
   assert.equal(copy.children[2].value, 'https://app.test/register?token=<script>');
   assert.equal(adminResult.innerHTML, "");
+});
+
+const setupForm = makeEl();
+setupForm.dataset = { processing: "false", apiKeySet: "true", error: "" };
+const setupButton = makeEl();
+setupButton.disabled = false;
+const setupStatus = makeEl();
+const setupFile = makeEl();
+setupFile.files = [];
+const setupElements = new Map([
+  ["#setup_form", setupForm],
+  ["#setup_submit", setupButton],
+  ["#setup_status", setupStatus],
+  ["#cv_pdf", setupFile],
+]);
+let setupReloads = 0;
+let setupSchedules = 0;
+const setupSandbox = {
+  window: {},
+  document: { querySelector(selector) { return setupElements.get(selector) || null; } },
+  fetch: async () => ({ ok: true, json: async () => ({ needed: true, processing: true }) }),
+  location: { reload() { setupReloads++; } },
+  setTimeout: () => { setupSchedules++; return setupSchedules; },
+  clearTimeout() {},
+  console,
+};
+setupSandbox.window = setupSandbox;
+vm.createContext(setupSandbox);
+const setupCode = fs.readFileSync(new URL("../app/static/setup.js", import.meta.url), "utf8");
+vm.runInContext(setupCode, setupSandbox);
+
+check("l’onboarding en cours désactive le formulaire après actualisation", () => {
+  const state = setupSandbox.JEVSetup.renderOnboarding({
+    needed: true, processing: true, api_key_set: true, job: { status: "running" },
+  });
+  assert.equal(state, "running");
+  assert.equal(setupButton.disabled, true);
+  assert.match(setupStatus.textContent, /Analyse du CV en cours/);
+});
+
+check("un onboarding interrompu affiche l’erreur et autorise une relance", () => {
+  const state = setupSandbox.JEVSetup.renderOnboarding({
+    needed: true,
+    processing: false,
+    api_key_set: true,
+    job: { status: "interrupted", last_error: "Analyse interrompue" },
+  });
+  assert.equal(state, "interrupted");
+  assert.equal(setupButton.disabled, false);
+  assert.equal(setupStatus.textContent, "Erreur : Analyse interrompue");
+  assert.equal(setupSandbox.JEVSetup.detailMessage({ message: "Déjà en cours" }), "Déjà en cours");
+});
+
+check("la fin de l’onboarding recharge automatiquement l’application", () => {
+  const state = setupSandbox.JEVSetup.renderOnboarding({ needed: false, processing: false });
+  assert.equal(state, "done");
+  assert.equal(setupReloads, 1);
+});
+
+await checkAsync("le polling terminé recharge sans programmer une nouvelle vérification", async () => {
+  setupSandbox.fetch = async () => ({
+    ok: true,
+    json: async () => ({ needed: false, processing: false, api_key_set: true, job: { status: "done" } }),
+  });
+  const schedulesBefore = setupSchedules;
+  await setupSandbox.JEVSetup.pollOnboarding();
+  assert.equal(setupSchedules, schedulesBefore);
+  assert.equal(setupReloads, 2);
+});
+
+await checkAsync("le polling s’arrête après dix erreurs consécutives", async () => {
+  setupSandbox.fetch = async () => { throw new Error("indisponible"); };
+  const schedulesBefore = setupSchedules;
+  for (let attempt = 0; attempt < 9; attempt++) {
+    await setupSandbox.JEVSetup.pollOnboarding();
+  }
+  assert.equal(setupSchedules, schedulesBefore + 9);
+  await setupSandbox.JEVSetup.pollOnboarding();
+  assert.equal(setupSchedules, schedulesBefore + 9);
+  assert.match(setupStatus.textContent, /Actualisez la page/);
+  assert.equal(setupButton.disabled, true);
 });
 
 console.log(`\n${passed} tests JS OK`);

@@ -80,6 +80,7 @@ def retry_cv(job_id: str) -> bool:
 
 
 def recover_after_restart() -> dict[str, int]:
+    interrupted_onboarding = store.interrupt_running_onboarding()
     interrupted_cv = store.interrupt_running_cv_jobs()
     resumed_runs = 0
     failed_runs = 0
@@ -96,7 +97,7 @@ def recover_after_restart() -> dict[str, int]:
             submit_run(run["id"], missing)
             resumed_runs += 1
     return {"resumed_runs": resumed_runs, "interrupted_runs": failed_runs,
-            "interrupted_cv": interrupted_cv}
+            "interrupted_cv": interrupted_cv, "interrupted_onboarding": interrupted_onboarding}
 
 
 def shutdown() -> None:

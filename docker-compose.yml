@@ -6,7 +6,7 @@
 services:
   jev:
     build: .
-    image: jev-webapp:2.4.1
+    image: jev-webapp:2.4.2
     container_name: jev-webapp
     ports:
       - "${PORT:-8000}:8000"

@@ -81,6 +81,38 @@ class CvJobs(StoreBase):
         self.assertEqual(len(store.list_cv_jobs(limit=2, offset=2)), 1)
 
 
+class OnboardingJobs(StoreBase):
+    def test_lifecycle_claim_retry_and_restart_recovery(self):
+        self.assertIsNone(store.get_onboarding_job())
+        self.assertTrue(store.start_onboarding())
+        self.assertFalse(store.start_onboarding())
+        running = store.get_onboarding_job()
+        self.assertIsNotNone(running)
+        assert running is not None
+        self.assertEqual(running["status"], "running")
+        self.assertEqual(running["attempts"], 1)
+
+        store.finish_onboarding(None, "failed", "réponse LLM invalide")
+        failed = store.get_onboarding_job()
+        self.assertIsNotNone(failed)
+        assert failed is not None
+        self.assertEqual(failed["status"], "failed")
+        self.assertEqual(failed["last_error"], "réponse LLM invalide")
+
+        self.assertTrue(store.start_onboarding())
+        retried = store.get_onboarding_job()
+        self.assertIsNotNone(retried)
+        assert retried is not None
+        self.assertEqual(retried["attempts"], 2)
+        self.assertIsNone(retried["last_error"])
+        self.assertEqual(store.interrupt_running_onboarding(), 1)
+        interrupted = store.get_onboarding_job()
+        self.assertIsNotNone(interrupted)
+        assert interrupted is not None
+        self.assertEqual(interrupted["status"], "interrupted")
+        self.assertIn("redémarrage", interrupted["last_error"])
+
+
 class Offers(StoreBase):
     def make_two_evaluations(self):
         old = store.create_run(["https://jobs.test/role?utm_source=mail"])
@@ -161,8 +193,8 @@ class Offers(StoreBase):
         self.assertIn("score", columns)
         self.assertIn("attempts", run_columns)
         self.assertIn("cancel_requested", cv_columns)
-        self.assertTrue({"profile_versions", "applications", "application_events"} <= tables)
-        self.assertEqual(version, 5)
+        self.assertTrue({"profile_versions", "applications", "application_events", "onboarding_jobs"} <= tables)
+        self.assertEqual(version, 6)
         self.assertEqual(journal_mode.lower(), "wal")
 
 

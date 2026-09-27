@@ -102,6 +102,17 @@ class JobRecovery(unittest.TestCase):
         self.assertEqual(run["attempts"], 3)
         self.assertIn("maximal", run["last_error"])
 
+    def test_onboarding_en_cours_devient_interrompu_apres_redemarrage(self):
+        self.assertTrue(store.start_onboarding())
+        with mock.patch.object(jobs, "submit_run"):
+            result = jobs.recover_after_restart()
+        job = store.get_onboarding_job()
+        self.assertIsNotNone(job)
+        assert job is not None
+        self.assertEqual(result["interrupted_onboarding"], 1)
+        self.assertEqual(job["status"], "interrupted")
+        self.assertIn("redémarrage", job["last_error"])
+
     def test_cv_en_cours_devient_interrompu_sans_relance_email(self):
         job_id = store.create_cv_job("https://jobs.test/cv", send_email=True)
         with mock.patch.object(jobs, "submit_run"):
