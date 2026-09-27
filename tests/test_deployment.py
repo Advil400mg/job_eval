@@ -22,7 +22,7 @@ from app.version import APP_VERSION  # noqa: E402
 
 class DeploymentArtifacts(unittest.TestCase):
     def test_version_is_centralized(self):
-        self.assertEqual(APP_VERSION, "2.4.2")
+        self.assertEqual(APP_VERSION, "2.4.3")
         main = (ROOT / "app/main.py").read_text(encoding="utf-8")
         backup = (ROOT / "app/backup.py").read_text(encoding="utf-8")
         self.assertIn("version=APP_VERSION", main)

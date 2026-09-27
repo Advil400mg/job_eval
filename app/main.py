@@ -35,6 +35,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 async def lifespan(_app: FastAPI):
     security.validate_configuration()
     accounts.bootstrap_from_environment()
+    _app.state.deletion_recovery = accounts.reconcile_deleted_user_files()
     _app.state.recovery = jobs.recover_after_restart()
     yield
     jobs.shutdown()
@@ -105,6 +106,10 @@ class InvitationRequest(BaseModel):
 class PasswordChangeRequest(BaseModel):
     current_password: str = Field(..., max_length=512)
     new_password: str = Field(..., min_length=12, max_length=512)
+
+
+class UserDeletionRequest(BaseModel):
+    confirmation: str = Field(..., min_length=3, max_length=64)
 
 
 def _clean_urls(raw: list[str]) -> list[str]:
@@ -952,6 +957,20 @@ def admin_set_user(request: Request, user_id: str, active: bool):
         return accounts.set_user_active(user_id, active, actor["id"])
     except accounts.AccountError as exc:
         raise HTTPException(400, str(exc)) from exc
+
+
+@app.delete("/api/admin/users/{user_id}")
+def admin_delete_user(request: Request, user_id: str, payload: UserDeletionRequest):
+    actor = _require_admin(request)
+    try:
+        deleted = accounts.delete_user(user_id, actor["id"], payload.confirmation)
+    except accounts.AccountError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {
+        "deleted": deleted["id"],
+        "username": deleted["username"],
+        "cleanup_pending": deleted["cleanup_pending"],
+    }
 
 
 @app.get("/api/admin/invitations")

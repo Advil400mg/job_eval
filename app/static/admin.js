@@ -58,6 +58,22 @@
     inviteResult.append(copy, button);
   }
 
+  function deleteConfirmationText(username) {
+    return `Suppression définitive de @${username}.\n\nLe compte, ses analyses, CV, candidatures et fichiers actuels seront effacés. Les sauvegardes existantes resteront inchangées.\n\nSaisis exactement ${username} pour confirmer :`;
+  }
+
+  async function deleteUser(userId, confirmation) {
+    const response = await fetch(`/api/admin/users/${encodeURIComponent(userId)}`, {
+      method: 'DELETE',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({confirmation}),
+    });
+    let payload = {};
+    try { payload = await response.json(); } catch (_) { /* réponse non JSON */ }
+    if (!response.ok) throw new Error(payload.detail || 'Suppression du compte impossible.');
+    return payload;
+  }
+
   document.querySelectorAll('[data-local-time]').forEach((element) => {
     element.textContent = formatAdminDate(element.getAttribute('datetime'));
   });
@@ -98,6 +114,34 @@
     }
   }));
 
+  document.querySelectorAll('.user-delete').forEach((button) => button.addEventListener('click', async () => {
+    const row = button.closest('[data-user-id]');
+    const username = button.dataset.username;
+    const confirmation = window.prompt(deleteConfirmationText(username));
+    if (confirmation === null) return;
+    if (confirmation !== username) {
+      window.JEV?.showToast('Le nom d’utilisateur saisi ne correspond pas.', 'error');
+      return;
+    }
+    const actionButtons = row.querySelectorAll('button');
+    actionButtons.forEach((item) => { item.disabled = true; });
+    try {
+      const result = await deleteUser(row.dataset.userId, confirmation);
+      if (result.cleanup_pending) {
+        window.JEV?.showToast(
+          'Compte supprimé. Le nettoyage des fichiers sera retenté au prochain démarrage.',
+          'error',
+        );
+        window.setTimeout(() => window.location.reload(), 2500);
+      } else {
+        window.location.reload();
+      }
+    } catch (error) {
+      actionButtons.forEach((item) => { item.disabled = false; });
+      window.JEV?.showToast(error.message, 'error');
+    }
+  }));
+
   document.querySelectorAll('.invite-revoke').forEach((button) => button.addEventListener('click', async () => {
     button.disabled = true;
     try {
@@ -110,5 +154,5 @@
     }
   }));
 
-  window.JEVAdmin = {formatAdminDate, renderInviteResult};
+  window.JEVAdmin = {formatAdminDate, renderInviteResult, deleteConfirmationText, deleteUser};
 })();

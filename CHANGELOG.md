@@ -1,6 +1,14 @@
 # Changelog
 
-## 2.4.2 — Non publié
+## 2.4.3 — Non publié
+
+- Ajout de la suppression définitive d’un utilisateur par un administrateur.
+- Suppression transactionnelle des données SQLite et purge du répertoire de fichiers isolé.
+- Récupération automatique des répertoires de suppression après un arrêt brutal ou un échec de nettoyage.
+- Confirmation par nom d’utilisateur, refus de l’auto-suppression et blocage pendant une tâche active.
+- Avertissement explicite : les sauvegardes existantes ne sont pas modifiées.
+
+## 2.4.2 — 2026-09-27
 
 - Ajout d’un état d’onboarding persistant par utilisateur pendant l’analyse du CV.
 - Reprise de l’interface après actualisation, avec suivi automatique, refus des doublons et récupération après redémarrage.

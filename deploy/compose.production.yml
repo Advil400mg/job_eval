@@ -5,7 +5,7 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile
-    image: "${JEV_IMAGE:-jev-webapp}:${JEV_VERSION:-2.4.2}"
+    image: "${JEV_IMAGE:-jev-webapp}:${JEV_VERSION:-2.4.3}"
     env_file:
       - "${JEV_ENV_FILE:-/etc/jev/production.env}"
     environment:

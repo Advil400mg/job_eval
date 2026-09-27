@@ -6,6 +6,7 @@ import os
 import re
 import secrets
 import hashlib
+import logging
 import shutil
 import time
 import uuid
@@ -21,6 +22,10 @@ LEGACY_ADMIN_ID = "legacy-admin"
 _USERNAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{2,63}$")
 _EMAIL = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 _HASHER = PasswordHasher(time_cost=2, memory_cost=19_456, parallelism=1, hash_len=32, salt_len=16)
+_LOGGER = logging.getLogger(__name__)
+_DELETING_DIR = re.compile(
+    r"^\.deleting-(?P<user_id>[A-Za-z0-9][A-Za-z0-9_.-]{0,127})-(?P<nonce>[0-9a-f]{32})$"
+)
 
 
 class AccountError(RuntimeError):
@@ -261,6 +266,131 @@ def set_user_active(user_id: str, active: bool, actor_id: str) -> dict:
             raise AccountError("Utilisateur inconnu")
         row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
     return _public(row)
+
+
+def _user_storage_paths(user_id: str) -> tuple[Path, Path]:
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", user_id):
+        raise AccountError("Identifiant utilisateur invalide")
+    users_root = (Path(config.settings()["data_dir"]) / "users").resolve()
+    target = users_root / user_id
+    if target.parent != users_root:
+        raise AccountError("Répertoire utilisateur invalide")
+    return users_root, target
+
+
+def _remove_storage_path(path: Path) -> None:
+    if path.is_symlink() or path.is_file():
+        path.unlink()
+    else:
+        shutil.rmtree(path)
+
+
+def reconcile_deleted_user_files() -> dict[str, int]:
+    """Recover or purge deletion staging directories left by a stopped process."""
+    users_root = (Path(config.settings()["data_dir"]) / "users").resolve()
+    result = {"restored": 0, "purged": 0, "failed": 0}
+    if not users_root.is_dir():
+        return result
+    with store._LOCK, store._connect() as conn:
+        for staged_path in users_root.iterdir():
+            match = _DELETING_DIR.fullmatch(staged_path.name)
+            if not match:
+                continue
+            user_id = match.group("user_id")
+            exists = conn.execute("SELECT 1 FROM users WHERE id = ?", (user_id,)).fetchone()
+            target_path = users_root / user_id
+            try:
+                if exists:
+                    if target_path.exists() or target_path.is_symlink():
+                        _LOGGER.warning(
+                            "Deletion staging directory kept because user storage already exists: %s",
+                            staged_path,
+                        )
+                        result["failed"] += 1
+                    else:
+                        os.replace(staged_path, target_path)
+                        result["restored"] += 1
+                else:
+                    _remove_storage_path(staged_path)
+                    result["purged"] += 1
+            except OSError:
+                _LOGGER.exception("Unable to reconcile user deletion staging directory: %s", staged_path)
+                result["failed"] += 1
+    return result
+
+
+def delete_user(user_id: str, actor_id: str, confirmation: str) -> dict:
+    """Delete another account, all owned database rows and its isolated files."""
+    if user_id == actor_id:
+        raise AccountError("Un administrateur ne peut pas supprimer son propre compte")
+
+    staged_path: Path | None = None
+    target_path: Path | None = None
+    deleted_user: dict | None = None
+    with store._LOCK:
+        conn = store._connect()
+        try:
+            conn.commit()
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+            if not row:
+                raise AccountError("Utilisateur inconnu")
+            if confirmation != row["username"]:
+                raise AccountError("Le nom d’utilisateur de confirmation est incorrect")
+            active_work = conn.execute(
+                "SELECT EXISTS(SELECT 1 FROM runs WHERE user_id = ? AND status = 'running') "
+                "OR EXISTS(SELECT 1 FROM cv_jobs WHERE user_id = ? AND status = 'running') "
+                "OR EXISTS(SELECT 1 FROM onboarding_jobs WHERE user_id = ? AND status = 'running')",
+                (user_id, user_id, user_id),
+            ).fetchone()[0]
+            if active_work:
+                raise AccountError("Suppression refusée pendant une tâche active de cet utilisateur")
+
+            users_root, target_path = _user_storage_paths(user_id)
+            if target_path.exists() or target_path.is_symlink():
+                users_root.mkdir(parents=True, exist_ok=True)
+                staged_path = users_root / f".deleting-{user_id}-{uuid.uuid4().hex}"
+                os.replace(target_path, staged_path)
+
+            # Delete children explicitly as a defensive guarantee, even though two relations cascade.
+            conn.execute(
+                "DELETE FROM results WHERE run_id IN (SELECT id FROM runs WHERE user_id = ?)",
+                (user_id,),
+            )
+            conn.execute("DELETE FROM runs WHERE user_id = ?", (user_id,))
+            conn.execute("DELETE FROM cv_jobs WHERE user_id = ?", (user_id,))
+            conn.execute("DELETE FROM onboarding_jobs WHERE user_id = ?", (user_id,))
+            conn.execute("DELETE FROM profile_versions WHERE user_id = ?", (user_id,))
+            conn.execute(
+                "DELETE FROM application_events WHERE application_id IN "
+                "(SELECT id FROM applications WHERE user_id = ?)",
+                (user_id,),
+            )
+            conn.execute("DELETE FROM applications WHERE user_id = ?", (user_id,))
+            conn.execute("DELETE FROM invitations WHERE created_by = ?", (user_id,))
+            conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+            deleted_user = _public(row)
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            if staged_path and staged_path.exists() and target_path and not target_path.exists():
+                os.replace(staged_path, target_path)
+            raise
+        finally:
+            conn.close()
+
+    cleanup_pending = False
+    if staged_path:
+        try:
+            _remove_storage_path(staged_path)
+        except OSError:
+            cleanup_pending = True
+            _LOGGER.exception(
+                "User account deleted but staged files could not be purged: %s", staged_path,
+            )
+    assert deleted_user is not None
+    deleted_user["cleanup_pending"] = cleanup_pending
+    return deleted_user
 
 
 def _token_hash(token: str) -> str:
