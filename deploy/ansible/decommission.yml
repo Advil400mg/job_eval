@@ -1,0 +1,11 @@
+---
+- name: Decommission JEV
+  hosts: jev
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Run the guarded JEV decommission workflow
+      ansible.builtin.include_role:
+        name: jev
+        tasks_from: decommission

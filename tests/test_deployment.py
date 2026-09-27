@@ -22,7 +22,7 @@ from app.version import APP_VERSION  # noqa: E402
 
 class DeploymentArtifacts(unittest.TestCase):
     def test_version_is_centralized(self):
-        self.assertEqual(APP_VERSION, "2.4.0")
+        self.assertEqual(APP_VERSION, "2.4.1")
         main = (ROOT / "app/main.py").read_text(encoding="utf-8")
         backup = (ROOT / "app/backup.py").read_text(encoding="utf-8")
         self.assertIn("version=APP_VERSION", main)
@@ -75,6 +75,35 @@ class DeploymentArtifacts(unittest.TestCase):
         self.assertNotIn("[:space:]", validation)
         self.assertIn("[^@\\s]+@[^@\\s]+", validation)
         self.assertIn('distribution_major_version in ["24", "26"]', validation)
+
+    def test_decommission_requires_confirmation_and_preserves_data_by_default(self):
+        playbook = ROOT / "deploy/ansible/decommission.yml"
+        tasks = ROOT / "deploy/ansible/roles/jev/tasks/decommission.yml"
+        self.assertTrue(playbook.is_file())
+        self.assertTrue(tasks.is_file())
+        content = tasks.read_text(encoding="utf-8")
+        self.assertIn("jev_decommission_confirm | bool", content)
+        self.assertIn("Refuse dangerous JEV decommission targets", content)
+        self.assertIn("jev_install_root is match", content)
+        self.assertIn("jev_config_dir is match", content)
+        self.assertIn("jev_backup_dir is match", content)
+        self.assertIn("reference={{ jev_image }}:*", content)
+        self.assertIn("jev_decommission_purge_data | bool", content)
+        self.assertIn("{{ jev_data_volume }}", content)
+        self.assertIn("{{ jev_backup_dir }}", content)
+        self.assertIn("{{ jev_system_user }}", content)
+        self.assertLess(content.index("Remove JEV containers"), content.index("Purge JEV Docker volumes"))
+        self.assertNotIn("docker-ce", content)
+        self.assertNotIn("ufw delete", content)
+        self.assertNotIn("ufw reset", content)
+
+    def test_decommission_documentation_covers_preserve_and_purge_modes(self):
+        documentation = (ROOT / "deploy/README.md").read_text(encoding="utf-8")
+        self.assertIn("ansible-playbook decommission.yml", documentation)
+        self.assertIn("jev_decommission_confirm=true", documentation)
+        self.assertIn("jev_decommission_purge_data=true", documentation)
+        self.assertIn("Mode standard : conserver les données", documentation)
+        self.assertIn("Mode purge : suppression irréversible", documentation)
 
     def test_ansible_role_contains_release_and_operations_paths(self):
         required = [
