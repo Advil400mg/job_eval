@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.5.0 — Non publié
+## 2.5.0 — 2026-09-27
 
 - Ajout d’un journal d’audit SQLite v7, filtrable et limité aux métadonnées autorisées.
 - Traçage des connexions, comptes, invitations, profils, candidatures, évaluations, CV et sauvegardes.
