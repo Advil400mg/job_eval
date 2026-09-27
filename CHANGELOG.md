@@ -1,6 +1,12 @@
 # Changelog
 
-## 2.4.1 — Non publié
+## 2.4.2 — Non publié
+
+- Ajout d’un état d’onboarding persistant par utilisateur pendant l’analyse du CV.
+- Reprise de l’interface après actualisation, avec suivi automatique, refus des doublons et récupération après redémarrage.
+- Migration du schéma SQLite vers la version 6.
+
+## 2.4.1 — 2026-09-27
 
 - Prise en charge d’Ubuntu 26.04 LTS par le rôle Ansible de production.
 - Correction de la validation de l’adresse email ACME et affichage de la précondition en échec.

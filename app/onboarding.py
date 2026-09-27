@@ -14,7 +14,7 @@ import urllib.request
 from datetime import date
 from pathlib import Path
 
-from . import config, profile as profile_mod
+from . import config, profile as profile_mod, store
 
 MAX_PDF_BYTES = 10 * 1024 * 1024
 MIN_TEXT_CHARS = 500
@@ -23,6 +23,14 @@ _LOCK = threading.Lock()
 
 
 class OnboardingError(RuntimeError):
+    pass
+
+
+class OnboardingInProgress(OnboardingError):
+    pass
+
+
+class OnboardingComplete(OnboardingError):
     pass
 
 
@@ -52,12 +60,15 @@ def status(user_id: str | None = None) -> dict:
         missing.append("PROFILE.json")
     if master is None or validate_master(master):
         missing.append("CV_MASTER.json")
+    job = store.get_onboarding_job(user_id)
     return {
         "needed": bool(missing),
         "missing": missing,
         "api_key_set": config.settings()["api_key_set"],
         "profile_path": str(profile_path),
         "master_path": str(master_path),
+        "processing": bool(job and job["status"] == "running"),
+        "job": job,
     }
 
 
@@ -359,18 +370,37 @@ def initialize(pdf_bytes: bytes, filename: str, target_roles: str = "", location
         raise OnboardingError("Le seuil d'expérience doit être compris entre 1 et 50 ans.")
     if not 1 <= max_age_days <= 365:
         raise OnboardingError("La fraîcheur doit être comprise entre 1 et 365 jours.")
-    with _LOCK:
-        cv_text = extract_pdf_text(pdf_bytes)
-        master = _generate_master(cv_text, Path(filename or "cv.pdf").name)
-        profile = build_profile(master, target_roles, locations,
-                                reject_experience_years, max_age_days)
-        profile_errors = validate_profile(profile)
-        if profile_errors:
-            raise OnboardingError("PROFILE invalide : " + " | ".join(profile_errors[:12]))
-        profile_path, master_path, source_path = paths(user_id)
-        _atomic_write(master_path, json.dumps(master, ensure_ascii=False, indent=2).encode("utf-8") + b"\n")
-        _atomic_write(profile_path, json.dumps(profile, ensure_ascii=False, indent=2).encode("utf-8") + b"\n")
-        _atomic_write(source_path, pdf_bytes)
+    if not store.start_onboarding(user_id):
+        raise OnboardingInProgress("L’analyse du CV est déjà en cours.")
+    try:
+        with _LOCK:
+            current = status(user_id)
+            if not current["needed"]:
+                store.finish_onboarding(user_id, "done")
+                raise OnboardingComplete("L’onboarding est déjà terminé.")
+            cv_text = extract_pdf_text(pdf_bytes)
+            master = _generate_master(cv_text, Path(filename or "cv.pdf").name)
+            profile = build_profile(master, target_roles, locations,
+                                    reject_experience_years, max_age_days)
+            profile_errors = validate_profile(profile)
+            if profile_errors:
+                raise OnboardingError("PROFILE invalide : " + " | ".join(profile_errors[:12]))
+            profile_path, master_path, source_path = paths(user_id)
+            _atomic_write(
+                master_path,
+                json.dumps(master, ensure_ascii=False, indent=2).encode("utf-8") + b"\n",
+            )
+            _atomic_write(
+                profile_path,
+                json.dumps(profile, ensure_ascii=False, indent=2).encode("utf-8") + b"\n",
+            )
+            _atomic_write(source_path, pdf_bytes)
+    except OnboardingComplete:
+        raise
+    except Exception as exc:
+        store.finish_onboarding(user_id, "failed", str(exc))
+        raise
+    store.finish_onboarding(user_id, "done")
     return {
         "ok": True,
         "candidate": master["identity"]["name"],
