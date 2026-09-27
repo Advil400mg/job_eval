@@ -6,6 +6,7 @@
 - Correction de la validation de l’adresse email ACME et affichage de la précondition en échec.
 - Ajout d’un playbook de décommission avec conservation ou purge explicite des données.
 - Réécriture du guide de déploiement, d’exploitation et de décommission.
+- Maintien de la disponibilité HTTP pendant l’analyse initiale d’un CV.
 
 ## 2.4.0 — 2026-09-26
 

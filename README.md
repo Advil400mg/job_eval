@@ -41,7 +41,7 @@ jev-webapp/
 ├── scripts/
 │   ├── evaluate_job.py      # notation Jev (script du skill Job Hunt + surcharges optionnelles)
 │   └── serve.py             # démarrage : affiche la config effective puis lance uvicorn
-└── tests/                   # 206 tests hors ligne (Python + Node)
+└── tests/                   # 207 tests hors ligne (Python + Node)
 ```
 
 ## Ce que fait l'application
@@ -169,7 +169,7 @@ et tous les chemins par défaut sont relatifs au dossier. Le moteur reste désac
 (`[cv] enabled = false`) ; dans ce cas la génération de CV est annoncée comme indisponible
 avec le motif, sans que le reste de l'application en souffre.
 
-Vérifié sur une instance vierge : 206 tests hors ligne, isolation entre deux comptes,
+Vérifié sur une instance vierge : 207 tests hors ligne, isolation entre deux comptes,
 migration SQLite v5 et chemins utilisateur sous `/data/users/`.
 
 ## Démarrage sans Docker
@@ -351,7 +351,7 @@ PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m unittest discover -s tests -p 'tes
 node tests/test_app_js.mjs
 ```
 
-Les 196 tests Python et 10 tests JavaScript sont hors ligne et n'utilisent aucune clé API. Ils
+Les 197 tests Python et 10 tests JavaScript sont hors ligne et n'utilisent aucune clé API. Ils
 couvrent notamment migration SQLite, authentification, SSRF, reprise des jobs, sauvegardes,
 API, score visuel et pagination.
 
