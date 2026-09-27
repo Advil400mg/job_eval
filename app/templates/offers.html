@@ -23,7 +23,7 @@
 
   <div class="offers-main">
     <div class="offers-toolbar">
-      <button id="filters_open" class="secondary-btn mobile-only">Filtres</button>
+      <button id="filters_open" class="secondary-btn mobile-only" aria-controls="filters" aria-expanded="false">Filtres</button>
       <div id="quick_filters" class="quick-filters" aria-label="Vues rapides">
         <button data-quick="" class="active">Toutes</button><button data-quick="qualified">Qualifiées</button>
         <button data-quick="review">À examiner</button><button data-quick="error">Erreurs</button>
@@ -36,8 +36,8 @@
   </div>
 </section>
 
-<div id="offer_drawer_backdrop" class="drawer-backdrop hidden"></div>
-<aside id="offer_drawer" class="drawer" aria-label="Détail de l’offre" aria-hidden="true">
+<div id="offer_drawer_backdrop" class="drawer-backdrop hidden" role="presentation"></div>
+<aside id="offer_drawer" class="drawer" role="dialog" aria-modal="true" aria-label="Détail de l’offre" aria-hidden="true">
   <div class="drawer-head"><button id="drawer_close" class="icon-btn" aria-label="Fermer">×</button></div>
   <div id="offer_detail"></div>
 </aside>

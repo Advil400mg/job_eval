@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+import logging
 import os
 import re
 import smtplib
@@ -23,18 +24,28 @@ from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 
-from . import accounts, analytics, backup, config, cv, jobs, network, onboarding, pipeline
+from . import accounts, analytics, audit, backup, config, cv, diagnostics, jobs, network, onboarding, pipeline
 from . import profile as profile_mod
 from . import security, store
 from .version import APP_VERSION
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+LOGGER = logging.getLogger(__name__)
+
+
+def _audit(event_type: str, **kwargs) -> None:
+    """Never let observability hide or change the primary operation result."""
+    try:
+        audit.record(event_type, **kwargs)
+    except Exception:  # noqa: BLE001
+        LOGGER.exception("Impossible d’écrire l’événement d’audit %s", event_type)
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     security.validate_configuration()
     accounts.bootstrap_from_environment()
+    _app.state.audit_pruned = audit.prune()
     _app.state.deletion_recovery = accounts.reconcile_deleted_user_files()
     _app.state.recovery = jobs.recover_after_restart()
     yield
@@ -331,6 +342,8 @@ def login(request: Request, identifier: str = Form(...), password: str = Form(..
     user = accounts.authenticate(identifier, password)
     if not user:
         security.LIMITER.record(client, "login", settings["login_window_seconds"])
+        _audit("auth.login_failed", success=False,
+               metadata={"fingerprint": audit.fingerprint(identifier, client)})
         return templates.TemplateResponse(request, "login.html", {
             "request": request, "next": target, "error": "Identifiant ou mot de passe incorrect.",
         }, status_code=401)
@@ -340,11 +353,16 @@ def login(request: Request, identifier: str = Form(...), password: str = Form(..
             target = "/"
     response = RedirectResponse(target, status_code=303)
     security.set_user_session_cookie(response, user["id"], int(user["session_version"]))
+    _audit("auth.login_succeeded", actor_id=user["id"], subject_type="user",
+           subject_id=user["id"], metadata={"role": user.get("role", "user")})
     return response
 
 
 @app.post("/logout")
 def logout(request: Request):
+    user = getattr(request.state, "user", None)
+    if user:
+        _audit("auth.logout", actor_id=user["id"], subject_type="user", subject_id=user["id"])
     response = RedirectResponse("/login", status_code=303)
     security.clear_session_cookie(response)
     return response
@@ -371,6 +389,8 @@ def setup_admin(request: Request, username: str = Form(...), email: str = Form("
         }, status_code=400)
     response = RedirectResponse("/", status_code=303)
     security.set_user_session_cookie(response, user["id"], int(user["session_version"]))
+    _audit("user.first_admin_created", actor_id=user["id"], subject_type="user",
+           subject_id=user["id"], metadata={"username": user["username"], "role": "admin"})
     return response
 
 
@@ -401,6 +421,8 @@ def register(request: Request, token: str = Form(...), username: str = Form(...)
         }, status_code=400)
     response = RedirectResponse("/", status_code=303)
     security.set_user_session_cookie(response, user["id"], int(user["session_version"]))
+    _audit("user.registered", actor_id=user["id"], subject_type="user", subject_id=user["id"],
+           metadata={"username": user["username"], "role": user.get("role", "user")})
     return response
 
 
@@ -500,7 +522,7 @@ async def create_onboarding(
         raise HTTPException(400, "Un fichier PDF est requis.")
     content = await cv_pdf.read(onboarding.MAX_PDF_BYTES + 1)
     try:
-        return await run_in_threadpool(
+        result = await run_in_threadpool(
             onboarding.initialize,
             content,
             cv_pdf.filename or "cv.pdf",
@@ -510,6 +532,8 @@ async def create_onboarding(
             max_age_days,
             user_id=user_id,
         )
+        _audit("onboarding.started", actor_id=user_id, subject_type="user", subject_id=user_id)
+        return result
     except onboarding.OnboardingInProgress as exc:
         raise HTTPException(409, detail={
             "message": str(exc), "onboarding": onboarding.status(user_id),
@@ -537,6 +561,8 @@ def evaluate(request: Request, payload: EvaluateRequest):
     urls = _clean_urls(payload.urls)
     run_id = store.create_run(urls, user_id)
     jobs.submit_run(run_id, urls)
+    _audit("evaluation.started", actor_id=user_id, subject_type="run", subject_id=run_id,
+           metadata={"count": len(urls)})
     return {"run_id": run_id, "total": len(urls), "url": f"/runs/{run_id}"}
 
 
@@ -558,8 +584,12 @@ def evaluate_manual(request: Request, payload: ManualEvaluateRequest):
         )
         store.save_result(run_id, url, record.get("status", "error"), record)
         store.finish_run(run_id, "done")
+        _audit("evaluation.manual_completed", actor_id=user_id, subject_type="run",
+               subject_id=run_id)
     except Exception as exc:  # noqa: BLE001
         store.finish_run(run_id, "failed", str(exc))
+        _audit("evaluation.manual_failed", actor_id=user_id, subject_type="run",
+               subject_id=run_id, success=False)
         raise HTTPException(500, "Évaluation manuelle impossible") from exc
     return {"run_id": run_id, "total": 1, "url": f"/runs/{run_id}", "result": record}
 
@@ -583,19 +613,23 @@ def get_run(request: Request, run_id: str):
 
 @app.post("/api/runs/{run_id}/retry")
 def retry_run(request: Request, run_id: str):
-    if not store.get_run(run_id, _user_id(request)):
+    user_id = _user_id(request)
+    if not store.get_run(run_id, user_id):
         raise HTTPException(404, "Lot inconnu")
     if not jobs.retry_run(run_id):
         raise HTTPException(409, "Ce lot ne peut pas être relancé")
+    _audit("evaluation.retried", actor_id=user_id, subject_type="run", subject_id=run_id)
     return {"run_id": run_id, "status": "running"}
 
 
 @app.post("/api/runs/{run_id}/cancel")
 def cancel_run(request: Request, run_id: str):
-    if not store.get_run(run_id, _user_id(request)):
+    user_id = _user_id(request)
+    if not store.get_run(run_id, user_id):
         raise HTTPException(404, "Lot inconnu")
     if not store.request_run_cancel(run_id):
         raise HTTPException(409, "Ce lot n’est pas en cours")
+    _audit("evaluation.cancel_requested", actor_id=user_id, subject_type="run", subject_id=run_id)
     return {"run_id": run_id, "cancel_requested": True}
 
 
@@ -693,7 +727,10 @@ def update_profile(request: Request, payload: ProfileUpdateRequest):
     user_id = _user_id(request)
     _require_onboarding_complete(user_id)
     try:
-        return profile_mod.update_profile(payload.profile, payload.expected_revision, user_id=user_id)
+        result = profile_mod.update_profile(payload.profile, payload.expected_revision, user_id=user_id)
+        _audit("profile.updated", actor_id=user_id, subject_type="profile", subject_id=user_id,
+               metadata={"version_id": result.get("version_id", "")})
+        return result
     except profile_mod.ProfileConflict as exc:
         raise HTTPException(409, str(exc)) from exc
     except profile_mod.ProfileError as exc:
@@ -712,7 +749,10 @@ def restore_profile(request: Request, version_id: str, payload: ProfileRestoreRe
     user_id = _user_id(request)
     _require_onboarding_complete(user_id)
     try:
-        return profile_mod.restore(version_id, payload.expected_revision, user_id)
+        result = profile_mod.restore(version_id, payload.expected_revision, user_id)
+        _audit("profile.restored", actor_id=user_id, subject_type="profile", subject_id=user_id,
+               metadata={"version_id": version_id})
+        return result
     except profile_mod.ProfileConflict as exc:
         raise HTTPException(409, str(exc)) from exc
     except profile_mod.ProfileNotFound as exc:
@@ -745,10 +785,13 @@ def create_application(request: Request, payload: ApplicationCreateRequest):
     _require_onboarding_complete(user_id)
     url = _clean_urls([payload.url])[0]
     try:
-        return store.create_application(
+        application = store.create_application(
             url, payload.status, title=payload.title, company=payload.company,
             location=payload.location, user_id=user_id,
         )
+        _audit("application.created", actor_id=user_id, subject_type="application",
+               subject_id=application["id"], metadata={"status": application["status"]})
+        return application
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
 
@@ -787,10 +830,12 @@ def get_application(request: Request, application_id: str):
 
 @app.patch("/api/applications/{application_id}")
 def update_application(request: Request, application_id: str, payload: ApplicationUpdateRequest):
+    user_id = _user_id(request)
+    changes = _application_changes(payload)
     try:
         application = store.update_application(
-            application_id, _application_changes(payload), payload.revision,
-            user_id=_user_id(request),
+            application_id, changes, payload.revision,
+            user_id=user_id,
         )
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
@@ -798,13 +843,19 @@ def update_application(request: Request, application_id: str, payload: Applicati
         raise HTTPException(409, str(exc)) from exc
     if not application:
         raise HTTPException(404, "Candidature inconnue")
+    _audit("application.updated", actor_id=user_id, subject_type="application",
+           subject_id=application_id, metadata={"changed": sorted(changes),
+                                                "status": application["status"]})
     return application
 
 
 @app.delete("/api/applications/{application_id}")
 def delete_application(request: Request, application_id: str):
-    if not store.delete_application(application_id, _user_id(request)):
+    user_id = _user_id(request)
+    if not store.delete_application(application_id, user_id):
         raise HTTPException(404, "Candidature inconnue")
+    _audit("application.deleted", actor_id=user_id, subject_type="application",
+           subject_id=application_id)
     return {"deleted": application_id}
 
 
@@ -843,6 +894,8 @@ def create_cv(request: Request, payload: CvRequest):
         raise HTTPException(400, f"URL refusée : {exc}") from exc
     job_id = store.create_cv_job(url, send_email=payload.send_email, user_id=user_id)
     jobs.submit_cv(job_id)
+    _audit("cv.started", actor_id=user_id, subject_type="cv_job", subject_id=job_id,
+           metadata={"send_email": payload.send_email})
     return {"job_id": job_id, "url": url}
 
 
@@ -856,19 +909,23 @@ def get_cv(request: Request, job_id: str):
 
 @app.post("/api/cv/{job_id}/retry")
 def retry_cv(request: Request, job_id: str):
-    if not store.get_cv_job(job_id, _user_id(request)):
+    user_id = _user_id(request)
+    if not store.get_cv_job(job_id, user_id):
         raise HTTPException(404, "Job CV inconnu")
     if not jobs.retry_cv(job_id):
         raise HTTPException(409, "Ce job CV ne peut pas être relancé")
+    _audit("cv.retried", actor_id=user_id, subject_type="cv_job", subject_id=job_id)
     return {"job_id": job_id, "status": "running"}
 
 
 @app.post("/api/cv/{job_id}/cancel")
 def cancel_cv(request: Request, job_id: str):
-    if not store.get_cv_job(job_id, _user_id(request)):
+    user_id = _user_id(request)
+    if not store.get_cv_job(job_id, user_id):
         raise HTTPException(404, "Job CV inconnu")
     if not store.request_cv_cancel(job_id):
         raise HTTPException(409, "Ce job CV n’est pas en cours")
+    _audit("cv.cancel_requested", actor_id=user_id, subject_type="cv_job", subject_id=job_id)
     return {"job_id": job_id, "cancel_requested": True}
 
 
@@ -918,6 +975,46 @@ def admin_page(request: Request):
     })
 
 
+@app.get("/admin/audit", response_class=HTMLResponse)
+def admin_audit_page(request: Request):
+    _require_admin(request)
+    return _render_page(request, "audit.html", "admin", "Journal d’audit")
+
+
+@app.get("/admin/diagnostics", response_class=HTMLResponse)
+def admin_diagnostics_page(request: Request):
+    _require_admin(request)
+    return _render_page(request, "diagnostics.html", "admin", "Diagnostic")
+
+
+@app.get("/api/admin/audit")
+def admin_audit_events(
+    request: Request, event_type: str = "", actor_id: str = "", success: str = "",
+    days: int | None = Query(None, ge=1, le=3650),
+    limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0),
+):
+    _require_admin(request)
+    if success not in ("", "true", "false"):
+        raise HTTPException(400, "Filtre de résultat invalide")
+    payload = audit.list_events(
+        event_type=event_type or None, actor_id=actor_id or None,
+        success=None if success == "" else success == "true", days=days,
+        limit=limit, offset=offset,
+    )
+    payload["event_types"] = audit.event_types()
+    payload["actors"] = [
+        {"id": user["id"], "username": user["username"]}
+        for user in accounts.list_users()
+    ]
+    return payload
+
+
+@app.get("/api/admin/diagnostics")
+def admin_diagnostics(request: Request, refresh: bool = False):
+    _require_admin(request)
+    return diagnostics.collect(force=refresh)
+
+
 @app.get("/api/auth/me")
 def auth_me(request: Request):
     return _current_user(request)
@@ -929,7 +1026,11 @@ def auth_change_password(request: Request, payload: PasswordChangeRequest):
     try:
         accounts.change_password(user["id"], payload.current_password, payload.new_password)
     except accounts.AccountError as exc:
+        _audit("auth.password_change_failed", actor_id=user["id"], subject_type="user",
+               subject_id=user["id"], success=False)
         raise HTTPException(400, str(exc)) from exc
+    _audit("auth.password_changed", actor_id=user["id"], subject_type="user",
+           subject_id=user["id"])
     response = JSONResponse({"ok": True, "login_required": True})
     security.clear_session_cookie(response)
     return response
@@ -939,6 +1040,8 @@ def auth_change_password(request: Request, payload: PasswordChangeRequest):
 def auth_logout_all(request: Request):
     user = _current_user(request)
     accounts.bump_session_version(user["id"])
+    _audit("auth.sessions_revoked", actor_id=user["id"], subject_type="user",
+           subject_id=user["id"])
     response = JSONResponse({"ok": True})
     security.clear_session_cookie(response)
     return response
@@ -954,9 +1057,12 @@ def admin_users(request: Request):
 def admin_set_user(request: Request, user_id: str, active: bool):
     actor = _require_admin(request)
     try:
-        return accounts.set_user_active(user_id, active, actor["id"])
+        updated = accounts.set_user_active(user_id, active, actor["id"])
     except accounts.AccountError as exc:
         raise HTTPException(400, str(exc)) from exc
+    _audit("user.activation_changed", actor_id=actor["id"], subject_type="user",
+           subject_id=user_id, metadata={"active": active, "username": updated["username"]})
+    return updated
 
 
 @app.delete("/api/admin/users/{user_id}")
@@ -966,6 +1072,9 @@ def admin_delete_user(request: Request, user_id: str, payload: UserDeletionReque
         deleted = accounts.delete_user(user_id, actor["id"], payload.confirmation)
     except accounts.AccountError as exc:
         raise HTTPException(400, str(exc)) from exc
+    _audit("user.deleted", actor_id=actor["id"], subject_type="user", subject_id=user_id,
+           metadata={"username": deleted["username"],
+                     "cleanup_pending": deleted["cleanup_pending"]})
     return {
         "deleted": deleted["id"],
         "username": deleted["username"],
@@ -999,14 +1108,21 @@ def admin_create_invitation(request: Request, payload: InvitationRequest):
             invitation["email_sent"] = True
         except Exception:  # noqa: BLE001
             invitation["email_error"] = "Échec de l’envoi — vérifier la configuration SMTP"
+    _audit("invitation.created", actor_id=admin["id"], subject_type="invitation",
+           subject_id=invitation["id"], metadata={
+               "email_reserved": bool(invitation.get("email")),
+               "status": "sent" if invitation["email_sent"] else "created",
+           })
     return invitation
 
 
 @app.delete("/api/admin/invitations/{invitation_id}")
 def admin_revoke_invitation(request: Request, invitation_id: str):
-    _require_admin(request)
+    actor = _require_admin(request)
     if not accounts.revoke_invitation(invitation_id):
         raise HTTPException(404, "Invitation inconnue ou déjà inactive")
+    _audit("invitation.revoked", actor_id=actor["id"], subject_type="invitation",
+           subject_id=invitation_id)
     return {"revoked": invitation_id}
 
 
@@ -1018,8 +1134,12 @@ def get_backups(request: Request):
 
 @app.post("/api/backups")
 def create_backup(request: Request):
-    _require_admin(request)
-    return backup.create_backup("manual")
+    actor = _require_admin(request)
+    created = backup.create_backup("manual")
+    _audit("backup.created", actor_id=actor["id"], subject_type="backup",
+           subject_id=created["name"], metadata={"backup_name": created["name"],
+                                                 "kind": created["kind"]})
+    return created
 
 
 @app.get("/api/backups/{name}")
@@ -1032,13 +1152,30 @@ def download_backup(request: Request, name: str):
     return FileResponse(path, media_type="application/zip", filename=path.name)
 
 
+@app.post("/api/backups/{name}/verify")
+def verify_backup(request: Request, name: str):
+    actor = _require_admin(request)
+    try:
+        result = backup.verify_backup(name)
+    except backup.BackupError as exc:
+        _audit("backup.verification_failed", actor_id=actor["id"], subject_type="backup",
+               subject_id=name, success=False, metadata={"backup_name": name})
+        raise HTTPException(400, str(exc)) from exc
+    _audit("backup.verified", actor_id=actor["id"], subject_type="backup",
+           subject_id=name, metadata={"backup_name": name,
+                                      "kind": result["manifest"].get("kind", "unknown")})
+    return result
+
+
 @app.delete("/api/backups/{name}")
 def delete_backup(request: Request, name: str):
-    _require_admin(request)
+    actor = _require_admin(request)
     try:
         backup.delete_backup(name)
     except backup.BackupError as exc:
         raise HTTPException(404, str(exc)) from exc
+    _audit("backup.deleted", actor_id=actor["id"], subject_type="backup", subject_id=name,
+           metadata={"backup_name": name})
     return {"deleted": name}
 
 
@@ -1046,7 +1183,7 @@ def delete_backup(request: Request, name: str):
 async def restore_backup(
     request: Request, archive: UploadFile = File(...), confirmation: str = Form(...),
 ):
-    _require_admin(request)
+    actor = _require_admin(request)
     if confirmation != "RESTAURER":
         raise HTTPException(400, "Confirmation de restauration invalide")
     security.enforce_rate(
@@ -1065,8 +1202,15 @@ async def restore_backup(
                 if total > limit:
                     raise HTTPException(413, "Archive de restauration trop volumineuse")
                 handle.write(chunk)
-        return backup.restore_backup(temporary_path)
+        result = backup.restore_backup(temporary_path)
+        restored_kind = result.get("manifest", {}).get("kind", "unknown")
+        _audit("backup.restored", actor_id=actor["id"], subject_type="backup",
+               metadata={"kind": restored_kind,
+                         "backup_name": archive.filename or "uploaded.zip"})
+        return result
     except backup.BackupError as exc:
+        _audit("backup.restore_failed", actor_id=actor["id"], subject_type="backup",
+               success=False, metadata={"backup_name": archive.filename or "uploaded.zip"})
         raise HTTPException(400, str(exc)) from exc
     finally:
         if temporary_path:

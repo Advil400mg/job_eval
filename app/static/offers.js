@@ -1,7 +1,7 @@
 (() => {
   const { $, $$, escapeHtml, fetchJSON, statusBadge, scoreVisual, criteriaVisual,
     criteriaHtml, gatesHtml, paginationHtml, updateQuery, formatDate, generateCv,
-    applicationStatusBadge, showToast } = JEV;
+    applicationStatusBadge, showToast, trapFocus } = JEV;
   const params = new URLSearchParams(location.search);
   const state = {
     page: Number(params.get("page")) || 1, page_size: 25,
@@ -13,6 +13,7 @@
     sort: params.get("sort") || "newest",
   };
   let debounce = null;
+  let drawerTrigger = null;
 
   function syncControls() {
     $("#filter_q").value = state.q; $("#filter_status").value = state.status;
@@ -36,7 +37,7 @@
     if (offer.gate_failures?.length) issues.push(`${offer.gate_failures.length} porte(s) en échec`);
     if (offer.low_confidence_criteria?.length) issues.push("confiance faible");
     if (offer.error) issues.push("détail de l’erreur disponible");
-    return `<article class="offer-row" data-url="${escapeHtml(offer.url)}" tabindex="0">
+    return `<article class="offer-row" data-url="${escapeHtml(offer.url)}" tabindex="0" role="button" aria-label="Ouvrir le détail de ${escapeHtml(offer.title || offer.url)}">
       <div class="offer-identity"><div class="offer-title-line"><a href="${escapeHtml(offer.url)}" target="_blank" rel="noopener" data-external>${escapeHtml(offer.title || offer.url)}</a>${offer.evaluation_count > 1 ? `<span class="count-badge">${offer.evaluation_count} évaluations</span>` : ""}</div><strong>${escapeHtml(offer.company || "Entreprise inconnue")}</strong><span>${escapeHtml(offer.location || "Localisation inconnue")} · évaluée le ${formatDate(offer.evaluated_at)}</span><div class="offer-issues">${issues.length ? issues.map((issue) => `<span>${escapeHtml(issue)}</span>`).join("") : '<span class="positive">aucun blocage détecté</span>'}</div></div>
       <div class="offer-score">${scoreVisual(offer.score, offer.minimum_global_score, true)}</div>
       <div class="offer-criteria">${criteriaVisual(offer.criteria, offer.minimum_confidence)}</div>
@@ -85,6 +86,7 @@
 
   async function openDrawer(url) {
     const drawer = $("#offer_drawer"), backdrop = $("#offer_drawer_backdrop");
+    if (!drawer.classList.contains("open")) drawerTrigger = document.activeElement;
     drawer.setAttribute("aria-hidden", "false"); drawer.classList.add("open"); backdrop.classList.remove("hidden");
     $("#offer_detail").innerHTML = '<div class="loading-card">Chargement du détail…</div>';
     const payload = await fetchJSON(`/api/offers/history?url=${encodeURIComponent(url)}`);
@@ -100,10 +102,13 @@
         showToast("Offre ajoutée au suivi.", "success"); await loadOffers(); await openDrawer(url);
       } catch (error) { showToast(error.message, "error"); track.disabled = false; }
     });
+    $("#drawer_close").focus();
   }
 
   function closeDrawer() {
     $("#offer_drawer").classList.remove("open"); $("#offer_drawer").setAttribute("aria-hidden", "true"); $("#offer_drawer_backdrop").classList.add("hidden");
+    if (drawerTrigger?.isConnected) drawerTrigger.focus();
+    drawerTrigger = null;
   }
 
   const controlMap = { filter_status: "status", filter_company: "company", filter_location: "location", filter_score_min: "score_min", filter_score_max: "score_max", filter_scored: "scored", filter_cv: "has_cv", filter_view: "view", sort: "sort" };
@@ -113,10 +118,25 @@
   $("#quick_filters").addEventListener("click", (event) => { const button = event.target.closest("[data-quick]"); if (!button) return; state.status = button.dataset.quick === "review" ? "unverified" : button.dataset.quick; state.page = 1; syncControls(); loadOffers(true); });
   $("#offers_pagination").addEventListener("click", (event) => { const button = event.target.closest("[data-page]"); if (!button || button.disabled) return; state.page = Number(button.dataset.page); loadOffers(true); window.scrollTo({ top: 0, behavior: "smooth" }); });
   $("#offers_list").addEventListener("click", (event) => { if (event.target.closest("[data-external]")) return; const row = event.target.closest("[data-url]"); if (row) openDrawer(row.dataset.url).catch((error) => JEV.showToast(error.message, "error")); });
-  $("#offers_list").addEventListener("keydown", (event) => { if (event.key === "Enter" && event.target.matches("[data-url]")) openDrawer(event.target.dataset.url); });
+  $("#offers_list").addEventListener("keydown", (event) => {
+    if ((event.key === "Enter" || event.key === " ") && event.target.matches("[data-url]")) {
+      event.preventDefault();
+      openDrawer(event.target.dataset.url).catch((error) => showToast(error.message, "error"));
+    }
+  });
   $("#drawer_close").addEventListener("click", closeDrawer); $("#offer_drawer_backdrop").addEventListener("click", closeDrawer);
-  document.addEventListener("keydown", (event) => { if (event.key === "Escape") closeDrawer(); });
-  $("#filters_open").addEventListener("click", () => $("#filters").classList.add("open")); $("#filters_close").addEventListener("click", () => $("#filters").classList.remove("open"));
+  document.addEventListener("keydown", (event) => {
+    const drawer = $("#offer_drawer");
+    if (!drawer.classList.contains("open")) return;
+    if (event.key === "Escape") closeDrawer();
+    else trapFocus(drawer, event);
+  });
+  $("#filters_open").addEventListener("click", () => {
+    $("#filters").classList.add("open"); $("#filters_open").setAttribute("aria-expanded", "true");
+  });
+  $("#filters_close").addEventListener("click", () => {
+    $("#filters").classList.remove("open"); $("#filters_open").setAttribute("aria-expanded", "false");
+  });
   window.addEventListener("popstate", () => location.reload());
   syncControls(); loadOffers();
 })();

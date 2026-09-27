@@ -36,6 +36,11 @@ max_attempts = 3
 [backup]
 dir = "/backups"
 max_upload_mb = 512
+retention_days = {{ jev_backup_retention_days }}
+stale_after_hours = 36
+
+[audit]
+retention_days = 180
 
 [cv]
 enabled = true

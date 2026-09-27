@@ -55,6 +55,11 @@ max_attempts = 3
 # Répertoire des archives. Vide = <data_dir>/backups.
 dir = ""
 max_upload_mb = 512
+retention_days = 14             # purge après création réussie et vérifiée
+stale_after_hours = 36          # alerte si aucune sauvegarde planifiée récente
+
+[audit]
+retention_days = 180            # les secrets et contenus personnels ne sont jamais enregistrés
 
 [cv]
 # Moteur de CV embarqué (engine/). Placeholders disponibles :

@@ -1,6 +1,16 @@
 # Changelog
 
-## 2.4.3 — Non publié
+## 2.5.0 — Non publié
+
+- Ajout d’un journal d’audit SQLite v7, filtrable et limité aux métadonnées autorisées.
+- Traçage des connexions, comptes, invitations, profils, candidatures, évaluations, CV et sauvegardes.
+- Ajout d’une page de diagnostic administrateur : SQLite, disque, tâches, utilisateurs, fichiers et sauvegardes.
+- Vérification manuelle des sauvegardes, rotation par rétention et alerte sur les sauvegardes planifiées trop anciennes.
+- Remplacement des confirmations natives par des dialogues accessibles, navigation clavier, lien d’évitement et restauration du focus.
+- Ajout de tests E2E Playwright Chromium et d’une CI GitHub Actions couvrant Python, JavaScript, navigateur, Compose et Docker.
+- Correction de la validation CSRF derrière un reverse proxy HTTPS de confiance.
+
+## 2.4.3 — 2026-09-27
 
 - Ajout de la suppression définitive d’un utilisateur par un administrateur.
 - Suppression transactionnelle des données SQLite et purge du répertoire de fichiers isolé.

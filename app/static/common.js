@@ -101,17 +101,65 @@
   function paginationHtml(page, pages) {
     if (pages <= 1) return "";
     const buttons = [];
-    buttons.push(`<button data-page="${page - 1}" ${page <= 1 ? "disabled" : ""}>←</button>`);
+    buttons.push(`<button data-page="${page - 1}" ${page <= 1 ? "disabled" : ""} aria-label="Page précédente">←</button>`);
     const start = Math.max(1, page - 2);
     const end = Math.min(pages, page + 2);
-    if (start > 1) buttons.push('<button data-page="1">1</button><span>…</span>');
+    if (start > 1) buttons.push('<button data-page="1">1</button><span aria-label="Pages intermédiaires masquées">…</span>');
     for (let current = start; current <= end; current++) {
       buttons.push(`<button data-page="${current}" class="${current === page ? "active" : ""}">${current}</button>`);
     }
-    if (end < pages) buttons.push(`<span>…</span><button data-page="${pages}">${pages}</button>`);
-    buttons.push(`<button data-page="${page + 1}" ${page >= pages ? "disabled" : ""}>→</button>`);
+    if (end < pages) buttons.push(`<span aria-label="Pages intermédiaires masquées">…</span><button data-page="${pages}">${pages}</button>`);
+    buttons.push(`<button data-page="${page + 1}" ${page >= pages ? "disabled" : ""} aria-label="Page suivante">→</button>`);
     return buttons.join("");
   }
+
+  function trapFocus(container, event) {
+    if (!container || event.key !== "Tab") return;
+    const focusable = $$(
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      container,
+    ).filter((element) => !element.hidden && element.offsetParent !== null);
+    if (!focusable.length) return;
+    const first = focusable[0], last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+  }
+
+  function actionDialog(options = {}, withInput = false) {
+    const dialog = $("#action_dialog");
+    if (!dialog || typeof dialog.showModal !== "function") return Promise.resolve(withInput ? null : false);
+    const trigger = document.activeElement;
+    const title = $("#action_dialog_title");
+    const message = $("#action_dialog_message");
+    const label = $("#action_dialog_input_label");
+    const input = $("#action_dialog_input");
+    const confirm = $("#action_dialog_confirm");
+    const cancel = $("#action_dialog_cancel");
+    title.textContent = options.title || "Confirmer l’action";
+    message.textContent = options.message || "Cette action nécessite une confirmation.";
+    confirm.textContent = options.confirmLabel || "Confirmer";
+    confirm.classList.toggle("danger-btn", !!options.danger);
+    label.classList.toggle("hidden", !withInput);
+    input.value = options.value || "";
+    input.required = withInput;
+    input.placeholder = options.placeholder || "";
+    dialog.returnValue = "cancel";
+    dialog.showModal();
+    window.setTimeout(() => (withInput ? input : cancel).focus(), 0);
+    return new Promise((resolve) => {
+      const finish = () => {
+        dialog.removeEventListener("close", finish);
+        const confirmed = dialog.returnValue === "confirm";
+        const result = withInput ? (confirmed ? input.value : null) : confirmed;
+        if (trigger?.isConnected) trigger.focus();
+        resolve(result);
+      };
+      dialog.addEventListener("close", finish);
+    });
+  }
+
+  const confirmAction = (options) => actionDialog(options, false);
+  const promptAction = (options) => actionDialog(options, true);
 
   function showToast(message, kind = "info") {
     const region = $("#toast_region");
@@ -119,6 +167,7 @@
     const toast = document.createElement("div");
     toast.className = `toast ${kind}`;
     toast.textContent = message;
+    if (kind === "error") toast.setAttribute("role", "alert");
     region.append(toast);
     setTimeout(() => toast.remove(), 5000);
   }
@@ -188,7 +237,7 @@
   window.JEV = {
     $, $$, escapeHtml, num, formatDate, fetchJSON, statusBadge, scoreVisual,
     criteriaVisual, criteriaHtml, gatesHtml, paginationHtml, showToast, applicationStatusBadge,
-    updateQuery, generateCv, pollCv, refreshNavBadges,
+    updateQuery, generateCv, pollCv, refreshNavBadges, confirmAction, promptAction, trapFocus,
   };
   refreshNavBadges();
   setInterval(refreshNavBadges, 15000);

@@ -80,7 +80,13 @@
   $("#criteria_editor").addEventListener("click", (event) => { const button = event.target.closest("[data-remove-criterion]"); if (button && document.querySelectorAll("[data-criterion]").length > 1) button.closest("[data-criterion]").remove(); });
   $("#profile_history").addEventListener("click", async (event) => {
     const button = event.target.closest("[data-restore-profile]");
-    if (!button || !window.confirm("Restaurer cette version du profil ?")) return;
+    if (!button) return;
+    const confirmed = await JEV.confirmAction({
+      title: "Restaurer le profil",
+      message: "Restaurer cette version du profil ? La version actuelle restera dans l’historique.",
+      confirmLabel: "Restaurer",
+    });
+    if (!confirmed) return;
     button.disabled = true;
     try {
       const result = await fetchJSON(`/api/profile/history/${button.dataset.restoreProfile}/restore`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expected_revision: revision }) });
@@ -90,15 +96,55 @@
 
   function backupRow(item) {
     const size = item.size > 1024 * 1024 ? `${(item.size / 1024 / 1024).toFixed(1)} Mo` : `${Math.ceil(item.size / 1024)} Ko`;
-    return `<div class="backup-row"><div><strong>${escapeHtml(item.name)}</strong><small class="muted">${formatDate(item.created_at)} · ${size}</small></div><a class="secondary-btn" href="/api/backups/${encodeURIComponent(item.name)}">Télécharger</a><button class="secondary-btn" data-delete="${escapeHtml(item.name)}">Supprimer</button></div>`;
+    const kind = { manual: "manuelle", scheduled: "planifiée", "pre-restore": "avant restauration", "pre-deploy": "avant déploiement" }[item.kind] || item.kind || "inconnue";
+    return `<div class="backup-row"><div><strong>${escapeHtml(item.name)}</strong><small class="muted">${formatDate(item.created_at)} · ${size} · ${escapeHtml(kind)}${item.manifest_valid ? " · manifeste valide" : " · manifeste illisible"}</small></div><a class="secondary-btn" href="/api/backups/${encodeURIComponent(item.name)}">Télécharger</a><button class="secondary-btn" data-verify="${escapeHtml(item.name)}">Vérifier</button><button class="secondary-btn" data-delete="${escapeHtml(item.name)}">Supprimer</button></div>`;
   }
   async function loadBackups() {
     try { const payload = await fetchJSON("/api/backups"); $("#backup_list").innerHTML = payload.backups.length ? payload.backups.map(backupRow).join("") : '<div class="empty-state"><strong>Aucune sauvegarde</strong></div>'; }
     catch (error) { $("#backup_list").innerHTML = `<div class="error">${escapeHtml(error.message)}</div>`; }
   }
   $("#backup_create").addEventListener("click", async (event) => { const button = event.currentTarget; button.disabled = true; try { await fetchJSON("/api/backups", { method: "POST" }); await loadBackups(); showToast("Sauvegarde créée.", "success"); } catch (error) { showToast(error.message, "error"); } finally { button.disabled = false; } });
-  $("#backup_list").addEventListener("click", async (event) => { const button = event.target.closest("[data-delete]"); if (!button || !window.confirm("Supprimer cette sauvegarde ?")) return; button.disabled = true; try { await fetchJSON(`/api/backups/${encodeURIComponent(button.dataset.delete)}`, { method: "DELETE" }); await loadBackups(); } catch (error) { showToast(error.message, "error"); button.disabled = false; } });
-  $("#restore_form").addEventListener("submit", async (event) => { event.preventDefault(); const file = $("#restore_file").files[0]; const confirmation = $("#restore_confirmation").value.trim(); if (!file || confirmation !== "RESTAURER") { showToast("Sélectionne une archive et saisis RESTAURER.", "error"); return; } if (!window.confirm("Remplacer toutes les données persistantes par cette sauvegarde ?")) return; const button = event.submitter; button.disabled = true; const body = new FormData(); body.append("archive", file); body.append("confirmation", confirmation); try { await fetchJSON("/api/backups/restore", { method: "POST", body }); window.location.reload(); } catch (error) { showToast(error.message, "error"); button.disabled = false; } });
+  $("#backup_list").addEventListener("click", async (event) => {
+    const verify = event.target.closest("[data-verify]");
+    if (verify) {
+      verify.disabled = true;
+      try {
+        await fetchJSON(`/api/backups/${encodeURIComponent(verify.dataset.verify)}/verify`, { method: "POST" });
+        showToast("Sauvegarde vérifiée : archive et base SQLite intègres.", "success");
+      } catch (error) { showToast(error.message, "error"); }
+      finally { verify.disabled = false; }
+      return;
+    }
+    const button = event.target.closest("[data-delete]");
+    if (!button) return;
+    const confirmed = await JEV.confirmAction({
+      title: "Supprimer la sauvegarde",
+      message: `Supprimer définitivement ${button.dataset.delete} ?`,
+      confirmLabel: "Supprimer",
+      danger: true,
+    });
+    if (!confirmed) return;
+    button.disabled = true;
+    try { await fetchJSON(`/api/backups/${encodeURIComponent(button.dataset.delete)}`, { method: "DELETE" }); await loadBackups(); }
+    catch (error) { showToast(error.message, "error"); button.disabled = false; }
+  });
+  $("#restore_form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const file = $("#restore_file").files[0];
+    const confirmation = $("#restore_confirmation").value.trim();
+    if (!file || confirmation !== "RESTAURER") { showToast("Sélectionne une archive et saisis RESTAURER.", "error"); return; }
+    const confirmed = await JEV.confirmAction({
+      title: "Restaurer toutes les données",
+      message: "Remplacer toutes les données persistantes par cette sauvegarde ? Une sauvegarde de sécurité sera créée avant le remplacement.",
+      confirmLabel: "Restaurer",
+      danger: true,
+    });
+    if (!confirmed) return;
+    const button = event.submitter; button.disabled = true;
+    const body = new FormData(); body.append("archive", file); body.append("confirmation", confirmation);
+    try { await fetchJSON("/api/backups/restore", { method: "POST", body }); window.location.reload(); }
+    catch (error) { showToast(error.message, "error"); button.disabled = false; }
+  });
 
   renderProfile(); loadHistory(); loadBackups();
 })();

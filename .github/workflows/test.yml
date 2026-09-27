@@ -1,0 +1,41 @@
+name: Tests
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install Python dependencies
+        run: pip install -r requirements-dev.txt
+      - name: Install JavaScript dependencies
+        run: npm ci
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Python unit and integration tests
+        run: PYTHONDONTWRITEBYTECODE=1 python -m unittest discover -s tests -p 'test_*.py'
+      - name: JavaScript tests
+        run: node tests/test_app_js.mjs
+      - name: Playwright tests
+        run: npm run test:e2e
+      - name: Syntax and whitespace checks
+        run: |
+          python -m compileall -q app scripts tests
+          git diff --check
+      - name: Validate Compose
+        run: docker compose config --quiet
+      - name: Build production image
+        run: docker build -t jev-webapp:test .

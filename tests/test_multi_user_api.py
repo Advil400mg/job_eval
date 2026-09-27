@@ -11,7 +11,7 @@ from unittest import mock
 
 from fastapi.testclient import TestClient
 
-from app import accounts, config, security, store
+from app import accounts, audit, config, security, store
 from app.main import app
 
 
@@ -134,6 +134,28 @@ class MultiUserApiTest(unittest.TestCase):
             self.assertIn('class="danger-btn compact user-delete"', response.text)
             self.assertIn("Les sauvegardes existantes restent inchangées", response.text)
             self.assertNotIn("<table", response.text)
+
+    def test_admin_audit_and_diagnostics_pages_and_api(self):
+        with TestClient(app) as admin_client, TestClient(app) as user_client:
+            self.login(admin_client, "alice", "correct-horse-battery")
+            self.login(user_client, "bob", "another-correct-password")
+            created = admin_client.post("/api/admin/invitations", json={
+                "email": None, "expires_hours": 24, "send_email": False,
+            })
+            self.assertEqual(created.status_code, 200)
+            self.assertEqual(admin_client.get("/admin/audit").status_code, 200)
+            self.assertEqual(admin_client.get("/admin/diagnostics").status_code, 200)
+            self.assertEqual(user_client.get("/admin/audit").status_code, 403)
+            events = admin_client.get("/api/admin/audit", params={
+                "event_type": "invitation.created", "success": "true",
+            })
+            self.assertEqual(events.status_code, 200)
+            self.assertEqual(events.json()["total"], 1)
+            self.assertEqual(events.json()["events"][0]["actor_user_id"], self.alice["id"])
+            diagnostic = admin_client.get("/api/admin/diagnostics", params={"refresh": "true"})
+            self.assertEqual(diagnostic.status_code, 200)
+            self.assertEqual(diagnostic.json()["app"]["schema_version"], 7)
+            self.assertIn(diagnostic.json()["status"], ("ok", "warning"))
 
     def test_admin_can_delete_another_user_with_exact_confirmation(self):
         with TestClient(app) as admin_client, TestClient(app) as bob_client:

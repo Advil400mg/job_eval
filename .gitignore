@@ -10,4 +10,7 @@ __pycache__/
 /deploy/ansible/inventory.ini
 /deploy/ansible/group_vars/all/main.yml
 /deploy/ansible/group_vars/all/vault.yml
+/node_modules/
+/test-results/
+/playwright-report/
 

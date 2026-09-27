@@ -117,7 +117,13 @@
   document.querySelectorAll('.user-delete').forEach((button) => button.addEventListener('click', async () => {
     const row = button.closest('[data-user-id]');
     const username = button.dataset.username;
-    const confirmation = window.prompt(deleteConfirmationText(username));
+    const confirmation = await window.JEV.promptAction({
+      title: `Supprimer @${username}`,
+      message: deleteConfirmationText(username),
+      confirmLabel: 'Supprimer définitivement',
+      placeholder: username,
+      danger: true,
+    });
     if (confirmation === null) return;
     if (confirmation !== username) {
       window.JEV?.showToast('Le nom d’utilisateur saisi ne correspond pas.', 'error');

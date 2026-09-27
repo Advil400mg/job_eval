@@ -60,7 +60,7 @@ class Applications(unittest.TestCase):
         connection.close()
         self.assertEqual(store.list_applications()["total"], 0)
         with sqlite3.connect(store.DB_PATH) as migrated:
-            self.assertEqual(migrated.execute("PRAGMA user_version").fetchone()[0], 6)
+            self.assertEqual(migrated.execute("PRAGMA user_version").fetchone()[0], 7)
             self.assertEqual(migrated.execute(
                 "SELECT status FROM runs WHERE id = 'v3-run'"
             ).fetchone()[0], "done")

@@ -1,4 +1,4 @@
-"""Offline checks for the v2.4 production deployment artifacts."""
+"""Offline checks for the v2.5 production deployment artifacts."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ from app.version import APP_VERSION  # noqa: E402
 
 class DeploymentArtifacts(unittest.TestCase):
     def test_version_is_centralized(self):
-        self.assertEqual(APP_VERSION, "2.4.3")
+        self.assertEqual(APP_VERSION, "2.5.0")
         main = (ROOT / "app/main.py").read_text(encoding="utf-8")
         backup = (ROOT / "app/backup.py").read_text(encoding="utf-8")
         self.assertIn("version=APP_VERSION", main)
@@ -35,6 +35,9 @@ class DeploymentArtifacts(unittest.TestCase):
         self.assertTrue(production["security"]["cookie_secure"])
         self.assertTrue(production["security"]["trust_proxy"])
         self.assertEqual(production["backup"]["dir"], "/backups")
+        self.assertEqual(production["backup"]["retention_days"], 14)
+        self.assertEqual(production["backup"]["stale_after_hours"], 36)
+        self.assertEqual(production["audit"]["retention_days"], 180)
 
     def test_compose_only_publishes_the_reverse_proxy(self):
         compose = (ROOT / "deploy/compose.production.yml").read_text(encoding="utf-8")

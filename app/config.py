@@ -73,7 +73,9 @@ DEFAULTS: dict = {
         "restore_per_hour": 2,
     },
     "jobs": {"stale_seconds": 300, "max_attempts": 3},
-    "backup": {"dir": "", "max_upload_mb": 512},
+    "backup": {"dir": "", "max_upload_mb": 512, "retention_days": 14,
+               "stale_after_hours": 36},
+    "audit": {"retention_days": 180},
 }
 
 
@@ -314,6 +316,11 @@ def settings() -> dict:
             "dir": (_resolve_path(cfg["backup"]["dir"], APP_DIR)
                     if cfg["backup"].get("dir") else data_dir / "backups"),
             "max_upload_bytes": max(1, int(cfg["backup"].get("max_upload_mb") or 512)) * 1024 * 1024,
+            "retention_days": max(1, int(cfg["backup"].get("retention_days") or 14)),
+            "stale_after_hours": max(1, int(cfg["backup"].get("stale_after_hours") or 36)),
+        },
+        "audit": {
+            "retention_days": max(1, int(cfg["audit"].get("retention_days") or 180)),
         },
         "config_file": str(config_path()),
         "config_file_exists": config_path().is_file(),

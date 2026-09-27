@@ -127,7 +127,7 @@ exit
 
 ```yaml
 ---
-jev_version: "2.4.3"
+jev_version: "2.5.0"
 jev_domain: "51-83-120-42.sslip.io"
 jev_acme_email: "admin@example.com"
 jev_timezone: "Europe/Paris"
@@ -243,7 +243,7 @@ curl -fsS https://51-83-120-42.sslip.io/healthz
 Réponse attendue :
 
 ```json
-{"ok":true,"version":"2.4.3","auth_required":true}
+{"ok":true,"version":"2.5.0","auth_required":true}
 ```
 
 Après la première connexion administrateur, vider le mot de passe d’amorçage dans le Vault :

@@ -7,6 +7,10 @@
     <h1>Administration</h1>
     <p>Gère les accès, vérifie l’état des comptes et crée des invitations à usage unique.</p>
   </div>
+  <div class="admin-page-links" aria-label="Outils d’administration">
+    <a class="secondary-btn" href="/admin/audit">Journal d’audit</a>
+    <a class="secondary-btn" href="/admin/diagnostics">Diagnostic</a>
+  </div>
 </section>
 
 <section class="admin-kpis" aria-label="Résumé de l’instance">
@@ -34,7 +38,7 @@
   </div>
   <p class="admin-delete-warning">La suppression d’un compte efface définitivement ses données et ses fichiers actuels. Les sauvegardes existantes restent inchangées et peuvent encore contenir ces données.</p>
   <div class="admin-list admin-users-list" role="table" aria-label="Utilisateurs">
-    <div class="admin-list-head" role="row"><span>Utilisateur</span><span>Contact</span><span>Rôle</span><span>État</span><span>Action</span></div>
+    <div class="admin-list-head" role="row"><span role="columnheader">Utilisateur</span><span role="columnheader">Contact</span><span role="columnheader">Rôle</span><span role="columnheader">État</span><span role="columnheader">Action</span></div>
     <div id="users_body" class="admin-list-body" role="rowgroup">
       {% for user in users %}
         <article class="admin-list-row" role="row" data-user-id="{{ user.id }}">
@@ -56,7 +60,7 @@
     <div><p class="eyebrow">Invitations</p><h2>Historique des invitations</h2><p>Les liens expirés ou utilisés restent visibles pour le suivi.</p></div>
   </div>
   <div class="admin-list admin-invitations-list" role="table" aria-label="Invitations">
-    <div class="admin-list-head" role="row"><span>Destinataire</span><span>Créée</span><span>Expiration</span><span>État</span><span>Action</span></div>
+    <div class="admin-list-head" role="row"><span role="columnheader">Destinataire</span><span role="columnheader">Créée</span><span role="columnheader">Expiration</span><span role="columnheader">État</span><span role="columnheader">Action</span></div>
     <div class="admin-list-body" role="rowgroup">
       {% for invite in invitations %}
         <article class="admin-list-row" role="row">

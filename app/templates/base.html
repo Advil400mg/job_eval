@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="/static/style.css?v={{ asset_version }}">
 </head>
 <body data-page="{{ active }}">
+<a href="#main-content" class="skip-link">Aller au contenu principal</a>
 <header class="app-header">
   <a class="brand" href="/" aria-label="Jev — nouvelle évaluation">
     <span class="brand-mark">J</span><span><strong>Jev</strong><small>Job evaluator</small></span>
@@ -30,9 +31,23 @@
 {% if not api_key_set %}<div class="global-alert">Clé API absente : l’évaluation et l’analyse du CV échoueront.</div>{% endif %}
 {% if not cv_available %}<div class="global-alert">Moteur CV indisponible : {{ cv_detail }}</div>{% endif %}
 
-<main class="page-shell {% block shell_class %}{% endblock %}">
+<main id="main-content" tabindex="-1" class="page-shell {% block shell_class %}{% endblock %}">
   {% block content %}{% endblock %}
 </main>
+
+<dialog id="action_dialog" class="action-dialog" role="alertdialog" aria-modal="true" aria-labelledby="action_dialog_title" aria-describedby="action_dialog_message">
+  <form method="dialog" class="action-dialog-card">
+    <h2 id="action_dialog_title">Confirmer l’action</h2>
+    <p id="action_dialog_message"></p>
+    <label id="action_dialog_input_label" class="hidden">Confirmation
+      <input id="action_dialog_input" type="text" autocomplete="off">
+    </label>
+    <div class="action-dialog-actions">
+      <button id="action_dialog_cancel" class="secondary-btn" type="submit" value="cancel" formnovalidate>Annuler</button>
+      <button id="action_dialog_confirm" type="submit" value="confirm">Confirmer</button>
+    </div>
+  </form>
+</dialog>
 
 <div id="toast_region" class="toast-region" aria-live="polite"></div>
 <script src="/static/common.js"></script>

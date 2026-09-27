@@ -1,6 +1,6 @@
 (() => {
   const { $, escapeHtml, fetchJSON, applicationStatusBadge, paginationHtml,
-    updateQuery, formatDate, showToast } = JEV;
+    updateQuery, formatDate, showToast, trapFocus } = JEV;
   const params = new URLSearchParams(location.search);
   const state = {
     page: Number(params.get("page")) || 1,
@@ -24,7 +24,7 @@
     const followUp = item.follow_up_at
       ? `<span class="${item.overdue ? "bad-text" : ""}">Relance ${escapeHtml(item.follow_up_at)}${item.overdue ? " · en retard" : ""}</span>`
       : '<span class="muted">Aucune relance prévue</span>';
-    return `<article class="application-card ${item.overdue ? "overdue" : ""}" data-app-id="${escapeHtml(item.id)}" tabindex="0">
+    return `<article class="application-card ${item.overdue ? "overdue" : ""}" data-app-id="${escapeHtml(item.id)}" tabindex="0" role="button" aria-label="Ouvrir le suivi de ${escapeHtml(item.title || item.url)}">
       <div><div class="offer-title-line"><strong>${escapeHtml(item.title || item.url)}</strong>${item.overdue ? '<span class="count-badge danger">relance en retard</span>' : ""}</div><span>${escapeHtml(item.company || "Entreprise inconnue")} · ${escapeHtml(item.location || "Localisation inconnue")}</span><a href="${escapeHtml(item.url)}" target="_blank" rel="noopener" data-external>Voir l’offre source ↗</a></div>
       <div>${applicationStatusBadge(item.status)}${followUp}</div>
       <div><span class="muted">Modifiée ${formatDate(item.updated_at)}</span><button class="icon-btn" data-open-app aria-label="Ouvrir la candidature">→</button></div>
@@ -97,7 +97,13 @@
       } catch (error) { showToast(error.message, "error"); submit.disabled = false; }
     });
     $("[data-delete-app]").addEventListener("click", async () => {
-      if (!window.confirm("Supprimer définitivement cette candidature et son historique ?")) return;
+      const confirmed = await JEV.confirmAction({
+        title: "Supprimer la candidature",
+        message: "Supprimer définitivement cette candidature et tout son historique ?",
+        confirmLabel: "Supprimer",
+        danger: true,
+      });
+      if (!confirmed) return;
       try {
         await fetchJSON(`/api/applications/${applicationId}`, { method: "DELETE" });
         closeDrawer(); await load(); showToast("Candidature supprimée.", "success");
@@ -122,10 +128,20 @@
   $("#application_kpis").addEventListener("click", (event) => { const button = event.target.closest("[data-kpi-status]"); if (!button) return; state.status = button.dataset.kpiStatus; state.page = 1; $("#app_status").value = state.status; load(true); });
   $("#applications_pagination").addEventListener("click", (event) => { const button = event.target.closest("[data-page]"); if (!button || button.disabled) return; state.page = Number(button.dataset.page); load(true); });
   $("#applications_list").addEventListener("click", (event) => { if (event.target.closest("[data-external]")) return; const card = event.target.closest("[data-app-id]"); if (card) openDrawer(card.dataset.appId).catch((error) => showToast(error.message, "error")); });
-  $("#applications_list").addEventListener("keydown", (event) => { if (event.key === "Enter" && event.target.matches("[data-app-id]")) openDrawer(event.target.dataset.appId); });
+  $("#applications_list").addEventListener("keydown", (event) => {
+    if ((event.key === "Enter" || event.key === " ") && event.target.matches("[data-app-id]")) {
+      event.preventDefault();
+      openDrawer(event.target.dataset.appId).catch((error) => showToast(error.message, "error"));
+    }
+  });
   $("#application_drawer_close").addEventListener("click", closeDrawer);
   $("#application_drawer_backdrop").addEventListener("click", closeDrawer);
-  document.addEventListener("keydown", (event) => { if (event.key === "Escape") closeDrawer(); });
+  document.addEventListener("keydown", (event) => {
+    const drawer = $("#application_drawer");
+    if (!drawer.classList.contains("open")) return;
+    if (event.key === "Escape") closeDrawer();
+    else trapFocus(drawer, event);
+  });
   window.addEventListener("popstate", () => location.reload());
   load().then(() => { if (initiallyOpen) openDrawer(initiallyOpen).catch((error) => showToast(error.message, "error")); });
 })();

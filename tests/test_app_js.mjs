@@ -82,6 +82,9 @@ check("la pagination borne la fenêtre autour de la page courante", () => {
   assert.match(html, /data-page="8"/);
   assert.match(html, /data-page="12"/);
   assert.match(html, /class="active">6/);
+  assert.match(html, /aria-label="Page précédente"/);
+  assert.match(html, /aria-label="Page suivante"/);
+  assert.match(html, /Pages intermédiaires masquées/);
 });
 
 check("les badges ont toujours un texte en plus de la couleur", () => {
@@ -97,6 +100,14 @@ check("les statuts de candidature ont un libellé explicite", () => {
 
 check("les valeurs injectées sont échappées", () => {
   assert.equal(escapeHtml('<script>"x"</script>'), "&lt;script&gt;&quot;x&quot;&lt;/script&gt;");
+});
+
+check("les erreurs dynamiques sont annoncées immédiatement", () => {
+  const region = makeEl();
+  elements.set("#toast_region", region);
+  sandbox.JEV.showToast("Erreur de test", "error");
+  assert.equal(region.children[0].role, "alert");
+  assert.equal(region.children[0].textContent, "Erreur de test");
 });
 
 const adminResult = makeEl();
@@ -143,6 +154,16 @@ await checkAsync("la suppression envoie une confirmation JSON exacte", async () 
   assert.equal(request.options.headers["Content-Type"], "application/json");
   assert.deepEqual(JSON.parse(request.options.body), {confirmation: "bob"});
   assert.equal(result.deleted, "bob-id");
+});
+
+check("les actions destructives utilisent les dialogues accessibles partagés", () => {
+  const sources = ["admin.js", "profile.js", "applications.js"].map((name) =>
+    fs.readFileSync(new URL(`../app/static/${name}`, import.meta.url), "utf8")).join("\n");
+  assert.doesNotMatch(sources, /window\.(confirm|prompt)\s*\(/);
+  assert.match(sources, /confirmAction|promptAction/);
+  const base = fs.readFileSync(new URL("../app/templates/base.html", import.meta.url), "utf8");
+  assert.match(base, /class="skip-link"/);
+  assert.match(base, /<dialog id="action_dialog"[^>]*role="alertdialog"/);
 });
 
 const setupForm = makeEl();

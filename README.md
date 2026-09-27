@@ -41,7 +41,7 @@ jev-webapp/
 ├── scripts/
 │   ├── evaluate_job.py      # notation Jev (script du skill Job Hunt + surcharges optionnelles)
 │   └── serve.py             # démarrage : affiche la config effective puis lance uvicorn
-└── tests/                   # 224 tests hors ligne (Python + Node)
+└── tests/                   # 245 tests (Python, Node et Playwright Chromium)
 ```
 
 ## Ce que fait l'application
@@ -169,8 +169,8 @@ et tous les chemins par défaut sont relatifs au dossier. Le moteur reste désac
 (`[cv] enabled = false`) ; dans ce cas la génération de CV est annoncée comme indisponible
 avec le motif, sans que le reste de l'application en souffre.
 
-Vérifié sur une instance vierge : 224 tests hors ligne, isolation entre deux comptes,
-migration SQLite v6 et chemins utilisateur sous `/data/users/`.
+Vérifié sur une instance vierge : 245 tests (219 Python, 19 JavaScript et 7 E2E Chromium),
+isolation entre deux comptes, migration SQLite v7 et chemins utilisateur sous `/data/users/`.
 
 ## Démarrage sans Docker
 
@@ -219,7 +219,7 @@ Points de portabilité vérifiés :
 | `TZ=Europe/Paris` | horodatages cohérents avec le fuseau attendu |
 | `HOME=/tmp` | dossier inscriptible pour les bibliothèques tierces |
 
-## Déploiement de production — v2.4
+## Déploiement de production — v2.5
 
 La pile de production se trouve dans `deploy/` :
 
@@ -246,7 +246,7 @@ ansible-vault encrypt group_vars/all/vault.yml
 ansible-playbook site.yml --ask-vault-pass
 ```
 
-La production utilise l’archive immuable du tag `v2.4.3`. Créer ce tag uniquement après la
+La publication v2.5.0 utilisera l’archive immuable du tag `v2.5.0`. Créer ce tag uniquement après la
 fusion du PR dans `main`.
 
 ## API
@@ -336,9 +336,10 @@ Les scores gardent un affichage visuel : valeur numérique, barre colorée et ma
 Les petits indicateurs de critères ont désormais une légende textuelle (`bloquant`,
 `confiance faible`, `satisfait`) afin de ne pas dépendre uniquement de la couleur.
 
-SQLite migre automatiquement les anciennes bases vers le schéma v5, rattache les données au
-premier administrateur et remplace les unicités globales par des unicités par utilisateur.
-Les résultats JSON complets restent conservés ; aucune ancienne évaluation n'est supprimée.
+SQLite migre automatiquement les anciennes bases vers le schéma v7, rattache les données au
+premier administrateur, remplace les unicités globales par des unicités par utilisateur et ajoute
+le journal d’audit. Les résultats JSON complets restent conservés ; aucune ancienne évaluation
+n'est supprimée.
 Les paramètres `utm_*`, `fbclid`, `gclid`, fragments et slash final sont ignorés pour
 regrouper les réévaluations d'une même URL.
 
@@ -349,11 +350,19 @@ uv venv .venv
 uv pip install --python .venv/bin/python -r requirements-dev.txt
 PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m unittest discover -s tests -p 'test_*.py'
 node tests/test_app_js.mjs
+npm install
+npx playwright install chromium
+npm run test:e2e
 ```
 
-Les 207 tests Python et 17 tests JavaScript sont hors ligne et n'utilisent aucune clé API. Ils
-couvrent notamment migration SQLite, authentification, SSRF, reprise des jobs, sauvegardes,
-API, score visuel et pagination.
+Les 219 tests Python et 19 tests JavaScript sont hors ligne. Les 7 parcours E2E utilisent
+Playwright Chromium contre une instance temporaire isolée. L’ensemble couvre notamment la
+migration SQLite v7, l’authentification, l’audit, le diagnostic, la rétention des sauvegardes,
+l’accessibilité clavier, le SSRF, la reprise des jobs, les API, le score visuel et la pagination.
+Aucune clé API n’est nécessaire.
+
+Le détail de l’architecture des suites, des fixtures E2E et des commandes de débogage se trouve
+dans [`tests/README.md`](tests/README.md).
 
 ## Limites connues
 
