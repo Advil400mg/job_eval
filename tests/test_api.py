@@ -5,13 +5,17 @@ from __future__ import annotations
 import os
 import sys
 import tempfile
+import threading
+import time
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from fastapi.testclient import TestClient  # noqa: E402
-from app import accounts, config, security, store  # noqa: E402
+from app import accounts, config, onboarding, security, store  # noqa: E402
 from app.main import app  # noqa: E402
 
 
@@ -47,12 +51,47 @@ class ApiSecurity(unittest.TestCase):
         with TestClient(app) as client:
             health = client.get("/healthz")
             self.assertEqual(health.status_code, 200)
-            self.assertEqual(health.json(), {"ok": True, "version": "2.4.0", "auth_required": True})
+            self.assertEqual(health.json(), {"ok": True, "version": "2.4.1", "auth_required": True})
             self.assertIn("default-src 'self'", health.headers["content-security-policy"])
             self.assertEqual(client.get("/api/history").status_code, 401)
             page = client.get("/offers", follow_redirects=False)
             self.assertEqual(page.status_code, 303)
             self.assertTrue(page.headers["location"].startswith("/login?next="))
+
+    def test_onboarding_long_ne_bloque_pas_healthz(self):
+        entered = threading.Event()
+        release = threading.Event()
+
+        def slow_initialize(*args, **kwargs):
+            entered.set()
+            release.wait(timeout=3)
+            return {"ok": True, "candidate": "Test"}
+
+        with TestClient(app) as client:
+            login = client.post(
+                "/login",
+                data={"identifier": "admin", "password": "integration-password", "next": "/"},
+                follow_redirects=False,
+            )
+            self.assertEqual(login.status_code, 303)
+            client.headers["Origin"] = "http://testserver"
+            with mock.patch.object(onboarding, "initialize", side_effect=slow_initialize):
+                with ThreadPoolExecutor(max_workers=1) as executor:
+                    pending = executor.submit(
+                        client.post,
+                        "/api/onboarding",
+                        files={"cv_pdf": ("cv.pdf", b"%PDF-test", "application/pdf")},
+                    )
+                    self.assertTrue(entered.wait(timeout=1), "l'analyse CV n'a pas démarré")
+                    started = time.monotonic()
+                    health = client.get("/healthz")
+                    elapsed = time.monotonic() - started
+                    release.set()
+                    response = pending.result(timeout=2)
+
+        self.assertEqual(health.status_code, 200)
+        self.assertLess(elapsed, 0.75, f"/healthz a attendu {elapsed:.2f} s")
+        self.assertEqual(response.status_code, 200)
 
     def test_login_pose_un_cookie_signe_et_donne_acces(self):
         with TestClient(app) as client:

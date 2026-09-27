@@ -41,7 +41,7 @@ jev-webapp/
 ├── scripts/
 │   ├── evaluate_job.py      # notation Jev (script du skill Job Hunt + surcharges optionnelles)
 │   └── serve.py             # démarrage : affiche la config effective puis lance uvicorn
-└── tests/                   # 204 tests hors ligne (Python + Node)
+└── tests/                   # 207 tests hors ligne (Python + Node)
 ```
 
 ## Ce que fait l'application
@@ -169,7 +169,7 @@ et tous les chemins par défaut sont relatifs au dossier. Le moteur reste désac
 (`[cv] enabled = false`) ; dans ce cas la génération de CV est annoncée comme indisponible
 avec le motif, sans que le reste de l'application en souffre.
 
-Vérifié sur une instance vierge : 204 tests hors ligne, isolation entre deux comptes,
+Vérifié sur une instance vierge : 207 tests hors ligne, isolation entre deux comptes,
 migration SQLite v5 et chemins utilisateur sous `/data/users/`.
 
 ## Démarrage sans Docker
@@ -225,11 +225,12 @@ La pile de production se trouve dans `deploy/` :
 
 - `compose.production.yml` ne publie que Caddy sur 80/443 ; JEV reste sur un réseau Docker ;
 - Caddy obtient et renouvelle automatiquement le certificat HTTPS ;
-- le rôle Ansible prend en charge Ubuntu 24.04 LTS et Debian 12 amd64 ;
-- les secrets sont fournis par Ansible Vault et écrits avec le mode `0600` ;
+- le rôle Ansible prend en charge Ubuntu 24.04/26.04 LTS et Debian 12 amd64 ;
+- les secrets sont fournis par Ansible Vault et montés depuis des fichiers `0400` ;
 - une sauvegarde vérifiée est créée avant chaque mise à jour ;
 - un timer systemd effectue les sauvegardes quotidiennes ;
-- le déploiement restaure l’image précédente si `/healthz` ne valide pas la nouvelle version.
+- le déploiement restaure l’image précédente si `/healthz` ne valide pas la nouvelle version ;
+- `decommission.yml` retire JEV en conservant les données ou effectue une purge explicite.
 
 Guide complet : [`deploy/README.md`](deploy/README.md).
 
@@ -245,7 +246,7 @@ ansible-vault encrypt group_vars/all/vault.yml
 ansible-playbook site.yml --ask-vault-pass
 ```
 
-La production utilise l’archive immuable du tag `v2.4.0`. Créer ce tag uniquement après la
+La production utilise l’archive immuable du tag `v2.4.1`. Créer ce tag uniquement après la
 fusion du PR dans `main`.
 
 ## API
@@ -350,7 +351,7 @@ PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m unittest discover -s tests -p 'tes
 node tests/test_app_js.mjs
 ```
 
-Les 194 tests Python et 10 tests JavaScript sont hors ligne et n'utilisent aucune clé API. Ils
+Les 197 tests Python et 10 tests JavaScript sont hors ligne et n'utilisent aucune clé API. Ils
 couvrent notamment migration SQLite, authentification, SSRF, reprise des jobs, sauvegardes,
 API, score visuel et pagination.
 

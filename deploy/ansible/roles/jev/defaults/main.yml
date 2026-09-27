@@ -1,5 +1,5 @@
 ---
-jev_version: "2.4.0"
+jev_version: "2.4.1"
 jev_repository: "Advil400mg/job_eval"
 jev_release_url: "https://github.com/{{ jev_repository }}/archive/refs/tags/v{{ jev_version }}.tar.gz"
 jev_release_checksum: ""
@@ -13,6 +13,7 @@ jev_env_file: "{{ jev_config_dir }}/production.env"
 jev_backup_dir: "/var/backups/jev"
 jev_app_uid: 10001
 jev_app_gid: 10001
+jev_system_user: "jev"
 jev_image: "jev-webapp"
 jev_compose_project: "jev"
 jev_data_volume: "jev-data"
@@ -44,3 +45,7 @@ jev_health_delay: 6
 
 jev_manage_firewall: false
 jev_ssh_port: 22
+
+# Décommission : garde-fou obligatoire et purge de données explicitement optionnelle.
+jev_decommission_confirm: false
+jev_decommission_purge_data: false

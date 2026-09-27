@@ -1,0 +1,184 @@
+---
+- name: Require explicit JEV decommission confirmation
+  ansible.builtin.assert:
+    that:
+      - jev_decommission_confirm | bool
+    fail_msg: >-
+      Decommission refused. Re-run with
+      -e jev_decommission_confirm=true after reviewing deploy/README.md.
+
+- name: Refuse dangerous JEV decommission targets
+  ansible.builtin.assert:
+    that:
+      - jev_install_root is match('^/(opt|srv)/[^/]*jev[^/]*$')
+      - jev_config_dir is match('^/etc/[^/]*jev[^/]*$')
+      - jev_backup_dir is match('^/(var/backups|srv)/[^/]*jev[^/]*$')
+      - jev_compose_project is match('^jev([_.-][A-Za-z0-9_.-]+)?$')
+      - jev_image is match('^jev([/_.-][A-Za-z0-9/_.-]+)?$')
+      - jev_data_volume is match('^jev([_.-][A-Za-z0-9_.-]+)?$')
+      - jev_caddy_data_volume is match('^jev([_.-][A-Za-z0-9_.-]+)?$')
+      - jev_caddy_config_volume is match('^jev([_.-][A-Za-z0-9_.-]+)?$')
+      - jev_system_user is match('^jev([_.-][A-Za-z0-9_.-]+)?$')
+      - jev_install_root != jev_config_dir
+      - jev_install_root != jev_backup_dir
+      - jev_config_dir != jev_backup_dir
+    fail_msg: >-
+      Decommission refused because a path, Docker resource name or system user
+      is outside the guarded JEV namespace.
+
+- name: Check whether the JEV backup units exist
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - /etc/systemd/system/jev-backup.timer
+    - /etc/systemd/system/jev-backup.service
+  register: jev_decommission_backup_units
+
+- name: Stop and disable the JEV backup timer
+  ansible.builtin.systemd_service:
+    name: jev-backup.timer
+    state: stopped
+    enabled: false
+  when: jev_decommission_backup_units.results[0].stat.exists
+
+- name: Stop an active JEV backup service
+  ansible.builtin.systemd_service:
+    name: jev-backup.service
+    state: stopped
+  when: jev_decommission_backup_units.results[1].stat.exists
+
+- name: Find containers managed by the JEV Compose project
+  ansible.builtin.command:
+    argv:
+      - docker
+      - ps
+      - --all
+      - --quiet
+      - --filter
+      - "label=com.docker.compose.project={{ jev_compose_project }}"
+  register: jev_decommission_containers
+  changed_when: false
+
+- name: Remove JEV containers
+  ansible.builtin.command:
+    argv: [docker, rm, --force, "{{ item }}"]
+  loop: "{{ jev_decommission_containers.stdout_lines | reject('equalto', '') | list }}"
+  register: jev_decommission_container_removal
+  changed_when: jev_decommission_container_removal.rc == 0
+  failed_when:
+    - jev_decommission_container_removal.rc != 0
+    - "'No such container' not in jev_decommission_container_removal.stderr"
+
+- name: Find networks managed by the JEV Compose project
+  ansible.builtin.command:
+    argv:
+      - docker
+      - network
+      - ls
+      - --quiet
+      - --filter
+      - "label=com.docker.compose.project={{ jev_compose_project }}"
+  register: jev_decommission_networks
+  changed_when: false
+
+- name: Remove JEV networks
+  ansible.builtin.command:
+    argv: [docker, network, rm, "{{ item }}"]
+  loop: "{{ jev_decommission_networks.stdout_lines | reject('equalto', '') | list }}"
+  register: jev_decommission_network_removal
+  changed_when: jev_decommission_network_removal.rc == 0
+  failed_when:
+    - jev_decommission_network_removal.rc != 0
+    - "'No such network' not in jev_decommission_network_removal.stderr"
+
+- name: Find JEV application image tags
+  ansible.builtin.command:
+    argv:
+      - docker
+      - image
+      - ls
+      - --format
+      - "{{ '{{.Repository}}:{{.Tag}}' }}"
+      - --filter
+      - "reference={{ jev_image }}:*"
+  register: jev_decommission_images
+  changed_when: false
+
+- name: Remove JEV application image tags
+  ansible.builtin.command:
+    argv: [docker, image, rm, "{{ item }}"]
+  loop: "{{ jev_decommission_images.stdout_lines | reject('equalto', '') | unique | list }}"
+  register: jev_decommission_image_removal
+  changed_when: jev_decommission_image_removal.rc == 0
+  failed_when:
+    - jev_decommission_image_removal.rc != 0
+    - "'No such image' not in jev_decommission_image_removal.stderr"
+
+- name: Remove JEV operational files and deployment directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/systemd/system/jev-backup.timer
+    - /etc/systemd/system/jev-backup.service
+    - /usr/local/sbin/jev-backup
+    - /usr/local/sbin/jev-restore
+    - /usr/local/sbin/jev-rollback
+    - "{{ jev_config_dir }}"
+    - "{{ jev_install_root }}"
+
+- name: Reload systemd after removing JEV units
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+
+- name: Inspect JEV volumes before optional purge
+  ansible.builtin.command:
+    argv: [docker, volume, inspect, "{{ item }}"]
+  loop:
+    - "{{ jev_data_volume }}"
+    - "{{ jev_caddy_data_volume }}"
+    - "{{ jev_caddy_config_volume }}"
+  register: jev_decommission_volume_state
+  changed_when: false
+  failed_when: false
+  when: jev_decommission_purge_data | bool
+
+- name: Purge JEV Docker volumes
+  ansible.builtin.command:
+    argv: [docker, volume, rm, "{{ item.item }}"]
+  loop: "{{ jev_decommission_volume_state.results | default([]) }}"
+  register: jev_decommission_volume_removal
+  when:
+    - jev_decommission_purge_data | bool
+    - item.rc == 0
+  changed_when: jev_decommission_volume_removal.rc == 0
+  failed_when:
+    - jev_decommission_volume_removal.rc != 0
+    - "'No such volume' not in jev_decommission_volume_removal.stderr"
+
+- name: Purge JEV backup archives
+  ansible.builtin.file:
+    path: "{{ jev_backup_dir }}"
+    state: absent
+  when: jev_decommission_purge_data | bool
+
+- name: Remove the JEV system account
+  ansible.builtin.user:
+    name: "{{ jev_system_user }}"
+    state: absent
+    remove: false
+
+- name: Report preserved JEV data
+  ansible.builtin.debug:
+    msg: >-
+      JEV runtime removed. Backups in {{ jev_backup_dir }} and volumes
+      {{ jev_data_volume }}, {{ jev_caddy_data_volume }} and
+      {{ jev_caddy_config_volume }} were preserved.
+  when: not (jev_decommission_purge_data | bool)
+
+- name: Report complete JEV purge
+  ansible.builtin.debug:
+    msg: >-
+      JEV runtime, configuration, backups and named volumes were removed.
+      Docker and UFW were left unchanged.
+  when: jev_decommission_purge_data | bool

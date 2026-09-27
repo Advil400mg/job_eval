@@ -55,7 +55,7 @@
 
 - name: Create the JEV system account
   ansible.builtin.user:
-    name: jev
+    name: "{{ jev_system_user }}"
     system: true
     create_home: false
     shell: /usr/sbin/nologin

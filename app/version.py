@@ -1,3 +1,3 @@
 """Single source of truth for the JEV application version."""
 
-APP_VERSION = "2.4.0"
+APP_VERSION = "2.4.1"

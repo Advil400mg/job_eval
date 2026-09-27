@@ -20,6 +20,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Redirect
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
+from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 
 from . import accounts, analytics, backup, config, cv, jobs, network, onboarding, pipeline
@@ -487,9 +488,15 @@ async def create_onboarding(
         raise HTTPException(400, "Un fichier PDF est requis.")
     content = await cv_pdf.read(onboarding.MAX_PDF_BYTES + 1)
     try:
-        return onboarding.initialize(
-            content, cv_pdf.filename or "cv.pdf", target_roles, locations,
-            reject_experience_years, max_age_days, user_id=user_id,
+        return await run_in_threadpool(
+            onboarding.initialize,
+            content,
+            cv_pdf.filename or "cv.pdf",
+            target_roles,
+            locations,
+            reject_experience_years,
+            max_age_days,
+            user_id=user_id,
         )
     except onboarding.OnboardingError as exc:
         raise HTTPException(400, str(exc)) from exc

@@ -1,224 +1,466 @@
-# Déploiement de production JEV v2.4
+# Déployer et exploiter JEV avec Ansible
 
-Ce dossier déploie une instance JEV sur Ubuntu 24.04 LTS ou Debian 12 amd64 :
+Ce dossier contient le déploiement de production de JEV pour Ubuntu 24.04/26.04 LTS
+ou Debian 12 amd64. Il installe une pile Docker Compose derrière Caddy, configure
+HTTPS, écrit les secrets hors du dépôt et active des sauvegardes quotidiennes.
 
-- application FastAPI dans un conteneur non privilégié ;
-- Caddy comme seul service publié sur les ports 80 et 443 ;
-- HTTPS automatique avec renouvellement des certificats ;
-- volume Docker nommé pour les données ;
-- répertoire hôte séparé pour les sauvegardes ;
-- sauvegarde quotidienne vérifiée par systemd ;
-- sauvegarde préalable et image de rollback avant chaque mise à jour.
+## Vue d’ensemble
+
+Deux machines interviennent :
+
+- **machine de contrôle** : machine depuis laquelle les commandes Ansible sont lancées ;
+- **serveur cible** : VPS qui héberge JEV et sur lequel Ansible se connecte en SSH.
+
+Architecture déployée :
+
+```text
+Internet
+   |
+   | TCP 80/443, UDP 443
+   v
+Caddy ───── HTTPS automatique
+   |
+   | réseau Docker privé
+   v
+JEV :8000 ── volume jev-data
+   |
+   └──────── accès sortant OpenRouter et SMTP/IMAP optionnels
+```
+
+Le port applicatif 8000 n’est jamais publié sur l’hôte. Caddy est le seul composant
+accessible depuis Internet.
+
+## Ce qu’Ansible installe
+
+| Élément | Emplacement ou nom |
+|---|---|
+| Releases immuables | `/opt/jev/releases/<version>` |
+| Release active | `/opt/jev/current` |
+| Configuration d’exécution | `/etc/jev/production.env` |
+| Secrets individuels | `/etc/jev/secrets/*` |
+| Sauvegardes | `/var/backups/jev` |
+| Données applicatives | volume Docker `jev-data` |
+| Certificats Caddy | volumes `jev-caddy-data` et `jev-caddy-config` |
+| Commandes d’exploitation | `/usr/local/sbin/jev-*` |
+| Sauvegarde planifiée | `jev-backup.timer` |
+
+Ansible installe également Docker si nécessaire. Il ne gère UFW que lorsque
+`jev_manage_firewall: true` est explicitement configuré.
 
 ## 1. Prérequis
 
-Sur la machine de contrôle :
+### Machine de contrôle
 
-- Ansible Core 2.16 ou plus récent ;
+- dépôt JEV cloné ;
+- `uv` installé ;
+- clé SSH permettant d’accéder au serveur ;
+- mot de passe `sudo` du serveur si le compte n’a pas de sudo sans mot de passe.
+
+Ansible n’a pas besoin d’être installé globalement : les commandes ci-dessous utilisent
+`uv run --with ansible-core==2.18.9`.
+
+### Serveur cible
+
+- Ubuntu 24.04/26.04 LTS ou Debian 12 amd64 ;
+- au moins 2 Go de RAM et 10 Go de stockage ;
 - accès SSH par clé ;
-- accès `sudo` sur le serveur.
+- ports TCP 80 et 443 libres ;
+- port UDP 443 libre si HTTP/3 est souhaité ;
+- règles réseau du fournisseur autorisant SSH, TCP 80/443 et éventuellement UDP 443.
 
-Sur le serveur :
-
-- Ubuntu 24.04 LTS ou Debian 12 amd64 ;
-- au moins 2 Go de RAM et 10 Go de stockage disponible ;
-- ports TCP 22, 80 et 443 accessibles ;
-- port UDP 443 recommandé pour HTTP/3 ;
-- enregistrement DNS A/AAAA du domaine pointant déjà vers le serveur.
-
-Le port 8000 de JEV n’est jamais publié sur l’hôte.
-
-## 2. Préparer Ansible
-
-Depuis `deploy/ansible` :
+Vérification utile sur le serveur :
 
 ```bash
+cat /etc/os-release
+uname -m
+sudo ss -ltnup | grep -E ':(80|443)\b' || true
+```
+
+## 2. Domaine ou sous-domaine sslip.io
+
+Caddy a besoin d’un nom DNS pour obtenir un certificat HTTPS public.
+
+Avec un domaine personnel, crée un enregistrement A pointant vers l’IPv4 du serveur.
+Pour un déploiement sans domaine, une IP comme `51.83.120.42` peut utiliser :
+
+```text
+51-83-120-42.sslip.io
+```
+
+Le domaine est toujours configuré sans `https://` et sans port.
+
+## 3. Préparer les fichiers Ansible
+
+Toutes les commandes suivantes sont lancées depuis la machine de contrôle :
+
+```bash
+cd /chemin/vers/job_eval/deploy/ansible
 cp inventory.example.ini inventory.ini
-mkdir -p group_vars/all
 cp group_vars/all/main.example.yml group_vars/all/main.yml
 cp group_vars/all/vault.example.yml group_vars/all/vault.yml
 ```
 
-Adapter `inventory.ini` et `group_vars/all/main.yml`, puis chiffrer les secrets :
+Les fichiers réels `inventory.ini`, `main.yml` et `vault.yml` sont ignorés par Git.
 
-```bash
-ansible-vault encrypt group_vars/all/vault.yml
+### Inventaire SSH
+
+Éditer `inventory.ini` :
+
+```ini
+[jev]
+jev-production ansible_host=51.83.120.42 ansible_user=ubuntu
+
+[jev:vars]
+ansible_become=true
 ```
 
-Les trois fichiers réels sont ignorés par Git. Seuls les exemples doivent être versionnés.
+Accepter une première fois la clé SSH du serveur :
 
-Variables obligatoires :
+```bash
+ssh ubuntu@51.83.120.42
+exit
+```
 
-- `jev_domain` : nom DNS sans `https://` ;
-- `jev_acme_email` : adresse utilisée par l’autorité de certification ;
-- `jev_openrouter_api_key` : clé OpenRouter, dans le Vault ;
-- `jev_session_secret` : valeur aléatoire stable d’au moins 32 caractères, dans le Vault ;
-- `jev_admin_bootstrap_password` : mot de passe initial d’au moins 12 caractères.
+### Configuration non secrète
 
-Une valeur de secret peut être générée avec :
+Éditer `group_vars/all/main.yml` :
+
+```yaml
+---
+jev_version: "2.4.1"
+jev_domain: "51-83-120-42.sslip.io"
+jev_acme_email: "admin@example.com"
+jev_timezone: "Europe/Paris"
+
+jev_admin_username: "admin"
+jev_admin_email: "admin@example.com"
+
+jev_backup_schedule: "*-*-* 03:15:00"
+jev_backup_retention_days: 14
+
+jev_manage_firewall: false
+jev_ssh_port: 22
+```
+
+L’email ACME n’est pas un secret. Il sert de contact à l’autorité de certification.
+
+### Secrets Ansible Vault
+
+Éditer `group_vars/all/vault.yml` avant son premier chiffrement :
+
+```yaml
+---
+jev_openrouter_api_key: "CLE_OPENROUTER"
+jev_session_secret: "SECRET_ALEATOIRE_DE_32_CARACTERES_MINIMUM"
+jev_admin_bootstrap_password: "MOT_DE_PASSE_ADMIN_INITIAL"
+
+jev_email_address: ""
+jev_email_password: ""
+jev_email_smtp_host: ""
+jev_email_smtp_port: 465
+jev_email_imap_host: ""
+jev_email_imap_port: 993
+```
+
+Générer un secret de session :
 
 ```bash
 python3 -c 'import secrets; print(secrets.token_urlsafe(48))'
 ```
 
-Après création du premier administrateur, `jev_admin_bootstrap_password` peut être vidé et le
-playbook rejoué. Le mot de passe du compte est conservé sous forme Argon2id dans la base.
-
-## 3. Vérifier avant le premier déploiement
+Depuis `deploy/ansible`, chiffrer le fichier :
 
 ```bash
-ansible-playbook --syntax-check site.yml
-ansible-lint .
-ansible all -m ping --ask-vault-pass
+uv run --with ansible-core==2.18.9 \
+  ansible-vault encrypt group_vars/all/vault.yml
 ```
 
-Le rôle refuse explicitement :
-
-- une distribution ou une architecture non prise en charge ;
-- un domaine contenant un schéma ou un port ;
-- un secret de session trop court ;
-- une clé OpenRouter absente ;
-- un mot de passe initial trop court.
-
-## 4. Premier déploiement
-
-La source de production par défaut est l’archive immuable du tag `v2.4.0` :
+Pour le modifier plus tard :
 
 ```bash
-ansible-playbook site.yml --ask-vault-pass
+uv run --with ansible-core==2.18.9 \
+  ansible-vault edit group_vars/all/vault.yml
 ```
 
-Pour une recette de préversion seulement, il est possible de surcharger temporairement
-`jev_release_url` avec l’archive de la branche `dev`. Une production doit toujours revenir à
-une archive taguée et, idéalement, définir `jev_release_checksum`.
+## 4. Vérifier avant le déploiement
+
+Test SSH et inventaire :
+
+```bash
+uv run --with ansible-core==2.18.9 \
+  ansible all -m ping --ask-vault-pass
+```
+
+Vérification syntaxique :
+
+```bash
+uv run --with ansible-core==2.18.9 \
+  ansible-playbook site.yml --syntax-check --ask-vault-pass
+```
+
+Le rôle refuse notamment :
+
+- une distribution ou architecture non prise en charge ;
+- un domaine invalide ;
+- une adresse ACME invalide ;
+- une clé OpenRouter vide ;
+- un secret de session inférieur à 32 caractères ;
+- un mot de passe initial inférieur à 12 caractères.
+
+## 5. Premier déploiement
+
+Avec sudo sans mot de passe :
+
+```bash
+uv run --with ansible-core==2.18.9 \
+  ansible-playbook site.yml --ask-vault-pass
+```
+
+Si sudo demande un mot de passe :
+
+```bash
+uv run --with ansible-core==2.18.9 \
+  ansible-playbook site.yml --ask-vault-pass --ask-become-pass
+```
 
 Le playbook :
 
-1. installe Docker depuis le dépôt officiel ;
-2. crée `/opt/jev`, `/etc/jev`, `/etc/jev/secrets` et `/var/backups/jev` ;
-3. télécharge et extrait la release ;
-4. écrit l’environnement non secret dans `/etc/jev/production.env` (`0600`) et les
-   secrets dans des fichiers individuels `/etc/jev/secrets/*` (`0400`) ;
-5. construit l’image JEV ;
-6. démarre JEV et Caddy ;
-7. attend `https://<domaine>/healthz` avec un certificat valide ;
-8. vérifie que la version retournée est exactement celle demandée.
+1. installe Docker et Compose si nécessaire ;
+2. crée les répertoires, volumes et secrets ;
+3. télécharge l’archive immuable du tag configuré ;
+4. construit l’image JEV ;
+5. démarre JEV et Caddy ;
+6. obtient le certificat HTTPS ;
+7. vérifie `/healthz` et la version attendue ;
+8. active le timer de sauvegarde uniquement après validation du service.
 
-Le pare-feu n’est pas activé par défaut afin de ne jamais couper un port SSH personnalisé.
-Pour laisser le rôle gérer UFW :
-
-```yaml
-jev_manage_firewall: true
-jev_ssh_port: 22
-```
-
-## 5. Mise à jour
-
-Modifier `jev_version`, ainsi que `jev_release_checksum` lorsqu’il est utilisé, puis rejouer :
+Vérifier le résultat :
 
 ```bash
-ansible-playbook site.yml --ask-vault-pass
-```
-
-Avant la mise à jour, le rôle :
-
-- conserve l’image en cours sous le tag local `jev-webapp:rollback` ;
-- crée une sauvegarde applicative ;
-- vérifie l’archive et l’intégrité SQLite.
-
-Si le nouvel endpoint HTTPS ne devient pas sain, le rôle restaure automatiquement la release,
-l’environnement, l’image et le snapshot de données précédents, puis vérifie à nouveau le
-healthcheck avant de signaler l’échec du déploiement.
-
-## 6. Sauvegardes
-
-Le timer `jev-backup.timer` déclenche quotidiennement `/usr/local/sbin/jev-backup`.
-La planification et la rétention sont configurables :
-
-```yaml
-jev_backup_schedule: "*-*-* 03:15:00"
-jev_backup_retention_days: 14
-```
-
-Commandes d’exploitation :
-
-```bash
-systemctl status jev-backup.timer
-systemctl list-timers jev-backup.timer
-sudo jev-backup
-journalctl -u jev-backup.service
-```
-
-Les archives sont placées dans `/var/backups/jev`. Chaque sauvegarde contient :
-
-- une copie cohérente de SQLite réalisée par l’API de sauvegarde SQLite ;
-- les profils, CV sources, CV générés et journaux utilisateur ;
-- un manifeste avec taille et SHA-256 de chaque fichier.
-
-Après création, `deploy/scripts/verify-backup.py` contrôle les empreintes, les chemins ZIP et
-`PRAGMA integrity_check`. Une archive invalide fait échouer le service de sauvegarde.
-
-La rotation locale n’est pas une sauvegarde hors site. Pour une production importante, copier
-`/var/backups/jev` vers un stockage distant chiffré avec l’outil d’infrastructure choisi.
-
-## 7. Restauration
-
-La restauration est volontairement explicite :
-
-```bash
-sudo jev-restore /var/backups/jev/jev-backup-YYYYMMDDTHHMMSS-manual-xxxxxx.zip
-```
-
-Le script :
-
-1. vérifie l’archive hors du conteneur ;
-2. demande à JEV de créer une sauvegarde de sécurité `pre-restore` ;
-3. refuse la restauration si une tâche est active ;
-4. restaure les fichiers atomiquement ;
-5. redémarre JEV et attend son healthcheck.
-
-## 8. Rollback manuel
-
-L’image précédant la dernière mise à jour réussie ou tentée est conservée localement :
-
-```bash
-sudo jev-rollback
-```
-
-Le script crée d’abord une sauvegarde de l’état courant, restaure le snapshot associé à la
-release précédente, échange atomiquement les liens `current`/`previous` et les environnements,
-réassocie l’image `rollback`, puis vérifie `/healthz`. La sauvegarde créée au début devient le
-snapshot du prochain retour arrière, ce qui permet de revenir dans l’autre sens.
-
-## 9. Diagnostic
-
-```bash
-cd /opt/jev/current
-docker compose --project-name jev --env-file /etc/jev/production.env \
-  -f deploy/compose.production.yml ps
-docker compose --project-name jev --env-file /etc/jev/production.env \
-  -f deploy/compose.production.yml logs --since=30m jev caddy
-curl -fsS https://votre-domaine/healthz
+curl -fsS https://51-83-120-42.sslip.io/healthz
 ```
 
 Réponse attendue :
 
 ```json
-{"ok": true, "version": "2.4.0", "auth_required": true}
+{"ok":true,"version":"2.4.1","auth_required":true}
 ```
 
-Caddy est le seul service publié. Si le port 8000 apparaît dans `docker ps` sous la forme
-`0.0.0.0:8000->8000`, la pile utilisée n’est pas la pile de production.
+Après la première connexion administrateur, vider le mot de passe d’amorçage dans le Vault :
 
-## 10. Vérifications du dépôt
+```yaml
+jev_admin_bootstrap_password: ""
+```
 
-Depuis la racine :
+Puis rejouer `site.yml`. Le mot de passe Argon2id déjà enregistré en base est conservé.
+
+## 6. Exploitation courante
+
+État de la pile :
+
+```bash
+cd /opt/jev/current
+sudo docker compose --project-name jev \
+  --env-file /etc/jev/production.env \
+  -f deploy/compose.production.yml ps
+```
+
+Journaux :
+
+```bash
+sudo docker compose --project-name jev \
+  --env-file /etc/jev/production.env \
+  -f deploy/compose.production.yml \
+  logs --since=30m jev caddy
+```
+
+Sauvegardes :
+
+```bash
+sudo systemctl status jev-backup.timer
+sudo systemctl list-timers jev-backup.timer
+sudo jev-backup
+sudo journalctl -u jev-backup.service
+```
+
+Les sauvegardes sont vérifiées par empreinte SHA-256 et par
+`PRAGMA integrity_check` sur la base SQLite.
+
+## 7. Mise à jour
+
+Modifier `jev_version` dans `group_vars/all/main.yml`, puis rejouer `site.yml`.
+
+Avant chaque mise à jour, le rôle :
+
+- crée et vérifie une sauvegarde ;
+- conserve la release, l’environnement et l’image précédents ;
+- déploie la nouvelle version ;
+- restaure automatiquement code, configuration, image et données si le healthcheck échoue.
+
+## 8. Restauration et rollback
+
+Restaurer une archive :
+
+```bash
+sudo jev-restore /var/backups/jev/jev-backup-YYYYMMDDTHHMMSS-manual-xxxxxx.zip
+```
+
+La restauration vérifie l’archive, crée une sauvegarde de sécurité, refuse d’agir pendant
+une tâche active et redémarre JEV après l’écriture atomique des données.
+
+Revenir à la release précédente :
+
+```bash
+sudo jev-rollback
+```
+
+Le rollback échange la release, l’environnement, l’image et le snapshot de données associés.
+
+## 9. Décommissionner JEV
+
+La décommission utilise `decommission.yml`. Elle exige toujours la confirmation explicite :
+
+```text
+jev_decommission_confirm=true
+```
+
+Docker et UFW ne sont jamais désinstallés ou réinitialisés par ce playbook.
+
+### Mode standard : conserver les données
+
+Ce mode retire l’application mais conserve les sauvegardes et volumes pour permettre une
+réinstallation ultérieure :
+
+```bash
+cd /chemin/vers/job_eval/deploy/ansible
+uv run --with ansible-core==2.18.9 \
+  ansible-playbook decommission.yml \
+  --ask-vault-pass --ask-become-pass \
+  -e jev_decommission_confirm=true
+```
+
+Supprimé :
+
+- conteneurs et réseaux du projet Compose `jev` ;
+- images `jev-webapp:*` ;
+- `/opt/jev` et `/etc/jev` ;
+- secrets applicatifs dans `/etc/jev/secrets/*` ;
+- scripts `/usr/local/sbin/jev-*` ;
+- unités systemd de sauvegarde ;
+- utilisateur système `jev`.
+
+Conservé :
+
+- `/var/backups/jev` ;
+- volume `jev-data` ;
+- volumes `jev-caddy-data` et `jev-caddy-config` ;
+- Docker, son dépôt APT et les autres conteneurs ;
+- l’image générique `caddy:2-alpine`, laissée en cache si aucun autre nettoyage Docker ne la retire ;
+- UFW et toutes ses règles.
+
+Pour réinstaller avec les données conservées, rejouer simplement `site.yml` avec les mêmes
+noms de volumes.
+
+### Mode purge : suppression irréversible des données
+
+Ce mode ajoute la suppression des sauvegardes, de la base, des documents et des certificats :
+
+```bash
+uv run --with ansible-core==2.18.9 \
+  ansible-playbook decommission.yml \
+  --ask-vault-pass --ask-become-pass \
+  -e jev_decommission_confirm=true \
+  -e jev_decommission_purge_data=true
+```
+
+La purge supprime également :
+
+- `/var/backups/jev` ;
+- `jev-data` ;
+- `jev-caddy-data` ;
+- `jev-caddy-config`.
+
+Cette opération est irréversible. Copier d’abord une archive vérifiée hors du serveur si les
+données peuvent encore être utiles.
+
+### Vérifier la décommission
+
+```bash
+sudo docker ps -a --filter label=com.docker.compose.project=jev
+sudo docker volume ls --filter name=jev
+sudo systemctl status jev-backup.timer
+sudo test ! -e /opt/jev && echo "releases supprimées"
+sudo test ! -e /etc/jev && echo "configuration supprimée"
+```
+
+En mode standard, les volumes JEV doivent encore apparaître. En mode purge, ils ne doivent
+plus exister.
+
+## 10. Pare-feu
+
+Par défaut, `jev_manage_firewall: false` : le rôle ne modifie pas UFW.
+
+S’il est activé, le rôle autorise le port SSH configuré, TCP 80/443 et UDP 443. La
+décommission laisse ces règles intactes afin de ne pas couper un autre service. Leur retrait
+reste une décision d’exploitation explicite :
+
+```bash
+sudo ufw status numbered
+sudo ufw delete allow 80/tcp
+sudo ufw delete allow 443/tcp
+sudo ufw delete allow 443/udp
+```
+
+Ne jamais supprimer la règle SSH sans moyen d’accès alternatif.
+
+## 11. Diagnostic
+
+### Le certificat HTTPS ne peut pas être obtenu
+
+Vérifier :
+
+- que le domaine résout vers l’IP publique ;
+- que TCP 80/443 est autorisé par le fournisseur et UFW ;
+- qu’aucun autre service n’écoute déjà sur 80/443 ;
+- que Docker peut résoudre les domaines externes.
+
+```bash
+sudo ss -ltnup | grep -E ':(80|443)\b' || true
+getent hosts api.zerossl.com
+sudo docker run --rm alpine:3.22 nslookup api.zerossl.com
+```
+
+### Le port 443 est déjà utilisé
+
+```bash
+sudo ss -ltnp '( sport = :443 )'
+sudo docker ps --format 'table {{.Names}}\t{{.Ports}}'
+tailscale serve status
+```
+
+Caddy doit disposer des ports publics nécessaires, ou être configuré pour écouter seulement
+sur une adresse qui n’est pas déjà utilisée.
+
+### Voir la configuration effective
+
+```bash
+sudo docker compose --project-name jev \
+  --env-file /etc/jev/production.env \
+  -f /opt/jev/current/deploy/compose.production.yml config
+```
+
+## 12. Vérifications du dépôt
+
+Depuis la racine du dépôt :
 
 ```bash
 PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m unittest discover -s tests -p 'test_*.py'
 node tests/test_app_js.mjs
-ansible-playbook -i deploy/ansible/inventory.example.ini deploy/ansible/site.yml --syntax-check
-ansible-lint deploy/ansible
-docker compose --env-file /chemin/vers/un/env-de-test \
-  -f deploy/compose.production.yml config --quiet
+uv run --with ansible-core==2.18.9 \
+  ansible-playbook deploy/ansible/site.yml --syntax-check \
+  -i deploy/ansible/inventory.example.ini
+uv run --with ansible-core==2.18.9 \
+  ansible-playbook deploy/ansible/decommission.yml --syntax-check \
+  -i deploy/ansible/inventory.example.ini
+uv run --with ansible-lint ansible-lint deploy/ansible
 ```
