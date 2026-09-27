@@ -32,6 +32,7 @@
   <div class="admin-section-head">
     <div><p class="eyebrow">Accès</p><h2>Utilisateurs</h2><p>{{ admin_stats.users }} compte{% if admin_stats.users != 1 %}s{% endif %} enregistré{% if admin_stats.users != 1 %}s{% endif %} sur cette instance.</p></div>
   </div>
+  <p class="admin-delete-warning">La suppression d’un compte efface définitivement ses données et ses fichiers actuels. Les sauvegardes existantes restent inchangées et peuvent encore contenir ces données.</p>
   <div class="admin-list admin-users-list" role="table" aria-label="Utilisateurs">
     <div class="admin-list-head" role="row"><span>Utilisateur</span><span>Contact</span><span>Rôle</span><span>État</span><span>Action</span></div>
     <div id="users_body" class="admin-list-body" role="rowgroup">
@@ -41,7 +42,7 @@
           <div class="admin-cell" role="cell" data-label="Contact"><span class="admin-email">{{ user.email or 'Aucun email' }}</span></div>
           <div class="admin-cell" role="cell" data-label="Rôle"><span class="admin-pill role-{{ user.role }}">{{ 'Administrateur' if user.role == 'admin' else 'Utilisateur' }}</span></div>
           <div class="admin-cell" role="cell" data-label="État"><span class="admin-state {{ 'is-active' if user.active else 'is-disabled' }}"><i></i>{{ 'Actif' if user.active else 'Désactivé' }}</span></div>
-          <div class="admin-cell admin-cell-action" role="cell" data-label="Action">{% if user.id != current_user.id %}<button class="secondary-btn compact user-toggle" data-active="{{ 'false' if user.active else 'true' }}">{{ 'Désactiver' if user.active else 'Réactiver' }}</button>{% else %}<span class="muted small">Session actuelle</span>{% endif %}</div>
+          <div class="admin-cell admin-cell-action" role="cell" data-label="Action">{% if user.id != current_user.id %}<div class="admin-user-actions"><button class="secondary-btn compact user-toggle" data-active="{{ 'false' if user.active else 'true' }}">{{ 'Désactiver' if user.active else 'Réactiver' }}</button><button class="danger-btn compact user-delete" data-username="{{ user.username }}">Supprimer</button></div>{% else %}<span class="muted small">Session actuelle</span>{% endif %}</div>
         </article>
       {% else %}
         <div class="empty-state"><strong>Aucun utilisateur</strong><p>Les comptes apparaîtront ici.</p></div>

@@ -131,7 +131,38 @@ class MultiUserApiTest(unittest.TestCase):
             self.assertEqual(response.status_code, 200)
             self.assertIn('class="admin-list admin-users-list"', response.text)
             self.assertIn('class="admin-list admin-invitations-list"', response.text)
+            self.assertIn('class="danger-btn compact user-delete"', response.text)
+            self.assertIn("Les sauvegardes existantes restent inchangées", response.text)
             self.assertNotIn("<table", response.text)
+
+    def test_admin_can_delete_another_user_with_exact_confirmation(self):
+        with TestClient(app) as admin_client, TestClient(app) as bob_client:
+            self.login(admin_client, "alice", "correct-horse-battery")
+            self.login(bob_client, "bob", "another-correct-password")
+            forbidden = bob_client.request(
+                "DELETE", f"/api/admin/users/{self.alice['id']}", json={"confirmation": "alice"},
+            )
+            self.assertEqual(forbidden.status_code, 403)
+            wrong = admin_client.request(
+                "DELETE", f"/api/admin/users/{self.bob['id']}", json={"confirmation": "Bob"},
+            )
+            self.assertEqual(wrong.status_code, 400)
+            self.assertIsNotNone(accounts.get_user(self.bob["id"], include_disabled=True))
+            own = admin_client.request(
+                "DELETE", f"/api/admin/users/{self.alice['id']}", json={"confirmation": "alice"},
+            )
+            self.assertEqual(own.status_code, 400)
+
+            deleted = admin_client.request(
+                "DELETE", f"/api/admin/users/{self.bob['id']}", json={"confirmation": "bob"},
+            )
+            self.assertEqual(deleted.status_code, 200)
+            self.assertEqual(deleted.json(), {
+                "deleted": self.bob["id"], "username": "bob", "cleanup_pending": False,
+            })
+            self.assertIsNone(accounts.get_user(self.bob["id"], include_disabled=True))
+            self.assertFalse(config.user_dir(self.bob["id"]).exists())
+            self.assertIn(bob_client.get("/api/auth/me").status_code, (401, 403))
 
 
 if __name__ == "__main__":

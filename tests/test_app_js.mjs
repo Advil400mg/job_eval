@@ -122,6 +122,29 @@ check("le résultat d’invitation n’injecte pas de HTML", () => {
   assert.equal(adminResult.innerHTML, "");
 });
 
+check("la confirmation de suppression avertit sur les fichiers et les sauvegardes", () => {
+  const message = sandbox.JEVAdmin.deleteConfirmationText("bob");
+  assert.match(message, /CV, candidatures et fichiers actuels seront effacés/);
+  assert.match(message, /sauvegardes existantes resteront inchangées/);
+  assert.match(message, /exactement bob/);
+});
+
+await checkAsync("la suppression envoie une confirmation JSON exacte", async () => {
+  let request = null;
+  sandbox.fetch = async (url, options) => {
+    request = {url, options};
+    return {ok: true, json: async () => ({
+      deleted: "bob-id", username: "bob", cleanup_pending: false,
+    })};
+  };
+  const result = await sandbox.JEVAdmin.deleteUser("bob/id", "bob");
+  assert.equal(request.url, "/api/admin/users/bob%2Fid");
+  assert.equal(request.options.method, "DELETE");
+  assert.equal(request.options.headers["Content-Type"], "application/json");
+  assert.deepEqual(JSON.parse(request.options.body), {confirmation: "bob"});
+  assert.equal(result.deleted, "bob-id");
+});
+
 const setupForm = makeEl();
 setupForm.dataset = { processing: "false", apiKeySet: "true", error: "" };
 const setupButton = makeEl();
