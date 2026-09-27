@@ -361,6 +361,9 @@ migration SQLite v7, l’authentification, l’audit, le diagnostic, la rétenti
 l’accessibilité clavier, le SSRF, la reprise des jobs, les API, le score visuel et la pagination.
 Aucune clé API n’est nécessaire.
 
+Le détail de l’architecture des suites, des fixtures E2E et des commandes de débogage se trouve
+dans [`tests/README.md`](tests/README.md).
+
 ## Limites connues
 
 - **Pages rendues en JavaScript** : l'extraction est en HTTP simple (stdlib). Une offre dont
