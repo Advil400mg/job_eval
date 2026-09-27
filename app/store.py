@@ -142,6 +142,17 @@ CREATE TABLE IF NOT EXISTS application_events (
     payload TEXT NOT NULL DEFAULT '{}',
     FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE
 );
+CREATE TABLE IF NOT EXISTS audit_events (
+    id TEXT PRIMARY KEY,
+    created_at TEXT NOT NULL,
+    actor_user_id TEXT,
+    event_type TEXT NOT NULL,
+    subject_type TEXT,
+    subject_id TEXT,
+    success INTEGER NOT NULL DEFAULT 1,
+    metadata TEXT NOT NULL DEFAULT '{}',
+    FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL
+);
 """
 
 APPLICATION_STATUSES = ("to_review", "cv_ready", "applied", "interview", "rejected", "offer")
@@ -388,8 +399,13 @@ def _migrate(conn: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_applications_updated ON applications(updated_at DESC);
         CREATE INDEX IF NOT EXISTS idx_application_events_app ON application_events(application_id, id DESC);
         CREATE INDEX IF NOT EXISTS idx_invitations_creator ON invitations(created_by, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_events(created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_audit_type_created ON audit_events(event_type, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_audit_actor_created ON audit_events(actor_user_id, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_audit_subject ON audit_events(subject_type, subject_id);
+        CREATE INDEX IF NOT EXISTS idx_audit_success_created ON audit_events(success, created_at DESC);
     """)
-    conn.execute("PRAGMA user_version = 6")
+    conn.execute("PRAGMA user_version = 7")
 
 
 def _connect() -> sqlite3.Connection:

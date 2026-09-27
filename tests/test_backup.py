@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import sys
 import tempfile
+import time
 import unittest
 import zipfile
 from pathlib import Path
@@ -81,6 +82,29 @@ class BackupTests(unittest.TestCase):
         store.create_cv_job("https://jobs.test/cv")
         with self.assertRaises(backup.BackupError):
             backup.restore_backup(archive)
+
+    def test_creation_verifie_archive_et_expose_manifest(self):
+        info = backup.create_backup("scheduled")
+        self.assertTrue(info["verified"])
+        self.assertEqual(info["kind"], "scheduled")
+        self.assertEqual(info["manifest"]["kind"], "scheduled")
+        verified = backup.verify_backup(info["name"])
+        self.assertTrue(verified["verified"])
+        summary = backup.backup_summary()
+        self.assertEqual(summary["count"], 1)
+        self.assertEqual(summary["latest_scheduled"]["name"], info["name"])
+        self.assertFalse(summary["scheduled_stale"])
+
+    def test_retention_supprime_seulement_les_archives_expirees(self):
+        old = backup.create_backup("manual")
+        recent = backup.create_backup("manual")
+        old_path = backup.backup_path(old["name"])
+        expired = time.time() - 20 * 86400
+        os.utime(old_path, (expired, expired))
+        deleted = backup.prune_backups(14)
+        self.assertEqual(deleted, [old["name"]])
+        self.assertFalse(old_path.exists())
+        self.assertTrue(backup.backup_path(recent["name"]).is_file())
 
     def test_archive_traversal_est_refusee(self):
         malicious = self.root / "malicious.zip"

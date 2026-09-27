@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block shell_class %}wide-shell{% endblock %}
+{% block content %}
+<section class="page-heading compact">
+  <div><p class="eyebrow">Administration</p><h1>Journal d’audit</h1><p>Actions de sécurité et d’exploitation, sans mot de passe, jeton ni contenu personnel.</p></div>
+  <div class="admin-page-links"><a class="secondary-btn" href="/admin">Comptes</a><a class="secondary-btn" href="/admin/diagnostics">Diagnostic</a></div>
+</section>
+<section class="toolbar-panel audit-filters" aria-label="Filtres du journal">
+  <label>Événement<select id="audit_type"><option value="">Tous</option></select></label>
+  <label>Auteur<select id="audit_actor"><option value="">Tous</option></select></label>
+  <label>Résultat<select id="audit_success"><option value="">Tous</option><option value="true">Réussite</option><option value="false">Refus ou échec</option></select></label>
+  <label>Période<select id="audit_days"><option value="">Toute la rétention</option><option value="1">24 heures</option><option value="7">7 jours</option><option value="30">30 jours</option><option value="90">90 jours</option></select></label>
+</section>
+<div id="audit_summary" class="result-meta" role="status" aria-live="polite"></div>
+<section id="audit_events" class="audit-list" aria-label="Événements d’audit"><div class="loading-card">Chargement du journal…</div></section>
+<nav id="audit_pagination" class="pagination" aria-label="Pagination du journal d’audit"></nav>
+{% endblock %}
+{% block scripts %}<script src="/static/audit.js"></script>{% endblock %}

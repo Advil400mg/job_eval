@@ -315,9 +315,26 @@ def _is_same_origin(request: Request) -> bool:
     headers must be present and match the server's own origin.  When
     neither is present the request is rejected.
     """
-    host = request.url.hostname or ""
-    port = request.url.port
+    security_settings = config.settings()["security"]
     scheme = request.url.scheme
+    host_header = request.headers.get("host", "")
+    if not host_header:
+        host_header = request.url.hostname or ""
+        if request.url.port:
+            host_header += f":{request.url.port}"
+    if security_settings["trust_proxy"]:
+        forwarded_scheme = request.headers.get("x-forwarded-proto", "").split(",", 1)[0].strip()
+        forwarded_host = request.headers.get("x-forwarded-host", "").split(",", 1)[0].strip()
+        if forwarded_scheme in ("http", "https"):
+            scheme = forwarded_scheme
+        if forwarded_host:
+            host_header = forwarded_host
+    try:
+        own = urlsplit(f"{scheme}://{host_header}")
+        host = own.hostname or request.url.hostname or ""
+        port = own.port
+    except ValueError:
+        return False
     origin_str = f"{scheme}://{host}"
     if port and port not in (80, 443):
         origin_str += f":{port}"

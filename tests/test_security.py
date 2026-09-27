@@ -240,6 +240,17 @@ class SecurityTests(unittest.TestCase):
         )
         self.assertTrue(security._is_same_origin(req))
 
+    def test_csrf_trusted_proxy_uses_forwarded_https_origin(self):
+        req = self._fake_request(method="POST", origin="https://jobs.example.test")
+        req.headers.update({
+            "host": "jobs.example.test", "x-forwarded-proto": "https",
+            "x-forwarded-host": "jobs.example.test",
+        })
+        with mock.patch.object(config, "settings", return_value={
+            "security": {"trust_proxy": True},
+        }):
+            self.assertTrue(security._is_same_origin(req))
+
     # ── client_ip ────────────────────────────────────────────────
 
     def test_client_ip_trusts_x_forwarded_for(self):

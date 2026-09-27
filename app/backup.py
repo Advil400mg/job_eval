@@ -106,12 +106,35 @@ def _create_backup(kind: str = "manual", database_connection: sqlite3.Connection
 
 def create_backup(kind: str = "manual") -> dict:
     with _maintenance_lock():
-        return _create_backup(kind)
+        created = _create_backup(kind)
+        verification = verify_backup(created["name"])
+        created.update({"verified": True, "manifest": verification["manifest"]})
+        created["pruned"] = prune_backups(config.settings()["backup"]["retention_days"])
+        return created
+
+
+def _manifest(path: Path) -> dict | None:
+    try:
+        with zipfile.ZipFile(path) as archive:
+            payload = json.loads(archive.read("manifest.json"))
+        return payload if isinstance(payload, dict) else None
+    except (OSError, KeyError, zipfile.BadZipFile, json.JSONDecodeError):
+        return None
 
 
 def backup_info(path: Path) -> dict:
-    return {"name": path.name, "size": path.stat().st_size,
-            "created_at": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(path.stat().st_mtime))}
+    stat_result = path.stat()
+    manifest = _manifest(path)
+    return {
+        "name": path.name,
+        "size": stat_result.st_size,
+        "created_at": (manifest or {}).get("created_at") or time.strftime(
+            "%Y-%m-%dT%H:%M:%S", time.localtime(stat_result.st_mtime)),
+        "kind": (manifest or {}).get("kind", "unknown"),
+        "app_version": (manifest or {}).get("app_version"),
+        "manifest_valid": bool(manifest),
+        "age_hours": round(max(0.0, time.time() - stat_result.st_mtime) / 3600, 1),
+    }
 
 
 def list_backups() -> list[dict]:
@@ -119,6 +142,44 @@ def list_backups() -> list[dict]:
     if not directory.is_dir():
         return []
     return [backup_info(path) for path in sorted(directory.glob("jev-backup-*.zip"), reverse=True)]
+
+
+def prune_backups(retention_days: int | None = None) -> list[str]:
+    directory = Path(config.settings()["backup"]["dir"])
+    if not directory.is_dir():
+        return []
+    days = retention_days or int(config.settings()["backup"]["retention_days"])
+    cutoff = time.time() - max(1, int(days)) * 86400
+    deleted: list[str] = []
+    for path in directory.glob("jev-backup-*.zip"):
+        if path.is_file() and path.stat().st_mtime < cutoff:
+            path.unlink()
+            deleted.append(path.name)
+    return sorted(deleted)
+
+
+def verify_backup(name: str) -> dict:
+    path = backup_path(name)
+    data_dir = Path(config.settings()["data_dir"])
+    data_dir.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=data_dir, prefix=".verify-") as temporary:
+        manifest = _validate_archive(path, Path(temporary))
+    return {"name": name, "verified": True, "manifest": manifest}
+
+
+def backup_summary() -> dict:
+    backups = list_backups()
+    scheduled = next((item for item in backups if item["kind"] == "scheduled"), None)
+    stale_hours = int(config.settings()["backup"]["stale_after_hours"])
+    return {
+        "count": len(backups),
+        "total_size": sum(int(item["size"]) for item in backups),
+        "latest": backups[0] if backups else None,
+        "latest_scheduled": scheduled,
+        "scheduled_stale": not scheduled or float(scheduled["age_hours"]) > stale_hours,
+        "stale_after_hours": stale_hours,
+        "retention_days": int(config.settings()["backup"]["retention_days"]),
+    }
 
 
 def backup_path(name: str) -> Path:

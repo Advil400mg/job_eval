@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block shell_class %}wide-shell{% endblock %}
+{% block content %}
+<section class="page-heading compact">
+  <div><p class="eyebrow">Administration</p><h1>Diagnostic</h1><p>État observable par le processus JEV. Le reverse proxy et systemd restent hors de son périmètre.</p></div>
+  <div class="admin-page-links"><a class="secondary-btn" href="/admin">Comptes</a><a class="secondary-btn" href="/admin/audit">Journal d’audit</a><button id="diagnostics_refresh" type="button">Actualiser</button></div>
+</section>
+<div id="diagnostics_status" class="diagnostics-status" role="status" aria-live="polite">Chargement du diagnostic…</div>
+<section id="diagnostics_checks" class="diagnostics-checks" aria-label="Contrôles de santé"></section>
+<section class="diagnostics-grid">
+  <article class="panel"><h2>Application et base</h2><dl id="diagnostics_app" class="diagnostics-values"></dl></article>
+  <article class="panel"><h2>Stockage</h2><dl id="diagnostics_storage" class="diagnostics-values"></dl></article>
+  <article class="panel"><h2>Tâches</h2><div id="diagnostics_jobs"></div></article>
+  <article class="panel"><h2>Sauvegardes</h2><dl id="diagnostics_backups" class="diagnostics-values"></dl></article>
+</section>
+<section class="panel"><h2>Limites du diagnostic</h2><p id="diagnostics_capabilities" class="muted"></p></section>
+{% endblock %}
+{% block scripts %}<script src="/static/diagnostics.js"></script>{% endblock %}
