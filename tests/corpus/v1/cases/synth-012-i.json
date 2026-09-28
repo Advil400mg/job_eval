@@ -1,0 +1,37 @@
+{
+  "id": "SYNTH-012-I",
+  "expected_class": "incompatible",
+  "difficulty": "easy",
+  "language": "fr",
+  "offer": {
+    "url": "https://jobs.example.test/synth-012",
+    "title": "Stage Analyste Cybersécurité",
+    "company": "Ivory Security",
+    "location": "Paris",
+    "published_days_ago": 5,
+    "contract_hint": "stage",
+    "experience_hint": "étudiant",
+    "job_text": "Stage de fin d'études de six mois réservé aux étudiants conventionnés. Vous aiderez à exécuter des scans Nessus, documenter des vulnérabilités et préparer des rapports. Bien que les missions soient techniques et utilisent Linux et Python, il ne s'agit pas d'un emploi permanent et une convention d'école est obligatoire."
+  },
+  "expected": {
+    "facts": {
+      "contract": "internship",
+      "experience_min": null,
+      "junior": null,
+      "role_nature": "technical",
+      "evidence": [
+        "Stage de fin d'études de six mois réservé aux étudiants conventionnés.",
+        "Vous aiderez à exécuter des scans Nessus, documenter des vulnérabilités et préparer des rapports.",
+        "Bien que les missions soient techniques et utilisent Linux et Python, il ne s'agit pas d'un emploi permanent et une convention d'école est obligatoire."
+      ]
+    },
+    "gates": {
+      "contract_type": "fail"
+    },
+    "evidence_contains": [
+      "Stage de fin d'études de six mois réservé aux étudiants conventionnés.",
+      "Vous aiderez à exécuter des scans Nessus, documenter des vulnérabilités et préparer des rapports.",
+      "Bien que les missions soient techniques et utilisent Linux et Python, il ne s'agit pas d'un emploi permanent et une convention d'école est obligatoire."
+    ]
+  }
+}

@@ -1,5 +1,5 @@
 ---
-jev_version: "2.5.0"
+jev_version: "2.6.0"
 jev_repository: "Advil400mg/job_eval"
 jev_release_url: "https://github.com/{{ jev_repository }}/archive/refs/tags/v{{ jev_version }}.tar.gz"
 jev_release_checksum: ""

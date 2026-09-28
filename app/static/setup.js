@@ -74,7 +74,9 @@ form.addEventListener("submit", async (event) => {
   button.disabled = true;
   status.textContent = "Extraction et analyse du CV en cours… cela peut prendre quelques minutes.";
   try {
-    const response = await fetch("/api/onboarding", { method: "POST", body: new FormData(form) });
+    const data = new FormData(form);
+    data.set("contract_types", data.getAll("contract_types").join(","));
+    const response = await fetch("/api/onboarding", { method: "POST", body: data });
     const payload = await response.json();
     if (!response.ok) {
       if (payload.detail && payload.detail.onboarding) {
@@ -101,5 +103,32 @@ const initialState = renderOnboarding({
   job: { status: initialJobStatus, last_error: form.dataset.error || null },
 });
 if (initialState === "running") schedulePoll(0);
+
+const manualForm = document.querySelector("#manual_setup_form");
+if (manualForm) manualForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const submit = document.querySelector("#manual_setup_submit");
+  const message = document.querySelector("#manual_setup_status");
+  submit.disabled = true;
+  message.textContent = "Création du profil…";
+  const data = new FormData(manualForm);
+  const payload = Object.fromEntries(data.entries());
+  payload.candidate_years = payload.candidate_years ? Number(payload.candidate_years) : null;
+  payload.reject_experience_years = payload.reject_experience_years ? Number(payload.reject_experience_years) : null;
+  payload.max_age_days = Number(payload.max_age_days);
+  payload.contract_types = data.getAll("contract_types");
+  try {
+    const response = await fetch("/api/onboarding/manual", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(detailMessage(result.detail));
+    message.textContent = "Profil créé. Ouverture de votre profil…";
+    window.location.assign("/profile");
+  } catch (error) {
+    message.textContent = "Erreur : " + error.message;
+    submit.disabled = false;
+  }
+});
 
 window.JEVSetup = { detailMessage, renderOnboarding, pollOnboarding };

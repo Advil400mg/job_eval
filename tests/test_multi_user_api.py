@@ -154,7 +154,7 @@ class MultiUserApiTest(unittest.TestCase):
             self.assertEqual(events.json()["events"][0]["actor_user_id"], self.alice["id"])
             diagnostic = admin_client.get("/api/admin/diagnostics", params={"refresh": "true"})
             self.assertEqual(diagnostic.status_code, 200)
-            self.assertEqual(diagnostic.json()["app"]["schema_version"], 7)
+            self.assertEqual(diagnostic.json()["app"]["schema_version"], 8)
             self.assertIn(diagnostic.json()["status"], ("ok", "warning"))
 
     def test_admin_can_delete_another_user_with_exact_confirmation(self):

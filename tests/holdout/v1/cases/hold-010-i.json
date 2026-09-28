@@ -1,0 +1,36 @@
+{
+  "id": "HOLD-010-I",
+  "expected_class": "incompatible",
+  "difficulty": "hard",
+  "language": "en",
+  "offer": {
+    "url": "https://jobs.example.test/hold-010-i",
+    "title": "Technicien assistance bureautique",
+    "company": "Entreprise fictive",
+    "location": "Bruxelles",
+    "published_days_ago": 5,
+    "job_text": "Permanent first-line helpdesk role in Brussels. Responsibilities are printer troubleshooting, Microsoft Office support, password resets and replacement of workstation hardware. The security team handles every security incident and all vulnerability management; this helpdesk position has no cybersecurity engineering or detection responsibility. Training focuses exclusively on desktop support rather than cloud, networking or automation."
+  },
+  "expected": {
+    "facts": {
+      "contract": "permanent",
+      "experience_min": null,
+      "junior": null,
+      "evidence": [
+        "Permanent first-line helpdesk role in Brussels.",
+        "Responsibilities are printer troubleshooting, Microsoft Office support, password resets and replacement of workstation hardware.",
+        "The security team handles every security incident and all vulnerability management; this helpdesk position has no cybersecurity engineering or detection responsibility.",
+        "Training focuses exclusively on desktop support rather than cloud, networking or automation."
+      ]
+    },
+    "gates": {
+      "contract_type": "pass",
+      "experience": "unknown"
+    },
+    "evidence_contains": [
+      "Permanent first-line helpdesk role in Brussels.",
+      "Training focuses exclusively on desktop support rather than cloud, networking or automation."
+    ]
+  },
+  "rationale": "Support générique, malgré expérience non spécifiée."
+}

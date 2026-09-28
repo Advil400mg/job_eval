@@ -1,0 +1,45 @@
+{
+  "id": "SYNTH-018-A",
+  "expected_class": "ambiguous",
+  "difficulty": "hard",
+  "language": "en",
+  "offer": {
+    "url": "https://jobs.example.test/synth-018",
+    "title": "Cloud Security Engineer",
+    "company": "Crimson Cloud",
+    "location": "Genève",
+    "published_days_ago": 5,
+    "contract_hint": "permanent",
+    "experience_hint": "3 years preferred, graduates considered",
+    "job_text": "Permanent cloud security engineer position in Geneva. Three years of experience is preferred but not mandatory; recent graduates with relevant projects may apply. The advert mentions possible work on AWS IAM, Terraform reviews and Python automation, but says the first assignment will be decided after joining according to client demand. It does not name a confirmed team, mentor or specific first mission. The junior accessibility and technical content of the actual assignment therefore remain uncertain."
+  },
+  "expected": {
+    "facts": {
+      "contract": "permanent",
+      "experience_min": null,
+      "experience_preferred": 3,
+      "junior": true,
+      "role_nature": "vague_consulting",
+      "evidence": [
+        "Permanent cloud security engineer position in Geneva.",
+        "Three years of experience is preferred but not mandatory; recent graduates with relevant projects may apply.",
+        "The advert mentions possible work on AWS IAM, Terraform reviews and Python automation, but says the first assignment will be decided after joining according to client demand.",
+        "It does not name a confirmed team, mentor or specific first mission.",
+        "The junior accessibility and technical content of the actual assignment therefore remain uncertain."
+      ]
+    },
+    "gates": {},
+    "must_remain_unknown": [
+      "first_assignment",
+      "mentor",
+      "confirmed_team"
+    ],
+    "evidence_contains": [
+      "Permanent cloud security engineer position in Geneva.",
+      "Three years of experience is preferred but not mandatory; recent graduates with relevant projects may apply.",
+      "The advert mentions possible work on AWS IAM, Terraform reviews and Python automation, but says the first assignment will be decided after joining according to client demand.",
+      "It does not name a confirmed team, mentor or specific first mission.",
+      "The junior accessibility and technical content of the actual assignment therefore remain uncertain."
+    ]
+  }
+}

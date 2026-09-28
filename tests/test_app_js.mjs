@@ -38,7 +38,7 @@ const sandbox = {
 sandbox.window = sandbox;
 vm.createContext(sandbox);
 vm.runInContext(code, sandbox);
-const { escapeHtml, scoreVisual, criteriaVisual, paginationHtml, statusBadge,
+const { escapeHtml, scoreVisual, criteriaVisual, criteriaHtml, paginationHtml, statusBadge,
   applicationStatusBadge } = sandbox.JEV;
 let passed = 0;
 function check(name, callback) { callback(); passed++; console.log("ok  ", name); }
@@ -89,7 +89,31 @@ check("la pagination borne la fenêtre autour de la page courante", () => {
 
 check("les badges ont toujours un texte en plus de la couleur", () => {
   assert.match(statusBadge("qualified"), /Qualifiée/);
+  assert.match(statusBadge("review_required"), /Revue requise/);
   assert.match(statusBadge("error"), /Erreur technique/);
+});
+
+check("une preuve Jev est échappée et un ancien résultat reste lisible", () => {
+  const criterion = { id: "technique", name: "Technique", required: true,
+    passed: true, score: 82, confidence: .9, min_score: 55 };
+  const old = criteriaHtml([criterion]);
+  assert.match(old, /Technique/);
+  assert.doesNotMatch(old, /criterion-evidence/);
+  const html = criteriaHtml([{...criterion, evidence: {
+    quote: '<img src=x onerror=alert(1)>', confidence: .8,
+  }}]);
+  assert.match(html, /&lt;img src=x onerror=alert\(1\)&gt;/);
+  assert.doesNotMatch(html, /<img/);
+  assert.match(html, /Passage de l’annonce/);
+});
+
+check("le formulaire de retour vise l’évaluation et rend les erreurs visibles", () => {
+  const source = fs.readFileSync(new URL("../app/static/offers.js", import.meta.url), "utf8");
+  assert.match(source, /\/api\/evaluations\/\$\{encodeURIComponent\(offer.run_id\)\}\/feedback/);
+  assert.match(source, /method: "PUT"/);
+  assert.match(source, /status.textContent = error.message/);
+  assert.match(source, /escapeHtml\(fact.evidence\)/);
+  assert.match(source, /escapeHtml\(reason\)/);
 });
 
 check("les statuts de candidature ont un libellé explicite", () => {

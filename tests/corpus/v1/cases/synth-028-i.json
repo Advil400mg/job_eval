@@ -1,0 +1,37 @@
+{
+  "id": "SYNTH-028-I",
+  "expected_class": "incompatible",
+  "difficulty": "hard",
+  "language": "en",
+  "offer": {
+    "url": "https://jobs.example.test/synth-028",
+    "title": "Security Analyst",
+    "company": "Hidden Contract Labs",
+    "location": "Genève",
+    "published_days_ago": 5,
+    "contract_hint": "internship",
+    "experience_hint": "non indiqué",
+    "job_text": "The visible description presents hands-on security monitoring, Linux investigations, network traffic analysis and Python automation in Geneva. The title does not disclose the contract type or experience level. The source metadata labels the position as an internship requiring student status, despite the generic technical description."
+  },
+  "expected": {
+    "facts": {
+      "contract": "internship",
+      "experience_min": null,
+      "junior": null,
+      "role_nature": "technical",
+      "evidence": [
+        "The visible description presents hands-on security monitoring, Linux investigations, network traffic analysis and Python automation in Geneva.",
+        "The title does not disclose the contract type or experience level.",
+        "The source metadata labels the position as an internship requiring student status, despite the generic technical description."
+      ]
+    },
+    "gates": {
+      "contract_type": "fail"
+    },
+    "evidence_contains": [
+      "The visible description presents hands-on security monitoring, Linux investigations, network traffic analysis and Python automation in Geneva.",
+      "The title does not disclose the contract type or experience level.",
+      "The source metadata labels the position as an internship requiring student status, despite the generic technical description."
+    ]
+  }
+}

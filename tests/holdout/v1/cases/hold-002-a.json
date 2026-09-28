@@ -1,0 +1,36 @@
+{
+  "id": "HOLD-002-A",
+  "expected_class": "ambiguous",
+  "difficulty": "hard",
+  "language": "en",
+  "offer": {
+    "url": "https://jobs.example.test/hold-002-a",
+    "title": "Junior Cloud Security — remote EMEA",
+    "company": "Entreprise fictive",
+    "location": "Remote Europe",
+    "published_days_ago": 5,
+    "job_text": "Permanent entry-level role covering AWS IAM, Terraform policies, Linux and Python. A mentor reviews the first production changes and the scope of the initial assignment is defined. The position can be performed remotely from Europe. The employer's country, payroll jurisdiction and list of countries where remote employees may reside remain undisclosed; applicants must confirm their legal eligibility before accepting."
+  },
+  "expected": {
+    "facts": {
+      "contract": "permanent",
+      "experience_min": null,
+      "junior": true,
+      "evidence": [
+        "Permanent entry-level role covering AWS IAM, Terraform policies, Linux and Python.",
+        "A mentor reviews the first production changes and the scope of the initial assignment is defined.",
+        "The position can be performed remotely from Europe.",
+        "The employer's country, payroll jurisdiction and list of countries where remote employees may reside remain undisclosed; applicants must confirm their legal eligibility before accepting."
+      ]
+    },
+    "gates": {
+      "contract_type": "pass",
+      "experience": "pass"
+    },
+    "evidence_contains": [
+      "Permanent entry-level role covering AWS IAM, Terraform policies, Linux and Python.",
+      "The employer's country, payroll jurisdiction and list of countries where remote employees may reside remain undisclosed; applicants must confirm their legal eligibility before accepting."
+    ]
+  },
+  "rationale": "Pays éligibles à l’embauche non spécifiés."
+}

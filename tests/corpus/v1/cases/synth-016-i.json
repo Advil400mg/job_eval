@@ -1,0 +1,39 @@
+{
+  "id": "SYNTH-016-I",
+  "expected_class": "incompatible",
+  "difficulty": "medium",
+  "language": "fr",
+  "offer": {
+    "url": "https://jobs.example.test/synth-016",
+    "title": "Full-stack JavaScript Developer",
+    "company": "Cobalt Web Studio",
+    "location": "Remote France",
+    "published_days_ago": 5,
+    "contract_hint": "CDI",
+    "experience_hint": "1 à 3 ans",
+    "job_text": "CDI de développeur full-stack demandant une à trois années d'expérience. Les missions concernent React, Node.js, PostgreSQL, interfaces produit et optimisation des performances web. L'annonce ne prévoit aucune responsabilité de sécurité, réseau, infrastructure, cloud security ou DevSecOps au-delà du déploiement classique de l'application."
+  },
+  "expected": {
+    "facts": {
+      "contract": "permanent",
+      "experience_min": 1,
+      "experience_max": 3,
+      "junior": null,
+      "role_nature": "development",
+      "evidence": [
+        "CDI de développeur full-stack demandant une à trois années d'expérience.",
+        "Les missions concernent React, Node.js, PostgreSQL, interfaces produit et optimisation des performances web.",
+        "L'annonce ne prévoit aucune responsabilité de sécurité, réseau, infrastructure, cloud security ou DevSecOps au-delà du déploiement classique de l'application."
+      ]
+    },
+    "gates": {},
+    "evidence_contains": [
+      "CDI de développeur full-stack demandant une à trois années d'expérience.",
+      "Les missions concernent React, Node.js, PostgreSQL, interfaces produit et optimisation des performances web.",
+      "L'annonce ne prévoit aucune responsabilité de sécurité, réseau, infrastructure, cloud security ou DevSecOps au-delà du déploiement classique de l'application."
+    ],
+    "must_remain_unknown": [
+      "junior"
+    ]
+  }
+}

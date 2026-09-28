@@ -195,7 +195,7 @@ class Offers(StoreBase):
         self.assertIn("cancel_requested", cv_columns)
         self.assertTrue({"profile_versions", "applications", "application_events", "onboarding_jobs",
                          "audit_events"} <= tables)
-        self.assertEqual(version, 7)
+        self.assertEqual(version, 8)
         self.assertEqual(journal_mode.lower(), "wal")
 
 

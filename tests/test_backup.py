@@ -77,6 +77,20 @@ class BackupTests(unittest.TestCase):
         self.assertIsNotNone(store.get_run(self.run_id))
         self.assertTrue(result["safety_backup"]["name"].startswith("jev-backup-"))
 
+    def test_restauration_preserve_le_retour_sur_une_evaluation(self):
+        url = "https://jobs.test/one"
+        saved = store.put_evaluation_feedback(self.run_id, url, "bad_reason", "Justification à revoir", 0)
+        assert saved is not None
+        self.assertEqual(saved["revision"], 1)
+        archive = backup.backup_path(backup.create_backup()["name"])
+        store.put_evaluation_feedback(self.run_id, url, "correct", "Modifié après sauvegarde", 1)
+        backup.restore_backup(archive)
+        restored = store.get_evaluation_feedback(self.run_id, url)
+        assert restored is not None
+        self.assertEqual(restored["verdict"], "bad_reason")
+        self.assertEqual(restored["note"], "Justification à revoir")
+        self.assertEqual(restored["revision"], 1)
+
     def test_restauration_refuse_une_tache_active(self):
         archive = backup.backup_path(backup.create_backup()["name"])
         store.create_cv_job("https://jobs.test/cv")

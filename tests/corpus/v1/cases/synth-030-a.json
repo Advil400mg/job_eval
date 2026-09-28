@@ -1,0 +1,42 @@
+{
+  "id": "SYNTH-030-A",
+  "expected_class": "ambiguous",
+  "difficulty": "medium",
+  "language": "fr",
+  "offer": {
+    "url": "https://jobs.example.test/synth-030",
+    "title": "Junior SOC Analyst – English Team",
+    "company": "Plum SOC",
+    "location": "Bruxelles",
+    "published_days_ago": 5,
+    "contract_hint": "CDI",
+    "experience_hint": "0-2 ans",
+    "job_text": "CDI junior à Bruxelles, ouvert aux débutants avec zéro à deux ans d'expérience. Analyse d'alertes Elastic, investigations Linux, Wireshark et règles de détection Python. L'équipe et tous les clients travaillent exclusivement en anglais. L'annonce exige un niveau professionnel courant mais ne précise aucun test ni niveau CECRL."
+  },
+  "expected": {
+    "facts": {
+      "contract": "permanent",
+      "experience_min": 0,
+      "experience_max": 2,
+      "junior": true,
+      "role_nature": "technical",
+      "evidence": [
+        "CDI junior à Bruxelles, ouvert aux débutants avec zéro à deux ans d'expérience.",
+        "Analyse d'alertes Elastic, investigations Linux, Wireshark et règles de détection Python.",
+        "L'équipe et tous les clients travaillent exclusivement en anglais.",
+        "L'annonce exige un niveau professionnel courant mais ne précise aucun test ni niveau CECRL."
+      ]
+    },
+    "gates": {},
+    "evidence_contains": [
+      "CDI junior à Bruxelles, ouvert aux débutants avec zéro à deux ans d'expérience.",
+      "Analyse d'alertes Elastic, investigations Linux, Wireshark et règles de détection Python.",
+      "L'équipe et tous les clients travaillent exclusivement en anglais.",
+      "L'annonce exige un niveau professionnel courant mais ne précise aucun test ni niveau CECRL."
+    ],
+    "must_remain_unknown": [
+      "candidate_english_level",
+      "required_CEFR_level"
+    ]
+  }
+}

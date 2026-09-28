@@ -1,0 +1,41 @@
+{
+  "id": "SYNTH-014-I",
+  "expected_class": "incompatible",
+  "difficulty": "easy",
+  "language": "en",
+  "offer": {
+    "url": "https://jobs.example.test/synth-014",
+    "title": "IT Support Engineer Level 1",
+    "company": "Paperclip Services",
+    "location": "Bruxelles",
+    "published_days_ago": 5,
+    "contract_hint": "CDI",
+    "experience_hint": "0-2 ans",
+    "job_text": "Permanent first-line IT support role in Brussels. Work consists of Windows workstation troubleshooting, printer incidents, password resets, Microsoft Office assistance and basic network connectivity tickets. There are no cybersecurity, infrastructure engineering, detection, vulnerability management or security automation responsibilities in this position."
+  },
+  "expected": {
+    "facts": {
+      "contract": "permanent",
+      "experience_min": null,
+      "experience_max": null,
+      "junior": null,
+      "role_nature": "support",
+      "evidence": [
+        "Permanent first-line IT support role in Brussels.",
+        "Work consists of Windows workstation troubleshooting, printer incidents, password resets, Microsoft Office assistance and basic network connectivity tickets.",
+        "There are no cybersecurity, infrastructure engineering, detection, vulnerability management or security automation responsibilities in this position."
+      ]
+    },
+    "gates": {},
+    "evidence_contains": [
+      "Permanent first-line IT support role in Brussels.",
+      "Work consists of Windows workstation troubleshooting, printer incidents, password resets, Microsoft Office assistance and basic network connectivity tickets.",
+      "There are no cybersecurity, infrastructure engineering, detection, vulnerability management or security automation responsibilities in this position."
+    ],
+    "must_remain_unknown": [
+      "experience_min",
+      "experience_max",
+      "junior"
+    ]
+  }
+}

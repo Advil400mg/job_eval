@@ -1,4 +1,4 @@
-# Configuration de production JEV v2.5.
+# Configuration de production JEV v2.6.
 # Les secrets restent dans /etc/jev/production.env, jamais dans ce fichier.
 
 [app]

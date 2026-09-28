@@ -1,0 +1,37 @@
+{
+  "id": "SYNTH-002-C",
+  "expected_class": "compatible",
+  "difficulty": "easy",
+  "language": "fr",
+  "offer": {
+    "url": "https://jobs.example.test/synth-002",
+    "title": "Junior DevSecOps Engineer",
+    "company": "Copper Pipeline",
+    "location": "Sophia Antipolis",
+    "published_days_ago": 5,
+    "contract_hint": "CDI",
+    "experience_hint": "0-1 an",
+    "job_text": "Contrat CDI à Sophia Antipolis. L'équipe DevSecOps recrute un profil débutant pour intégrer la sécurité dans GitHub Actions, lancer SonarQube et Trivy, renforcer les images Docker et automatiser des contrôles Python. Un lead accompagne chaque livraison et une formation Kubernetes est prévue. Moins d'un an d'expérience accepté."
+  },
+  "expected": {
+    "facts": {
+      "contract": "permanent",
+      "experience_min": 0,
+      "junior": true,
+      "role_nature": "technical",
+      "evidence": [
+        "Contrat CDI à Sophia Antipolis.",
+        "L'équipe DevSecOps recrute un profil débutant pour intégrer la sécurité dans GitHub Actions, lancer SonarQube et Trivy, renforcer les images Docker et automatiser des contrôles Python.",
+        "Un lead accompagne chaque livraison et une formation Kubernetes est prévue.",
+        "Moins d'un an d'expérience accepté."
+      ]
+    },
+    "gates": {},
+    "evidence_contains": [
+      "Contrat CDI à Sophia Antipolis.",
+      "L'équipe DevSecOps recrute un profil débutant pour intégrer la sécurité dans GitHub Actions, lancer SonarQube et Trivy, renforcer les images Docker et automatiser des contrôles Python.",
+      "Un lead accompagne chaque livraison et une formation Kubernetes est prévue.",
+      "Moins d'un an d'expérience accepté."
+    ]
+  }
+}

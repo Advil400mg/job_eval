@@ -1,0 +1,44 @@
+{
+  "id": "SYNTH-022-A",
+  "expected_class": "ambiguous",
+  "difficulty": "medium",
+  "language": "fr",
+  "offer": {
+    "url": "https://jobs.example.test/synth-022",
+    "title": "Security Operations Analyst",
+    "company": "Mint Finance",
+    "location": "Paris",
+    "published_days_ago": 5,
+    "contract_hint": "CDI",
+    "experience_hint": "non indiqué",
+    "job_text": "CDI en opérations de sécurité à Paris. Missions: analyse d'alertes SIEM, investigation Linux et amélioration de règles de détection. L'annonce ne donne aucun nombre d'années, ne mentionne ni junior ni senior et indique seulement que la personne doit être autonome rapidement. Une formation produit est prévue mais le niveau d'accompagnement n'est pas décrit."
+  },
+  "expected": {
+    "facts": {
+      "contract": "permanent",
+      "experience_min": null,
+      "junior": null,
+      "role_nature": "technical",
+      "evidence": [
+        "CDI en opérations de sécurité à Paris.",
+        "Missions: analyse d'alertes SIEM, investigation Linux et amélioration de règles de détection.",
+        "L'annonce ne donne aucun nombre d'années, ne mentionne ni junior ni senior et indique seulement que la personne doit être autonome rapidement.",
+        "Une formation produit est prévue mais le niveau d'accompagnement n'est pas décrit."
+      ]
+    },
+    "gates": {
+      "experience": "unknown"
+    },
+    "evidence_contains": [
+      "CDI en opérations de sécurité à Paris.",
+      "Missions: analyse d'alertes SIEM, investigation Linux et amélioration de règles de détection.",
+      "L'annonce ne donne aucun nombre d'années, ne mentionne ni junior ni senior et indique seulement que la personne doit être autonome rapidement.",
+      "Une formation produit est prévue mais le niveau d'accompagnement n'est pas décrit."
+    ],
+    "must_remain_unknown": [
+      "experience_min",
+      "junior",
+      "mentoring_level"
+    ]
+  }
+}

@@ -153,8 +153,24 @@ CREATE TABLE IF NOT EXISTS audit_events (
     metadata TEXT NOT NULL DEFAULT '{}',
     FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL
 );
+CREATE TABLE IF NOT EXISTS evaluation_feedback (
+    run_id TEXT NOT NULL,
+    url TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    verdict TEXT NOT NULL CHECK (verdict IN
+        ('correct', 'false_positive', 'false_negative', 'bad_extraction', 'bad_reason')),
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    revision INTEGER NOT NULL DEFAULT 1,
+    PRIMARY KEY (run_id, url),
+    FOREIGN KEY (run_id, url) REFERENCES results(run_id, url) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
 """
 
+FEEDBACK_VERDICTS = ("correct", "false_positive", "false_negative",
+                     "bad_extraction", "bad_reason")
 APPLICATION_STATUSES = ("to_review", "cv_ready", "applied", "interview", "rejected", "offer")
 
 _RESULT_COLUMNS = {
@@ -404,8 +420,9 @@ def _migrate(conn: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_audit_actor_created ON audit_events(actor_user_id, created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_audit_subject ON audit_events(subject_type, subject_id);
         CREATE INDEX IF NOT EXISTS idx_audit_success_created ON audit_events(success, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_feedback_user_updated ON evaluation_feedback(user_id, updated_at DESC);
     """)
-    conn.execute("PRAGMA user_version = 7")
+    conn.execute("PRAGMA user_version = 8")
 
 
 def _connect() -> sqlite3.Connection:
@@ -512,6 +529,90 @@ def save_result(run_id: str, url: str, status: str, payload: dict) -> None:
             "UPDATE runs SET progress = (SELECT COUNT(*) FROM results WHERE run_id = ?), "
             "updated_at = ? WHERE id = ?", (run_id, _now(), run_id),
         )
+
+
+class FeedbackConflict(RuntimeError):
+    """The feedback was changed in another tab since the caller loaded it."""
+
+
+def feedback_target_exists(run_id: str, url: str, user_id: str | None = None) -> bool:
+    with _LOCK, _connect() as conn:
+        row = conn.execute(
+            "SELECT 1 FROM results JOIN runs ON runs.id = results.run_id "
+            "WHERE results.run_id = ? AND results.url = ? AND runs.user_id = ?",
+            (run_id, url, user_id or LEGACY_USER_ID),
+        ).fetchone()
+    return row is not None
+
+
+def get_evaluation_feedback(run_id: str, url: str,
+                            user_id: str | None = None) -> dict | None:
+    with _LOCK, _connect() as conn:
+        row = conn.execute(
+            "SELECT feedback.run_id, feedback.url, feedback.verdict, feedback.note, "
+            "feedback.created_at, feedback.updated_at, feedback.revision "
+            "FROM evaluation_feedback AS feedback "
+            "JOIN results ON results.run_id = feedback.run_id AND results.url = feedback.url "
+            "JOIN runs ON runs.id = results.run_id "
+            "WHERE feedback.run_id = ? AND feedback.url = ? AND feedback.user_id = ? "
+            "AND runs.user_id = ?",
+            (run_id, url, user_id or LEGACY_USER_ID, user_id or LEGACY_USER_ID),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def put_evaluation_feedback(run_id: str, url: str, verdict: str, note: str,
+                            expected_revision: int, user_id: str | None = None) -> dict | None:
+    """Update one owned result atomically; return None if it is not owned."""
+    if verdict not in FEEDBACK_VERDICTS:
+        raise ValueError("verdict invalide")
+    if not isinstance(note, str) or len(note) > 2000:
+        raise ValueError("note invalide")
+    if not isinstance(expected_revision, int) or expected_revision < 0:
+        raise ValueError("révision invalide")
+    owner = user_id or LEGACY_USER_ID
+    now = _now()
+    with _LOCK, _connect() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        target = conn.execute(
+            "SELECT 1 FROM results JOIN runs ON runs.id = results.run_id "
+            "WHERE results.run_id = ? AND results.url = ? AND runs.user_id = ?",
+            (run_id, url, owner),
+        ).fetchone()
+        if not target:
+            return None
+        existing = conn.execute(
+            "SELECT revision FROM evaluation_feedback WHERE run_id = ? AND url = ? "
+            "AND user_id = ?", (run_id, url, owner),
+        ).fetchone()
+        revision = int(existing["revision"]) if existing else 0
+        if expected_revision != revision:
+            raise FeedbackConflict("Retour modifié dans un autre onglet : rechargez-le")
+        if existing:
+            conn.execute(
+                "UPDATE evaluation_feedback SET verdict = ?, note = ?, updated_at = ?, "
+                "revision = revision + 1 WHERE run_id = ? AND url = ? AND user_id = ?",
+                (verdict, note.strip(), now, run_id, url, owner),
+            )
+        else:
+            conn.execute(
+                "INSERT INTO evaluation_feedback (run_id, url, user_id, verdict, note, "
+                "created_at, updated_at, revision) VALUES (?, ?, ?, ?, ?, ?, ?, 1)",
+                (run_id, url, owner, verdict, note.strip(), now, now),
+            )
+        row = conn.execute(
+            "SELECT run_id, url, verdict, note, created_at, updated_at, revision "
+            "FROM evaluation_feedback WHERE run_id = ? AND url = ? AND user_id = ?",
+            (run_id, url, owner),
+        ).fetchone()
+        conn.execute(
+            "INSERT INTO audit_events (id, created_at, actor_user_id, event_type, "
+            "subject_type, subject_id, success, metadata) "
+            "VALUES (?, ?, ?, 'evaluation.feedback_saved', 'run', ?, 1, ?)",
+            (uuid.uuid4().hex[:24], now, owner, run_id,
+             json.dumps({"status": verdict}, ensure_ascii=False)),
+        )
+        return dict(row)
 
 
 def finish_run(run_id: str, status: str = "done", last_error: str | None = None) -> None:

@@ -1,0 +1,36 @@
+{
+  "id": "SYNTH-009-C",
+  "expected_class": "compatible",
+  "difficulty": "medium",
+  "language": "en",
+  "offer": {
+    "url": "https://jobs.example.test/synth-009",
+    "title": "Junior Vulnerability Management Engineer",
+    "company": "Silver Patch",
+    "location": "Lausanne",
+    "published_days_ago": 5,
+    "contract_hint": "permanent",
+    "experience_hint": "0 to 2 years",
+    "job_text": "Permanent junior vulnerability management role in Lausanne, open to applicants with zero to two years of experience. Responsibilities include Nessus and Trivy scanning, technical triage, Linux remediation validation and Python reporting automation. The role sits in the security engineering team and includes weekly coaching from DevSecOps engineers."
+  },
+  "expected": {
+    "facts": {
+      "contract": "permanent",
+      "experience_min": 0,
+      "experience_max": 2,
+      "junior": true,
+      "role_nature": "technical",
+      "evidence": [
+        "Permanent junior vulnerability management role in Lausanne, open to applicants with zero to two years of experience.",
+        "Responsibilities include Nessus and Trivy scanning, technical triage, Linux remediation validation and Python reporting automation.",
+        "The role sits in the security engineering team and includes weekly coaching from DevSecOps engineers."
+      ]
+    },
+    "gates": {},
+    "evidence_contains": [
+      "Permanent junior vulnerability management role in Lausanne, open to applicants with zero to two years of experience.",
+      "Responsibilities include Nessus and Trivy scanning, technical triage, Linux remediation validation and Python reporting automation.",
+      "The role sits in the security engineering team and includes weekly coaching from DevSecOps engineers."
+    ]
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "id": "SYNTH-013-I",
+  "expected_class": "incompatible",
+  "difficulty": "hard",
+  "language": "fr",
+  "offer": {
+    "url": "https://jobs.example.test/synth-013",
+    "title": "Junior Security Engineer",
+    "company": "Iron Peak",
+    "location": "Paris",
+    "published_days_ago": 5,
+    "contract_hint": "CDI",
+    "experience_hint": "3 à 5 ans",
+    "job_text": "Malgré l'intitulé junior, le CDI exige trois à cinq ans d'expérience en sécurité. La personne dirigera les revues d'architecture Kubernetes, définira les standards Jenkins, approuvera les exceptions de risque et encadrera deux alternants. Une expérience démontrée de production à grande échelle est obligatoire."
+  },
+  "expected": {
+    "facts": {
+      "contract": "permanent",
+      "experience_min": 3,
+      "experience_max": 5,
+      "junior": false,
+      "role_nature": "technical_lead",
+      "evidence": [
+        "Malgré l'intitulé junior, le CDI exige trois à cinq ans d'expérience en sécurité.",
+        "La personne dirigera les revues d'architecture Kubernetes, définira les standards Jenkins, approuvera les exceptions de risque et encadrera deux alternants.",
+        "Une expérience démontrée de production à grande échelle est obligatoire."
+      ]
+    },
+    "gates": {
+      "experience": "fail"
+    },
+    "evidence_contains": [
+      "Malgré l'intitulé junior, le CDI exige trois à cinq ans d'expérience en sécurité.",
+      "La personne dirigera les revues d'architecture Kubernetes, définira les standards Jenkins, approuvera les exceptions de risque et encadrera deux alternants.",
+      "Une expérience démontrée de production à grande échelle est obligatoire."
+    ]
+  }
+}

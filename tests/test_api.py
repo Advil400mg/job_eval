@@ -51,7 +51,7 @@ class ApiSecurity(unittest.TestCase):
         with TestClient(app) as client:
             health = client.get("/healthz")
             self.assertEqual(health.status_code, 200)
-            self.assertEqual(health.json(), {"ok": True, "version": "2.5.0", "auth_required": True})
+            self.assertEqual(health.json(), {"ok": True, "version": "2.6.0", "auth_required": True})
             self.assertIn("default-src 'self'", health.headers["content-security-policy"])
             self.assertEqual(client.get("/api/history").status_code, 401)
             page = client.get("/offers", follow_redirects=False)
@@ -234,6 +234,44 @@ class ApiSecurity(unittest.TestCase):
             self.assertEqual(logout.headers["location"], "/login")
             self.assertIn("jev_session=", logout.headers.get("set-cookie", ""))
             self.assertEqual(client.get("/api/history").status_code, 401)
+    def test_feedback_api_is_bound_to_exact_owned_evaluation(self):
+        url = "https://jobs.example.test/security"
+        with TestClient(app) as client:
+            admin = accounts.authenticate("admin", "integration-password")
+            assert admin is not None
+            run_id = store.create_run([url], admin["id"])
+            store.save_result(run_id, url, "ok", {"url": url, "decision": {"status": "qualified"}})
+            target = f"/api/evaluations/{run_id}/feedback"
+            self.assertEqual(client.get(target, params={"url": url}).status_code, 401)
+            login = client.post("/login", data={"identifier": "admin",
+                                                  "password": "integration-password", "next": "/"},
+                                follow_redirects=False)
+            self.assertEqual(login.status_code, 303)
+            client.headers["Origin"] = "http://testserver"
+            self.assertEqual(client.get(target, params={"url": url}).json(), {"feedback": None})
+            data = {"url": url, "verdict": "bad_extraction", "note": "Détail privé", "revision": 0}
+            saved = client.put(target, json=data)
+            self.assertEqual(saved.status_code, 200)
+            self.assertEqual(saved.json()["feedback"]["revision"], 1)
+            self.assertEqual(client.get(target, params={"url": url}).json()["feedback"]["note"],
+                             "Détail privé")
+            self.assertEqual(client.put(target, json=data).status_code, 409)
+            self.assertEqual(client.put(target, json={**data, "verdict": "wrong",
+                                                      "revision": 1}).status_code, 400)
+            self.assertEqual(client.get(target, params={"url": url + "/other"}).status_code, 404)
+            accounts.create_user("member", "member-password-123", user_id="member-user")
+            with TestClient(app) as other:
+                self.assertEqual(other.post(
+                    "/login", data={"identifier": "member", "password": "member-password-123",
+                                     "next": "/"}, follow_redirects=False).status_code, 303)
+                other.headers["Origin"] = "http://testserver"
+                self.assertEqual(other.get(target, params={"url": url}).status_code, 404)
+                self.assertEqual(other.put(target, json=data).status_code, 404)
+                another_run = store.create_run([url], "member-user")
+                store.save_result(another_run, url, "ok", {"url": url})
+                self.assertEqual(other.get(
+                    f"/api/evaluations/{another_run}/feedback", params={"url": url}
+                ).json(), {"feedback": None})
 
 
 if __name__ == "__main__":

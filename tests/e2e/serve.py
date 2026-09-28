@@ -67,6 +67,32 @@ def seed() -> None:
         "gate_results": [],
     })
     store.finish_run(run_id)
+    review_url = "https://jobs.example.test/review-required"
+    hostile_quote = "Offre junior CDI : <img src=x onerror=alert(1)> contrôles IAM et scripts Python."
+    review_run = store.create_run([review_url], admin["id"])
+    store.save_result(review_run, review_url, "ok", {
+        "url": review_url, "title": "Junior IAM à examiner",
+        "company": "Example Security", "location": "Bruxelles",
+        "job_text": hostile_quote + " La première mission reste à confirmer.",
+        "decision": {"status": "review_required", "review_required": True,
+                     "review_reasons": ["première mission non confirmée"],
+                     "hard_gate_failures": [], "confidence_reservations": ["confiance limitée"]},
+        "facts": {"contract": {"status": "known", "value": "permanent",
+                                "evidence": hostile_quote},
+                  "junior": {"status": "known", "value": True,
+                             "evidence": hostile_quote}},
+        "evaluation": {"missing_information": [{"field": "first_assignment",
+                                                   "status": "unknown",
+                                                   "evidence": "La première mission reste à confirmer."}]},
+        "jev": {"global_score": 70, "minimum_global_score": 68,
+                "minimum_confidence": 0.5, "blocking_criteria": [],
+                "criteria": [{"id": "technical", "name": "Technique", "score": 70,
+                              "confidence": 0.91, "required": False, "passed": True,
+                              "evidence": {"sentence_id": "S1", "quote": hostile_quote,
+                                           "confidence": 0.91}}]},
+        "gate_results": [],
+    })
+    store.finish_run(review_run)
     store.create_application(
         "https://jobs.example.test/security-engineer", title="Security Engineer",
         company="Example Corp", location="Bruxelles", user_id=admin["id"],

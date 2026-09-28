@@ -1,0 +1,40 @@
+{
+  "id": "SYNTH-011-I",
+  "expected_class": "incompatible",
+  "difficulty": "easy",
+  "language": "fr",
+  "offer": {
+    "url": "https://jobs.example.test/synth-011",
+    "title": "Senior GRC Consultant",
+    "company": "Granite Advisory",
+    "location": "Paris",
+    "published_days_ago": 5,
+    "contract_hint": "CDI",
+    "experience_hint": "5 à 8 ans",
+    "job_text": "CDI senior en gouvernance, risques et conformité. Cinq à huit ans d'expérience en cabinet sont exigés. Les missions portent sur ISO 27001, DORA, NIS2, analyses d'écart, politiques et comités de pilotage. Le poste ne comporte ni exploitation technique, ni détection, ni configuration de systèmes de sécurité."
+  },
+  "expected": {
+    "facts": {
+      "contract": "permanent",
+      "experience_min": 5,
+      "experience_max": 8,
+      "junior": false,
+      "role_nature": "governance",
+      "evidence": [
+        "CDI senior en gouvernance, risques et conformité.",
+        "Cinq à huit ans d'expérience en cabinet sont exigés.",
+        "Les missions portent sur ISO 27001, DORA, NIS2, analyses d'écart, politiques et comités de pilotage.",
+        "Le poste ne comporte ni exploitation technique, ni détection, ni configuration de systèmes de sécurité."
+      ]
+    },
+    "gates": {
+      "experience": "fail"
+    },
+    "evidence_contains": [
+      "CDI senior en gouvernance, risques et conformité.",
+      "Cinq à huit ans d'expérience en cabinet sont exigés.",
+      "Les missions portent sur ISO 27001, DORA, NIS2, analyses d'écart, politiques et comités de pilotage.",
+      "Le poste ne comporte ni exploitation technique, ni détection, ni configuration de systèmes de sécurité."
+    ]
+  }
+}

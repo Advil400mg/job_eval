@@ -1,0 +1,40 @@
+{
+  "id": "SYNTH-021-A",
+  "expected_class": "ambiguous",
+  "difficulty": "hard",
+  "language": "fr",
+  "offer": {
+    "url": "https://jobs.example.test/synth-021",
+    "title": "Cybersecurity Engineer",
+    "company": "Teal Systems",
+    "location": "Bruxelles",
+    "published_days_ago": 5,
+    "contract_hint": "CDI",
+    "experience_hint": "1 à 3 ans",
+    "job_text": "CDI d'ingénieur cybersécurité à Bruxelles. L'annonce demande une à trois années d'expérience mais précise que les candidatures de jeunes diplômés ayant réalisé des stages significatifs seront étudiées. Missions techniques: Linux hardening, analyse réseau, Python et gestion de vulnérabilités. Le niveau réel attendu et la façon de compter les stages restent ambigus."
+  },
+  "expected": {
+    "facts": {
+      "contract": "permanent",
+      "experience_min": 1,
+      "experience_max": 3,
+      "junior": true,
+      "role_nature": "technical",
+      "evidence": [
+        "CDI d'ingénieur cybersécurité à Bruxelles.",
+        "L'annonce demande une à trois années d'expérience mais précise que les candidatures de jeunes diplômés ayant réalisé des stages significatifs seront étudiées.",
+        "Missions techniques: Linux hardening, analyse réseau, Python et gestion de vulnérabilités.",
+        "Le niveau réel attendu et la façon de compter les stages restent ambigus."
+      ]
+    },
+    "gates": {
+      "experience": "warn"
+    },
+    "evidence_contains": [
+      "CDI d'ingénieur cybersécurité à Bruxelles.",
+      "L'annonce demande une à trois années d'expérience mais précise que les candidatures de jeunes diplômés ayant réalisé des stages significatifs seront étudiées.",
+      "Missions techniques: Linux hardening, analyse réseau, Python et gestion de vulnérabilités.",
+      "Le niveau réel attendu et la façon de compter les stages restent ambigus."
+    ]
+  }
+}

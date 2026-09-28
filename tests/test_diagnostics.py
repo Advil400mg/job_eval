@@ -42,7 +42,7 @@ class DiagnosticsTests(unittest.TestCase):
 
         payload = diagnostics.collect(force=True)
 
-        self.assertEqual(payload["app"]["schema_version"], 7)
+        self.assertEqual(payload["app"]["schema_version"], 8)
         self.assertEqual(payload["database"]["quick_check"], "ok")
         self.assertEqual(payload["users"], {"total": 1, "active": 1})
         self.assertEqual(payload["jobs"]["runs"]["failed"], 1)

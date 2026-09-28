@@ -1,0 +1,36 @@
+{
+  "id": "HOLD-004-A",
+  "expected_class": "ambiguous",
+  "difficulty": "hard",
+  "language": "fr",
+  "offer": {
+    "url": "https://jobs.example.test/hold-004-a",
+    "title": "Consultant cloud sécurité débutant",
+    "company": "Entreprise fictive",
+    "location": "Paris",
+    "published_days_ago": 5,
+    "job_text": "CDI pour un premier emploi à Paris, ouvert aux jeunes diplômés. Le cabinet évoque des possibilités de configuration AWS, de vérification Terraform et d'automatisation Python. Toutefois, l'affectation initiale sera choisie après la signature selon les contrats gagnés. Le client, le mentor, les outils de la première mission et sa durée ne sont pas définis; les tâches concrètes restent donc à confirmer."
+  },
+  "expected": {
+    "facts": {
+      "contract": "permanent",
+      "experience_min": null,
+      "junior": true,
+      "evidence": [
+        "CDI pour un premier emploi à Paris, ouvert aux jeunes diplômés.",
+        "Le cabinet évoque des possibilités de configuration AWS, de vérification Terraform et d'automatisation Python.",
+        "Toutefois, l'affectation initiale sera choisie après la signature selon les contrats gagnés.",
+        "Le client, le mentor, les outils de la première mission et sa durée ne sont pas définis; les tâches concrètes restent donc à confirmer."
+      ]
+    },
+    "gates": {
+      "contract_type": "pass",
+      "experience": "pass"
+    },
+    "evidence_contains": [
+      "CDI pour un premier emploi à Paris, ouvert aux jeunes diplômés.",
+      "Le client, le mentor, les outils de la première mission et sa durée ne sont pas définis; les tâches concrètes restent donc à confirmer."
+    ]
+  },
+  "rationale": "Première mission non confirmée."
+}

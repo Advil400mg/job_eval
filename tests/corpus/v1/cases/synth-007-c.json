@@ -1,0 +1,36 @@
+{
+  "id": "SYNTH-007-C",
+  "expected_class": "compatible",
+  "difficulty": "medium",
+  "language": "fr",
+  "offer": {
+    "url": "https://jobs.example.test/synth-007",
+    "title": "Junior Application Security Engineer",
+    "company": "Red Maple Apps",
+    "location": "Bordeaux",
+    "published_days_ago": 5,
+    "contract_hint": "CDI",
+    "experience_hint": "0-2 ans",
+    "job_text": "Poste CDI junior à Bordeaux, de zéro à deux ans d'expérience. Vous réalisez des revues de code Python, des tests web avec Burp Suite, des contrôles OWASP, du SAST SonarQube et du durcissement d'API dans Docker. Une formation AppSec et un binômage avec un senior sont inclus pendant la première année."
+  },
+  "expected": {
+    "facts": {
+      "contract": "permanent",
+      "experience_min": 0,
+      "experience_max": 2,
+      "junior": true,
+      "role_nature": "technical",
+      "evidence": [
+        "Poste CDI junior à Bordeaux, de zéro à deux ans d'expérience.",
+        "Vous réalisez des revues de code Python, des tests web avec Burp Suite, des contrôles OWASP, du SAST SonarQube et du durcissement d'API dans Docker.",
+        "Une formation AppSec et un binômage avec un senior sont inclus pendant la première année."
+      ]
+    },
+    "gates": {},
+    "evidence_contains": [
+      "Poste CDI junior à Bordeaux, de zéro à deux ans d'expérience.",
+      "Vous réalisez des revues de code Python, des tests web avec Burp Suite, des contrôles OWASP, du SAST SonarQube et du durcissement d'API dans Docker.",
+      "Une formation AppSec et un binômage avec un senior sont inclus pendant la première année."
+    ]
+  }
+}

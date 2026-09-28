@@ -1,0 +1,36 @@
+{
+  "id": "HOLD-011-I",
+  "expected_class": "incompatible",
+  "difficulty": "hard",
+  "language": "en",
+  "offer": {
+    "url": "https://jobs.example.test/hold-011-i",
+    "title": "Stage analyste sécurité",
+    "company": "Entreprise fictive",
+    "location": "Genève",
+    "published_days_ago": 5,
+    "job_text": "Internship position in Geneva reserved for enrolled students with a required school agreement. The intern assists with Linux log review, Wireshark captures, basic Python scripts and reports on Nessus findings. The placement lasts six months and is not a permanent employment contract. Candidates who cannot provide a student agreement are not eligible even if they have relevant technical projects."
+  },
+  "expected": {
+    "facts": {
+      "contract": "internship",
+      "experience_min": null,
+      "junior": null,
+      "evidence": [
+        "Internship position in Geneva reserved for enrolled students with a required school agreement.",
+        "The intern assists with Linux log review, Wireshark captures, basic Python scripts and reports on Nessus findings.",
+        "The placement lasts six months and is not a permanent employment contract.",
+        "Candidates who cannot provide a student agreement are not eligible even if they have relevant technical projects."
+      ]
+    },
+    "gates": {
+      "contract_type": "fail",
+      "experience": "unknown"
+    },
+    "evidence_contains": [
+      "Internship position in Geneva reserved for enrolled students with a required school agreement.",
+      "Candidates who cannot provide a student agreement are not eligible even if they have relevant technical projects."
+    ]
+  },
+  "rationale": "Statut étudiant et convention de stage obligatoires."
+}

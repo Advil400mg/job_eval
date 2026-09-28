@@ -1,0 +1,43 @@
+{
+  "id": "SYNTH-027-A",
+  "expected_class": "ambiguous",
+  "difficulty": "medium",
+  "language": "fr",
+  "offer": {
+    "url": "https://jobs.example.test/synth-027",
+    "title": "OT Cybersecurity Junior Engineer",
+    "company": "Copper Factory",
+    "location": "Bordeaux",
+    "published_days_ago": 5,
+    "contract_hint": "CDI",
+    "experience_hint": "première expérience",
+    "job_text": "CDI junior en cybersécurité industrielle. Les missions couvrent segmentation réseau, inventaire d'actifs, durcissement Windows et Linux et analyses de risques techniques. Une première expérience est souhaitée sans durée minimale. Des déplacements fréquents sur sites industriels et des astreintes sont exigés, mais leur volume exact n'est pas indiqué."
+  },
+  "expected": {
+    "facts": {
+      "contract": "permanent",
+      "experience_min": null,
+      "junior": true,
+      "role_nature": "technical",
+      "evidence": [
+        "CDI junior en cybersécurité industrielle.",
+        "Les missions couvrent segmentation réseau, inventaire d'actifs, durcissement Windows et Linux et analyses de risques techniques.",
+        "Une première expérience est souhaitée sans durée minimale.",
+        "Des déplacements fréquents sur sites industriels et des astreintes sont exigés, mais leur volume exact n'est pas indiqué."
+      ]
+    },
+    "gates": {
+      "experience": "pass"
+    },
+    "evidence_contains": [
+      "CDI junior en cybersécurité industrielle.",
+      "Les missions couvrent segmentation réseau, inventaire d'actifs, durcissement Windows et Linux et analyses de risques techniques.",
+      "Une première expérience est souhaitée sans durée minimale.",
+      "Des déplacements fréquents sur sites industriels et des astreintes sont exigés, mais leur volume exact n'est pas indiqué."
+    ],
+    "must_remain_unknown": [
+      "travel_volume",
+      "on_call_volume"
+    ]
+  }
+}

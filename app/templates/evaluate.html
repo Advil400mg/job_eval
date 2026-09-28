@@ -5,6 +5,7 @@
     <p>Collez les liens trouvés. Les doublons et paramètres de suivi sont éliminés avant le lancement.</p></div>
   <a class="secondary-btn" href="/offers">Parcourir les offres</a>
 </section>
+{% if profile_review_required %}<section class="panel" role="alert"><strong>Profil à confirmer.</strong> Vérifiez les faits extraits du CV, le métier visé et les règles dans <a href="/profile">votre profil</a> avant de lancer une évaluation. Les évaluations précédentes ne sont pas recalculées.</section>{% endif %}
 
 <section class="panel focus-panel">
   <label for="urls">URLs des offres <span id="url_count" class="hint">0 URL</span></label>

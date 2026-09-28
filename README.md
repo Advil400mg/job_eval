@@ -41,7 +41,7 @@ jev-webapp/
 ├── scripts/
 │   ├── evaluate_job.py      # notation Jev (script du skill Job Hunt + surcharges optionnelles)
 │   └── serve.py             # démarrage : affiche la config effective puis lance uvicorn
-└── tests/                   # 245 tests (Python, Node et Playwright Chromium)
+└── tests/                   # 363 tests (Python, Node et Playwright Chromium)
 ```
 
 ## Ce que fait l'application
@@ -74,19 +74,24 @@ jev-webapp/
 
 Au premier démarrage, l'interface crée le premier administrateur si les variables de bootstrap
 ne sont pas définies. Les comptes suivants sont créés uniquement avec une invitation à usage
-unique, expirables et révocables. Tant que le profil de l'utilisateur connecté n'existe pas,
-l'interface demande un CV PDF avec une couche texte. Le CV
-est extrait puis analysé par le modèle CV configuré ; aucun fait absent du document ne doit
-être ajouté. L'utilisateur complète uniquement les préférences non déductibles du CV
-(postes, localisations et seuils). L'application écrit dans
-`<data_dir>/users/<user_id>/` :
+unique, expirables et révocables. Tant que le profil de l'utilisateur connecté n'existe pas, l'interface propose deux parcours :
+importer un CV PDF avec couche texte, ou créer un profil manuel à partir des faits
+et préférences déclarés. Le CV est extrait puis analysé par le modèle CV configuré ;
+aucun fait absent du document ne doit être ajouté. Le profil personnalisé contient les
+postes visés, le niveau, les années d'expérience déclarées, les contrats et lieux acceptés,
+ainsi que les langues et compétences. Il faut confirmer les faits et préférences dans la
+page Profil avant la première évaluation. Les profils historiques conservent leurs règles
+jusqu'à adoption explicite. L'application écrit dans `<data_dir>/users/<user_id>/` :
 
-- `CV_MASTER.json`, source factuelle du générateur de CV ;
 - `PROFILE.json`, critères et préférences d'évaluation ;
-- `source_cv.pdf`, copie du document importé.
+- avec un CV : `CV_MASTER.json` (source factuelle du générateur) et `source_cv.pdf` ;
+- sans CV : aucun master ni PDF, et la génération de CV reste indisponible.
 
 Ces fichiers sont des données d'instance, ignorées par Git et persistées dans le volume Docker.
-Les API d'évaluation et de CV répondent `428` tant que l'initialisation n'est pas terminée.
+Les API d'évaluation répondent `428` tant que l'initialisation ou la confirmation du
+profil personnalisé manque ; l'API de génération de CV répond `428` sans CV source.
+La description libre des règles est informative : seules les portes structurées et les
+critères effectivement transmis à Jev déterminent automatiquement la décision.
 
 ## Configuration — config.toml
 
@@ -159,7 +164,7 @@ Pour faire tourner l'application ailleurs, il faut **les sources et une clé API
 1. copier le dépôt sans les éléments régénérables (`.venv/`, `data/`, `__pycache__/`,
    `config.toml` et `.env`) ;
 2. créer `config.toml` depuis `config.example.toml` et `.env` depuis `.env.example` ;
-3. démarrer, ouvrir l'interface puis importer le CV PDF demandé.
+3. démarrer, ouvrir l'interface puis importer un CV PDF ou créer un profil manuel.
 
 Les données personnelles ne font donc pas partie des sources. Pour déplacer une instance déjà
 initialisée, copier son `data_dir` ou son volume Docker en plus du dépôt.
@@ -169,8 +174,8 @@ et tous les chemins par défaut sont relatifs au dossier. Le moteur reste désac
 (`[cv] enabled = false`) ; dans ce cas la génération de CV est annoncée comme indisponible
 avec le motif, sans que le reste de l'application en souffre.
 
-Vérifié sur une instance vierge : 245 tests (219 Python, 19 JavaScript et 7 E2E Chromium),
-isolation entre deux comptes, migration SQLite v7 et chemins utilisateur sous `/data/users/`.
+Vérifié sur une instance vierge : 363 tests (331 Python, 21 JavaScript et 11 E2E Chromium),
+isolation entre deux comptes, migration SQLite v8 et chemins utilisateur sous `/data/users/`.
 
 ## Démarrage sans Docker
 
@@ -219,7 +224,7 @@ Points de portabilité vérifiés :
 | `TZ=Europe/Paris` | horodatages cohérents avec le fuseau attendu |
 | `HOME=/tmp` | dossier inscriptible pour les bibliothèques tierces |
 
-## Déploiement de production — v2.5
+## Déploiement de production — v2.6 (préparation sur `dev`)
 
 La pile de production se trouve dans `deploy/` :
 
@@ -246,8 +251,8 @@ ansible-vault encrypt group_vars/all/vault.yml
 ansible-playbook site.yml --ask-vault-pass
 ```
 
-La publication v2.5.0 utilisera l’archive immuable du tag `v2.5.0`. Créer ce tag uniquement après la
-fusion du PR dans `main`.
+La publication v2.6.0 utilisera l’archive immuable du tag `v2.6.0`. Ne créer ce tag qu’après
+la fusion de la PR dans `main` ; la branche `dev` seule ne constitue pas une publication.
 
 ## API
 
@@ -265,6 +270,7 @@ fusion du PR dans `main`.
 | `GET` | `/api/stats?view=latest\|all&days=N` | KPI filtrables, scores, critères et portes |
 | `GET` | `/api/offers` | pagination, recherche, filtres, tri et vue dernière/toutes les évaluations |
 | `GET` | `/api/offers/history?url=…` | détail et historique des évaluations d'une URL normalisée |
+| `GET`, `PUT` | `/api/evaluations/{run_id}/feedback` | lecture (`?url=…`) et correction d'une évaluation du compte connecté, avec révision optimiste |
 | `GET` | `/api/history?page=N` | lots paginés, filtrables par état |
 | `GET` | `/api/criteria` | critères et seuils du profil chargé |
 | `GET`, `PUT` | `/api/profile` | lecture et mise à jour validée du profil avec révision optimiste |
@@ -323,7 +329,8 @@ par l'application.
 
 - **Évaluer** : saisie des URLs, déduplication avant envoi, lot actif et derniers lots.
 - **Offres** : pagination serveur, recherche, filtres, tri, dernière évaluation par URL par
-  défaut et accès à tout l'historique dans un panneau latéral.
+  défaut et accès à tout l'historique dans un panneau latéral ; preuves tirées du texte de
+  l'annonce, inconnues explicites, revue humaine et correction enregistrable par évaluation.
 - **Lots** : progression persistée, reprise après redémarrage, annulation, relance des URL
   manquantes, compteurs, exports et détail complet des résultats.
 - **CV** : tâches en cours, PDF terminés et erreurs, avec reprise du polling après rechargement ;
@@ -336,10 +343,13 @@ Les scores gardent un affichage visuel : valeur numérique, barre colorée et ma
 Les petits indicateurs de critères ont désormais une légende textuelle (`bloquant`,
 `confiance faible`, `satisfait`) afin de ne pas dépendre uniquement de la couleur.
 
-SQLite migre automatiquement les anciennes bases vers le schéma v7, rattache les données au
+SQLite migre automatiquement les anciennes bases vers le schéma v8, rattache les données au
 premier administrateur, remplace les unicités globales par des unicités par utilisateur et ajoute
-le journal d’audit. Les résultats JSON complets restent conservés ; aucune ancienne évaluation
-n'est supprimée.
+le journal d’audit et les retours d'évaluation. Les résultats JSON complets restent conservés ;
+aucune ancienne évaluation n'est supprimée. Les anciens résultats sans preuve restent lisibles.
+Le feedback appartient à une évaluation précise (lot + URL) et à son compte ; une édition
+concurrente renvoie 409 plutôt que d'écraser un autre onglet. Les notes libres restent dans
+SQLite et les sauvegardes, pas dans le journal d'audit.
 Les paramètres `utm_*`, `fbclid`, `gclid`, fragments et slash final sont ignorés pour
 regrouper les réévaluations d'une même URL.
 
@@ -355,11 +365,12 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-Les 219 tests Python et 19 tests JavaScript sont hors ligne. Les 7 parcours E2E utilisent
+Les 331 tests Python et 21 tests JavaScript sont hors ligne. Les 11 parcours E2E utilisent
 Playwright Chromium contre une instance temporaire isolée. L’ensemble couvre notamment la
-migration SQLite v7, l’authentification, l’audit, le diagnostic, la rétention des sauvegardes,
-l’accessibilité clavier, le SSRF, la reprise des jobs, les API, le score visuel et la pagination.
-Aucune clé API n’est nécessaire.
+migration SQLite v8, le feedback cloisonné, l’authentification, l’audit, le diagnostic,
+la rétention des sauvegardes, l’accessibilité clavier, le SSRF, la reprise des jobs, les API,
+le score visuel et la pagination. Le banc live distinct est payant et exploratoire
+(`benchmarks/evaluation-v2.6.md`). Aucune clé API n’est nécessaire pour ces trois suites.
 
 Le détail de l’architecture des suites, des fixtures E2E et des commandes de débogage se trouve
 dans [`tests/README.md`](tests/README.md).

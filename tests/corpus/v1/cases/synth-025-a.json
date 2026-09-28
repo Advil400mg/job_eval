@@ -1,0 +1,40 @@
+{
+  "id": "SYNTH-025-A",
+  "expected_class": "ambiguous",
+  "difficulty": "hard",
+  "language": "en",
+  "offer": {
+    "url": "https://jobs.example.test/synth-025",
+    "title": "Cloud Security Engineer – Remote Europe",
+    "company": "Nimbus Remote",
+    "location": "Remote Europe",
+    "published_days_ago": 5,
+    "contract_hint": "permanent",
+    "experience_hint": "entry-level",
+    "job_text": "Entry-level permanent cloud security role described as remote Europe. Tasks include AWS IAM reviews, Terraform checks and Python automation, with good mentoring. The advertisement does not identify the employing country, payroll entity, permitted countries or whether applicants living in Belgium, France or Switzerland can legally be hired."
+  },
+  "expected": {
+    "facts": {
+      "contract": "permanent",
+      "experience_min": 0,
+      "junior": true,
+      "role_nature": "technical",
+      "evidence": [
+        "Entry-level permanent cloud security role described as remote Europe.",
+        "Tasks include AWS IAM reviews, Terraform checks and Python automation, with good mentoring.",
+        "The advertisement does not identify the employing country, payroll entity, permitted countries or whether applicants living in Belgium, France or Switzerland can legally be hired."
+      ]
+    },
+    "gates": {},
+    "evidence_contains": [
+      "Entry-level permanent cloud security role described as remote Europe.",
+      "Tasks include AWS IAM reviews, Terraform checks and Python automation, with good mentoring.",
+      "The advertisement does not identify the employing country, payroll entity, permitted countries or whether applicants living in Belgium, France or Switzerland can legally be hired."
+    ],
+    "must_remain_unknown": [
+      "employing_country",
+      "payroll_entity",
+      "eligible_countries"
+    ]
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "id": "SYNTH-010-C",
+  "expected_class": "compatible",
+  "difficulty": "medium",
+  "language": "fr",
+  "offer": {
+    "url": "https://jobs.example.test/synth-010",
+    "title": "Junior Infrastructure Security Engineer",
+    "company": "Violet Stack",
+    "location": "Paris",
+    "published_days_ago": 5,
+    "contract_hint": "CDI",
+    "experience_hint": "débutant accepté",
+    "job_text": "CDI d'ingénieur infrastructure sécurité à Paris, débutant accepté. Vous administrez Ubuntu, Proxmox et Docker, automatisez avec Ansible et Shell, configurez WireGuard, TLS et le SSO, puis améliorez la supervision. Le périmètre et l'équipe sont connus avant l'embauche et un parcours de formation de six mois est prévu."
+  },
+  "expected": {
+    "facts": {
+      "contract": "permanent",
+      "experience_min": 0,
+      "junior": true,
+      "role_nature": "technical",
+      "evidence": [
+        "CDI d'ingénieur infrastructure sécurité à Paris, débutant accepté.",
+        "Vous administrez Ubuntu, Proxmox et Docker, automatisez avec Ansible et Shell, configurez WireGuard, TLS et le SSO, puis améliorez la supervision.",
+        "Le périmètre et l'équipe sont connus avant l'embauche et un parcours de formation de six mois est prévu."
+      ]
+    },
+    "gates": {},
+    "evidence_contains": [
+      "CDI d'ingénieur infrastructure sécurité à Paris, débutant accepté.",
+      "Vous administrez Ubuntu, Proxmox et Docker, automatisez avec Ansible et Shell, configurez WireGuard, TLS et le SSO, puis améliorez la supervision.",
+      "Le périmètre et l'équipe sont connus avant l'embauche et un parcours de formation de six mois est prévu."
+    ]
+  }
+}

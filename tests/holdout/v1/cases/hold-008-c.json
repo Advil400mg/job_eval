@@ -1,0 +1,36 @@
+{
+  "id": "HOLD-008-C",
+  "expected_class": "compatible",
+  "difficulty": "hard",
+  "language": "fr",
+  "offer": {
+    "url": "https://jobs.example.test/hold-008-c",
+    "title": "Technicien détection réseau junior",
+    "company": "Entreprise fictive",
+    "location": "Nice",
+    "published_days_ago": 5,
+    "job_text": "CDI de cybersécurité junior à Nice pour diplômés récents. Vous analysez les événements Suricata, inspectez le trafic dans Wireshark, contribuez aux règles de pare-feu et développez de petits outils Python. Aucun nombre d'années d'expérience n'est requis. Un plan de formation de six mois et le nom du responsable technique sont communiqués avant l'arrivée."
+  },
+  "expected": {
+    "facts": {
+      "contract": "permanent",
+      "experience_min": null,
+      "junior": true,
+      "evidence": [
+        "CDI de cybersécurité junior à Nice pour diplômés récents.",
+        "Vous analysez les événements Suricata, inspectez le trafic dans Wireshark, contribuez aux règles de pare-feu et développez de petits outils Python.",
+        "Aucun nombre d'années d'expérience n'est requis.",
+        "Un plan de formation de six mois et le nom du responsable technique sont communiqués avant l'arrivée."
+      ]
+    },
+    "gates": {
+      "contract_type": "pass",
+      "experience": "pass"
+    },
+    "evidence_contains": [
+      "CDI de cybersécurité junior à Nice pour diplômés récents.",
+      "Un plan de formation de six mois et le nom du responsable technique sont communiqués avant l'arrivée."
+    ]
+  },
+  "rationale": "Expérience non exigée, encadrement identifié."
+}

@@ -1,0 +1,41 @@
+{
+  "id": "SYNTH-029-A",
+  "expected_class": "ambiguous",
+  "difficulty": "medium",
+  "language": "en",
+  "offer": {
+    "url": "https://jobs.example.test/synth-029",
+    "title": "Network Security Analyst",
+    "company": "Indigo Telecom",
+    "location": "Bruxelles",
+    "published_days_ago": 5,
+    "contract_hint": "CDI",
+    "experience_hint": "0-2 years",
+    "job_text": "Junior permanent network security position in Brussels for zero to two years of experience. Tasks include Check Point and Fortinet firewall administration, IDS tuning, segmentation and DDoS mitigation. The role has an on-call rotation every three weeks, but the advertisement does not state compensation, night frequency or the level of autonomy expected during incidents."
+  },
+  "expected": {
+    "facts": {
+      "contract": "permanent",
+      "experience_min": 0,
+      "experience_max": 2,
+      "junior": true,
+      "role_nature": "technical",
+      "evidence": [
+        "Junior permanent network security position in Brussels for zero to two years of experience.",
+        "Tasks include Check Point and Fortinet firewall administration, IDS tuning, segmentation and DDoS mitigation.",
+        "The role has an on-call rotation every three weeks, but the advertisement does not state compensation, night frequency or the level of autonomy expected during incidents."
+      ]
+    },
+    "gates": {},
+    "evidence_contains": [
+      "Junior permanent network security position in Brussels for zero to two years of experience.",
+      "Tasks include Check Point and Fortinet firewall administration, IDS tuning, segmentation and DDoS mitigation.",
+      "The role has an on-call rotation every three weeks, but the advertisement does not state compensation, night frequency or the level of autonomy expected during incidents."
+    ],
+    "must_remain_unknown": [
+      "on_call_compensation",
+      "night_frequency",
+      "incident_autonomy"
+    ]
+  }
+}

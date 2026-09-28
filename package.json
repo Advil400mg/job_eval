@@ -1,7 +1,7 @@
 {
   "name": "jev-webapp-e2e",
   "private": true,
-  "version": "2.5.0",
+  "version": "2.6.0",
   "scripts": {
     "test:e2e": "playwright test",
     "test:js": "node tests/test_app_js.mjs"

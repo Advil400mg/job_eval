@@ -21,7 +21,7 @@
     $("#filter_score_min").value = state.score_min; $("#filter_score_max").value = state.score_max;
     $("#filter_scored").value = state.scored; $("#filter_cv").value = state.has_cv;
     $("#filter_view").value = state.view; $("#sort").value = state.sort;
-    const quick = state.status === "unverified" ? "review" : state.status;
+    const quick = state.status === "review_required" ? "review" : state.status;
     $$("[data-quick]").forEach((button) => button.classList.toggle("active", button.dataset.quick === quick));
   }
 
@@ -80,8 +80,75 @@
     } finally { $("#offers_list").classList.remove("loading"); }
   }
 
+  function factsHtml(offer) {
+    const names = { contract: "Contrat", experience_min: "Expérience minimale",
+      experience_max: "Expérience maximale", experience_preferred: "Expérience souhaitée",
+      junior: "Accès junior" };
+    const rows = Object.entries(names).map(([key, name]) => {
+      const fact = offer.facts?.[key];
+      if (!fact) return "";
+      const value = fact.status !== "known" ? "À vérifier"
+        : typeof fact.value === "boolean" ? (fact.value ? "Oui" : "Non")
+        : typeof fact.value === "number" ? `${fact.value} an(s)` : String(fact.value);
+      return `<div class="fact-row"><strong>${name}</strong><span>${escapeHtml(value)}${fact.status === "contradictory" ? " · contradictoire" : ""}</span>${fact.evidence ? `<small>« ${escapeHtml(fact.evidence)} »</small>` : ""}</div>`;
+    }).join("");
+    const missing = (offer.missing_information || []).filter((item) => !names[item.field]);
+    return rows || missing.length ? `<section><h3>Faits et informations manquantes</h3><div class="fact-list">${rows}${missing.map((item) => `<div class="fact-row"><strong>${escapeHtml(item.field)}</strong><span>À vérifier</span>${item.evidence ? `<small>« ${escapeHtml(item.evidence)} »</small>` : ""}</div>`).join("")}</div></section>` : "";
+  }
+
+  function reviewHtml(offer) {
+    const reasons = offer.review_reasons || [];
+    const reservations = offer.confidence_reservations || [];
+    if (!reasons.length && !reservations.length) return "";
+    return `<section><h3>Réserves et revue</h3>${reasons.length ? `<ul class="review-reasons">${reasons.map((reason) => `<li>${escapeHtml(reason)}</li>`).join("")}</ul>` : ""}${reservations.length ? `<p class="muted">Confiance à contrôler : ${reservations.map(escapeHtml).join(" ; ")}</p>` : ""}</section>`;
+  }
+
+  function feedbackHtml(offer) {
+    if (!offer.run_id || !offer.url) return "";
+    return `<section><h3>Votre retour sur cette évaluation</h3><form id="feedback_form"><label>Verdict corrigé<select name="verdict" required><option value="">Choisir…</option><option value="correct">Évaluation correcte</option><option value="false_positive">Qualifiée à tort</option><option value="false_negative">Refusée à tort</option><option value="bad_extraction">Extraction incorrecte</option><option value="bad_reason">Justification incorrecte</option></select></label><label>Précision facultative<textarea name="note" maxlength="2000" rows="3"></textarea></label><div class="action-row"><button type="submit">Enregistrer le retour</button><span id="feedback_state" role="status">Chargement…</span></div></form></section>`;
+  }
+
   function historyLine(item) {
     return `<a href="/runs/${item.run_id}" class="history-line"><span>${formatDate(item.evaluated_at)}</span>${statusBadge(item.status)}<strong>${typeof item.score === "number" ? item.score.toFixed(1) : "—"}</strong></a>`;
+  }
+
+  async function bindFeedback(offer) {
+    const form = $("#feedback_form");
+    if (!form) return;
+    const status = $("#feedback_state", form);
+    const button = $("button[type='submit']", form);
+    button.disabled = true;
+    const endpoint = `/api/evaluations/${encodeURIComponent(offer.run_id)}/feedback`;
+    let revision = 0;
+    try {
+      const result = await fetchJSON(`${endpoint}?url=${encodeURIComponent(offer.url)}`);
+      if (!form.isConnected) return;
+      if (result.feedback) {
+        $("select[name='verdict']", form).value = result.feedback.verdict;
+        $("textarea[name='note']", form).value = result.feedback.note || "";
+        revision = result.feedback.revision;
+        status.textContent = "Retour précédent chargé.";
+      } else status.textContent = "Aucun retour enregistré.";
+      button.disabled = false;
+    } catch (error) {
+      if (form.isConnected) { status.textContent = `Retour indisponible : ${error.message}`; status.classList.add("error"); }
+      return;
+    }
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault(); button.disabled = true; status.textContent = "Enregistrement…";
+      try {
+        const saved = await fetchJSON(endpoint, { method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: offer.url,
+            verdict: $("select[name='verdict']", form).value,
+            note: $("textarea[name='note']", form).value, revision }),
+        });
+        revision = saved.feedback.revision;
+        status.classList.remove("error"); status.textContent = "Retour enregistré.";
+      } catch (error) {
+        status.textContent = error.message; status.classList.add("error");
+      } finally { button.disabled = false; }
+    });
   }
 
   async function openDrawer(url) {
@@ -91,7 +158,7 @@
     $("#offer_detail").innerHTML = '<div class="loading-card">Chargement du détail…</div>';
     const payload = await fetchJSON(`/api/offers/history?url=${encodeURIComponent(url)}`);
     const offer = payload.offer;
-    $("#offer_detail").innerHTML = `<div class="drawer-title"><p class="eyebrow">${escapeHtml(offer.company || "Offre")}</p><h2>${escapeHtml(offer.title || offer.url)}</h2><p>${escapeHtml(offer.location || "Localisation inconnue")}</p></div><div class="drawer-score">${scoreVisual(offer.score, offer.minimum_global_score)}</div><div class="drawer-status">${statusBadge(offer.status)}<a href="${escapeHtml(offer.url)}" target="_blank" rel="noopener">Voir l’offre source ↗</a></div>${offer.error ? `<div class="error">${escapeHtml(offer.error)}</div>` : ""}<section><h3>Décision</h3>${offer.blocking_criteria?.length ? `<p>Critères bloquants : ${offer.blocking_criteria.map((item) => `<code>${escapeHtml(item)}</code>`).join(" ")}</p>` : '<p class="muted">Aucun critère obligatoire bloquant.</p>'}${gatesHtml(offer.gates)}</section><section><h3>Critères Jev</h3>${criteriaHtml(offer.criteria, offer.minimum_confidence)}</section><section><h3>Suivi de candidature</h3><div class="drawer-actions">${offer.application ? `${applicationStatusBadge(offer.application.status)}<a class="secondary-btn" href="/applications?open=${encodeURIComponent(offer.application.id)}">Ouvrir le suivi</a>` : '<button data-track-offer>Ajouter au suivi</button>'}</div></section><section><h3>CV</h3><div class="drawer-actions">${offer.cv ? `<a class="secondary-btn" href="/api/cv/${offer.cv.job_id}/pdf" target="_blank">Télécharger le CV existant</a>` : ""}<button data-drawer-cv>Générer PDF</button><button class="secondary-btn" data-drawer-email>PDF + email</button></div></section><section><h3>Historique · ${payload.history.length} évaluation(s)</h3><div class="history-lines">${payload.history.map(historyLine).join("")}</div></section>`;
+    $("#offer_detail").innerHTML = `<div class="drawer-title"><p class="eyebrow">${escapeHtml(offer.company || "Offre")}</p><h2>${escapeHtml(offer.title || offer.url)}</h2><p>${escapeHtml(offer.location || "Localisation inconnue")}</p></div><div class="drawer-score">${scoreVisual(offer.score, offer.minimum_global_score)}</div><div class="drawer-status">${statusBadge(offer.status)}<a href="${escapeHtml(offer.url)}" target="_blank" rel="noopener">Voir l’offre source ↗</a></div>${offer.error ? `<div class="error">${escapeHtml(offer.error)}</div>` : ""}<section><h3>Décision</h3>${offer.blocking_criteria?.length ? `<p>Critères bloquants : ${offer.blocking_criteria.map((item) => `<code>${escapeHtml(item)}</code>`).join(" ")}</p>` : '<p class="muted">Aucun critère obligatoire bloquant.</p>'}${gatesHtml(offer.gates)}</section>${reviewHtml(offer)}${factsHtml(offer)}<section><h3>Critères Jev</h3>${criteriaHtml(offer.criteria, offer.minimum_confidence)}</section><section><h3>Suivi de candidature</h3><div class="drawer-actions">${offer.application ? `${applicationStatusBadge(offer.application.status)}<a class="secondary-btn" href="/applications?open=${encodeURIComponent(offer.application.id)}">Ouvrir le suivi</a>` : '<button data-track-offer>Ajouter au suivi</button>'}</div></section><section><h3>CV</h3><div class="drawer-actions">${offer.cv ? `<a class="secondary-btn" href="/api/cv/${offer.cv.job_id}/pdf" target="_blank">Télécharger le CV existant</a>` : ""}<button data-drawer-cv>Générer PDF</button><button class="secondary-btn" data-drawer-email>PDF + email</button></div></section><section><h3>Historique · ${payload.history.length} évaluation(s)</h3><div class="history-lines">${payload.history.map(historyLine).join("")}</div></section>${feedbackHtml(offer)}`;
     $("[data-drawer-cv]").addEventListener("click", (event) => generateCv(offer.url, false, event.currentTarget));
     $("[data-drawer-email]").addEventListener("click", (event) => generateCv(offer.url, true, event.currentTarget));
     const track = $("[data-track-offer]");
@@ -102,6 +169,7 @@
         showToast("Offre ajoutée au suivi.", "success"); await loadOffers(); await openDrawer(url);
       } catch (error) { showToast(error.message, "error"); track.disabled = false; }
     });
+    bindFeedback(offer);
     $("#drawer_close").focus();
   }
 
@@ -115,7 +183,7 @@
   Object.entries(controlMap).forEach(([id, key]) => $("#" + id).addEventListener("change", (event) => { state[key] = event.target.value; state.page = 1; loadOffers(true); }));
   $("#filter_q").addEventListener("input", (event) => { clearTimeout(debounce); debounce = setTimeout(() => { state.q = event.target.value.trim(); state.page = 1; loadOffers(true); }, 300); });
   $("#filters_reset").addEventListener("click", () => { Object.assign(state, { page: 1, q: "", status: "", company: "", location: "", run_id: "", score_min: "", score_max: "", scored: "", has_cv: "", view: "latest", sort: "newest" }); syncControls(); loadOffers(true); });
-  $("#quick_filters").addEventListener("click", (event) => { const button = event.target.closest("[data-quick]"); if (!button) return; state.status = button.dataset.quick === "review" ? "unverified" : button.dataset.quick; state.page = 1; syncControls(); loadOffers(true); });
+  $("#quick_filters").addEventListener("click", (event) => { const button = event.target.closest("[data-quick]"); if (!button) return; state.status = button.dataset.quick === "review" ? "review_required" : button.dataset.quick; state.page = 1; syncControls(); loadOffers(true); });
   $("#offers_pagination").addEventListener("click", (event) => { const button = event.target.closest("[data-page]"); if (!button || button.disabled) return; state.page = Number(button.dataset.page); loadOffers(true); window.scrollTo({ top: 0, behavior: "smooth" }); });
   $("#offers_list").addEventListener("click", (event) => { if (event.target.closest("[data-external]")) return; const row = event.target.closest("[data-url]"); if (row) openDrawer(row.dataset.url).catch((error) => JEV.showToast(error.message, "error")); });
   $("#offers_list").addEventListener("keydown", (event) => {

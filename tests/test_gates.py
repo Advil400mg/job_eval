@@ -58,6 +58,39 @@ class ExperienceGate(unittest.TestCase):
         res = gates.experience_gate("Minimum 2 ans d'expérience en cybersécurité.")
         self.assertEqual(res["status"], "fail")
 
+    def test_explicit_minimum_blocks_despite_junior_or_internships(self):
+        text = ("Poste junior et débutant en CDI. Minimum 2 ans d'expérience "
+                "professionnelle, stages et projets compris.")
+        res = gates.experience_gate(text, reject_at_years=2)
+        self.assertEqual(res["status"], "fail")
+        self.assertTrue(res["hard"])
+        self.assertEqual(gates.experience_gate(text, reject_at_years=3)["status"], "pass")
+
+    def test_training_duration_does_not_override_real_minimum(self):
+        text = ("Graduate programme junior : une année passée en formation. "
+                "Minimum 3 ans d'expérience exigé.")
+        res = gates.experience_gate(text)
+        self.assertEqual(res["status"], "fail")
+        self.assertTrue(res["hard"])
+
+    def test_junior_range_does_not_erase_explicitly_required_years(self):
+        text = ("Offre junior avec 0 à 2 ans d'expérience selon l'intitulé. "
+                "Vous devez justifier d'un minimum de 3 ans d'expérience.")
+        res = gates.experience_gate(text, reject_at_years=2)
+        self.assertEqual(res["status"], "fail")
+        self.assertIn("minimum de 3 ans", res["reason"])
+
+    def test_experience_header_minimum_blocks_despite_beginner_label(self):
+        text = "Expérience : 3 ans min. Poste junior, débutants acceptés."
+        res = gates.experience_gate(text, reject_at_years=2)
+        self.assertEqual(res["status"], "fail")
+        self.assertTrue(res["hard"])
+
+    def test_programme_year_range_is_not_prior_experience(self):
+        text = "CDI junior. Durée du programme : 2 à 3 ans de formation."
+        res = gates.experience_gate(text)
+        self.assertEqual(res["status"], "pass")
+
     def test_range_without_junior_mention_fails(self):
         res = gates.experience_gate("Vous justifiez de 1 à 3 ans d'expérience en réseau.")
         self.assertEqual(res["status"], "fail")
@@ -125,6 +158,28 @@ class Decision(unittest.TestCase):
         res = gates.decide({"jev_approved": True}, bad)
         self.assertEqual(res["status"], "jev_excluded")
         self.assertEqual(res["hard_gate_failures"][0]["gate"], "freshness")
+
+    def test_low_jev_confidence_is_reported_without_rewriting_a_source_backed_junior_pass(self):
+        facts = {"junior": {"status": "known", "value": True},
+                 "experience_min": {"status": "known", "value": 0}}
+        result = {"jev_approved": True, "low_confidence_criteria": ["junior_fit"],
+                  "criteria": [{"id": "junior_fit", "required": True, "passed": True,
+                                "evidence": {"quote": "Débutant accepté."}}]}
+        decision = gates.decide(result, self.pass_gates, facts)
+        self.assertEqual(decision["status"], "qualified")
+        self.assertEqual(decision["confidence_reservations"], ["faible confiance Jev : junior_fit"])
+        facts["junior"] = {"status": "contradictory", "value": None}
+        self.assertEqual(gates.decide(result, self.pass_gates, facts)["status"], "review_required")
+
+    def test_missing_experience_stays_reviewable_without_proven_negative_evidence(self):
+        unknown = [{"gate": "experience", "status": "unknown", "hard": False,
+                    "reason": "minimum non indiqué"}]
+        result = {"jev_approved": False, "minimum_confidence": 0.5,
+                  "criteria": [{"id": "technical_fit", "required": True, "passed": False,
+                                "score": 2, "min_score": 55, "confidence": 0.94}]}
+        decision = gates.decide(result, self.pass_gates + unknown)
+        self.assertEqual(decision["status"], "review_required")
+        self.assertEqual(decision["unknowns"][0]["gate"], "experience")
 
     def test_soft_failure_does_not_exclude(self):
         soft = [{"gate": "contract_type", "status": "fail", "hard": False, "reason": "x"}]

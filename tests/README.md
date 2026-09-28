@@ -6,7 +6,7 @@ La suite de tests combine trois niveaux complémentaires :
 2. tests JavaScript hors navigateur pour les fonctions d’interface isolables ;
 3. parcours E2E Playwright Chromium pour les interactions réelles, le clavier et le responsive.
 
-Pour la v2.5, la suite contient 219 tests Python, 19 tests JavaScript et 7 parcours E2E.
+Pour la v2.6, la suite contient 331 tests Python, 21 tests JavaScript et 11 parcours E2E.
 Aucune clé OpenRouter ni donnée personnelle n’est nécessaire.
 
 ## Installation
@@ -100,7 +100,9 @@ Les scénarios sont dans `tests/e2e/*.spec.js` :
 
 - `auth.spec.js` : échec et réussite de connexion, déconnexion, redirections et droits admin ;
 - `admin.spec.js` : invitation, inscription, suppression d’un compte, audit, diagnostic et sauvegarde ;
-- `accessibility.spec.js` : lien d’évitement, clavier, drawers, dialogues, retour du focus et largeurs cibles.
+- `accessibility.spec.js` : lien d’évitement, clavier, drawers, dialogues, retour du focus et largeurs cibles ;
+- `feedback.spec.js` : résultat v2.5, preuve hostile échappée, revue, retour éditable, conflit de révision,
+  isolation entre comptes et contrôle mobile.
 
 Commande complète :
 
@@ -141,7 +143,8 @@ Le serveur crée à chaque lancement :
 - une base SQLite neuve ;
 - un administrateur et un utilisateur standard ;
 - un profil et un master minimaux pour chaque compte ;
-- une offre évaluée et une candidature de démonstration.
+- une évaluation v2.5 sans preuve et une évaluation v2.6 avec passage hostile échappé ;
+- une candidature de démonstration.
 
 Les identifiants sont réservés aux tests et les données sont supprimées avec le processus. La suite
 ne lit ni n’écrit la base de développement, `config.toml` ou le volume Docker de l’application.
