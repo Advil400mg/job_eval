@@ -26,6 +26,13 @@ _ENGLISH_OPTIONAL = re.compile(
     r"\b(?:anglais|english)\b.{0,55}\b(?:optional|not required|non exigé|"
     r"facultatif|not mandatory|pas obligatoire)\b", re.I,
 )
+_PROFICIENCY = r"(?:[ABC][12]|couran\w*|fluent|bilingu\w*|native|professionnel\w*|professional|intermédiaire|intermediate|avancé\w*|advanced)"
+_ENGLISH_WITH_LEVEL = re.compile(
+    rf"\b(?:anglais|english)\b\s*(?:[-:(]\s*)?(?:(?:niveau|level)\s*)?{_PROFICIENCY}\b|"
+    rf"\b{_PROFICIENCY}\b\s+(?:en\s+)?\b(?:anglais|english)\b", re.I,
+)
+_LEVEL_ONLY = re.compile(rf"^\s*{_PROFICIENCY}\b", re.I)
+_LEGACY_CV_LANGUAGES = "Les langues exigées sont compatibles avec le CV : "
 _REMOTE_UNKNOWN = re.compile(
     r"(?:does not identify the employing country|permitted countries|"
     r"can legally be hired|pays d'embauche non précisé)", re.I,
@@ -74,6 +81,29 @@ def _required_english_sentence(text: str) -> str | None:
     return None
 
 
+def _candidate_english_level(profile: dict) -> bool:
+    """Accept only an explicit level tied to English, never another language's level."""
+    candidate = profile.get("candidate") or {}
+    languages = candidate.get("languages") or {}
+    if isinstance(languages, dict):
+        for key in ("en", "english"):
+            value = languages.get(key)
+            if isinstance(value, str) and (_LEVEL_ONLY.search(value)
+                                           or _ENGLISH_WITH_LEVEL.search(value)):
+                return True
+    language_line = candidate.get("languages_line") or ""
+    if not language_line:
+        # Profiles created before languages_line was stored still carry the CV
+        # assertion in the generated criterion. Do not read another user's CV.
+        for criterion in profile.get("criteria") or []:
+            if criterion.get("id") == "language_fit":
+                description = criterion.get("description") or ""
+                if description.startswith(_LEGACY_CV_LANGUAGES):
+                    language_line = description[len(_LEGACY_CV_LANGUAGES):]
+                break
+    return bool(_ENGLISH_WITH_LEVEL.search(language_line))
+
+
 def assess_evaluation(jev_result: dict, facts: dict, gate_results: list[dict],
                       offer: dict, profile: dict) -> dict:
     """Add review flags without altering Jev scores or inventing a source quote."""
@@ -102,10 +132,7 @@ def assess_evaluation(jev_result: dict, facts: dict, gate_results: list[dict],
             reasons.append(reason)
 
     requirement = _required_english_sentence(text)
-    languages = (profile.get("candidate") or {}).get("languages") or {}
-    # The presence of a language name without a proficiency level proves nothing.
-    english_level = languages.get("en") or languages.get("english") if isinstance(languages, dict) else None
-    if requirement and not english_level:
+    if requirement and not _candidate_english_level(profile):
         missing.append({"field": "candidate_english_level", "status": "unknown",
                         "evidence": requirement})
         flags.append("unknown:candidate_english_level")

@@ -58,6 +58,39 @@ class ExperienceGate(unittest.TestCase):
         res = gates.experience_gate("Minimum 2 ans d'expérience en cybersécurité.")
         self.assertEqual(res["status"], "fail")
 
+    def test_explicit_minimum_blocks_despite_junior_or_internships(self):
+        text = ("Poste junior et débutant en CDI. Minimum 2 ans d'expérience "
+                "professionnelle, stages et projets compris.")
+        res = gates.experience_gate(text, reject_at_years=2)
+        self.assertEqual(res["status"], "fail")
+        self.assertTrue(res["hard"])
+        self.assertEqual(gates.experience_gate(text, reject_at_years=3)["status"], "pass")
+
+    def test_training_duration_does_not_override_real_minimum(self):
+        text = ("Graduate programme junior : une année passée en formation. "
+                "Minimum 3 ans d'expérience exigé.")
+        res = gates.experience_gate(text)
+        self.assertEqual(res["status"], "fail")
+        self.assertTrue(res["hard"])
+
+    def test_junior_range_does_not_erase_explicitly_required_years(self):
+        text = ("Offre junior avec 0 à 2 ans d'expérience selon l'intitulé. "
+                "Vous devez justifier d'un minimum de 3 ans d'expérience.")
+        res = gates.experience_gate(text, reject_at_years=2)
+        self.assertEqual(res["status"], "fail")
+        self.assertIn("minimum de 3 ans", res["reason"])
+
+    def test_experience_header_minimum_blocks_despite_beginner_label(self):
+        text = "Expérience : 3 ans min. Poste junior, débutants acceptés."
+        res = gates.experience_gate(text, reject_at_years=2)
+        self.assertEqual(res["status"], "fail")
+        self.assertTrue(res["hard"])
+
+    def test_programme_year_range_is_not_prior_experience(self):
+        text = "CDI junior. Durée du programme : 2 à 3 ans de formation."
+        res = gates.experience_gate(text)
+        self.assertEqual(res["status"], "pass")
+
     def test_range_without_junior_mention_fails(self):
         res = gates.experience_gate("Vous justifiez de 1 à 3 ans d'expérience en réseau.")
         self.assertEqual(res["status"], "fail")

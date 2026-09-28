@@ -44,6 +44,31 @@ class JobFactsTests(unittest.TestCase):
             if fact["evidence"]:
                 self.assertIn(fact["evidence"], text)
 
+    def test_programme_duration_is_not_prior_experience(self):
+        text = ("Graduate programme junior en CDI. Une année passée au sein "
+                "des équipes pour apprendre le métier ; expérience terrain acquise "
+                "pendant cette première année.")
+        facts = extract_facts({"job_text": text})
+        self.assertIsNone(facts["experience_min"]["value"])
+        self.assertEqual(facts["junior"]["value"], True)
+
+    def test_programme_duration_does_not_mask_an_explicit_minimum(self):
+        text = ("Junior en CDI : une année passée à apprendre le métier. "
+                "Le poste exige 3 ans d'expérience professionnelle.")
+        facts = extract_facts({"job_text": text})
+        self.assertEqual(facts["experience_min"]["value"], 3)
+        self.assertIn(facts["experience_min"]["evidence"], text)
+
+    def test_career_progression_does_not_make_the_current_role_senior(self):
+        text = "CDI junior ; progression vers un poste senior après formation."
+        facts = extract_facts({"job_text": text})
+        self.assertEqual(facts["junior"]["status"], "known")
+        self.assertEqual(facts["junior"]["value"], True)
+        actual_requirement = ("CDI junior ; progression vers un poste senior plus tard, "
+                              "mais nous exigeons un architecte confirmé dès l'embauche.")
+        self.assertEqual(extract_facts({"job_text": actual_requirement})["junior"]["status"],
+                         "contradictory")
+
     def test_senior_mentor_is_not_a_senior_job_requirement(self):
         for text in (
             "Junior permanent cloud role. A senior engineer provides structured training.",

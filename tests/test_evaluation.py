@@ -39,6 +39,30 @@ class EvaluationAssessmentTests(unittest.TestCase):
         self.assertTrue(assessment["review_required"])
         self.assertIn("unknown:candidate_english_level", assessment["quality_flags"])
 
+    def test_cv_english_level_is_known_in_new_and_legacy_profiles(self):
+        result = {"jev_approved": True, "global_score": 85, "criteria": []}
+        offer = {"job_text": "English is mandatory for customer meetings."}
+        profiles = (
+            {"candidate": {"languages_line": "Français C2, anglais B2"}},
+            {"candidate": {"languages": {"en": "B2"}}},
+            {"criteria": [{"id": "language_fit", "description":
+                           "Les langues exigées sont compatibles avec le CV : Français, anglais (C1)."}]},
+        )
+        for profile in profiles:
+            with self.subTest(profile=profile):
+                assessment = evaluation.assess_evaluation(result, {}, [], offer, profile)
+                self.assertNotIn("unknown:candidate_english_level", assessment["quality_flags"])
+                self.assertEqual(assessment["decision"]["status"], "qualified")
+
+    def test_language_name_or_french_level_is_not_english_proficiency(self):
+        result = {"jev_approved": True, "global_score": 85, "criteria": []}
+        offer = {"job_text": "English is mandatory for customer meetings."}
+        for line in ("French C2, English", "English, French C2", "French, English"):
+            with self.subTest(line=line):
+                profile = {"candidate": {"languages_line": line}}
+                assessment = evaluation.assess_evaluation(result, {}, [], offer, profile)
+                self.assertIn("unknown:candidate_english_level", assessment["quality_flags"])
+
     def test_paraphrased_english_requirement_and_optional_english(self):
         result = {"jev_approved": True, "global_score": 86,
                   "minimum_global_score": 68, "criteria": []}

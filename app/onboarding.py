@@ -302,6 +302,7 @@ def build_profile(master: dict, target_roles: str, locations: str,
             "name": identity["name"],
             "headline": identity["headline_default"],
             "skills": [group["text"] for group in master["skill_groups"]],
+            "languages_line": identity.get("languages_line") or "",
         },
         "search": {
             "locations": places,

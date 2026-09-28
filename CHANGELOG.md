@@ -8,6 +8,7 @@
 - Migration SQLite v8 : retours utilisateur sur chaque évaluation, cloisonnés par compte et par couple lot/offre, avec révision optimiste ; texte libre exclu du journal d'audit.
 - Tiroir d'offre enrichi (preuves échappées, informations manquantes, réserves et retour modifiable) et filtre « Revue requise ».
 - Banc synthétique hors ligne et live, corpus relu par l'agent et holdout synthétique. Leur comparaison explore les régressions mais ne constitue pas une validation indépendante sur des offres réelles.
+- Retours de test : les durées de formation et les évolutions de carrière ne sont plus lues comme prérequis ; un minimum d'expérience explicite bloque même sous un titre junior ; le niveau d'anglais du CV est reconnu dans les profils générés et anciens sans déduire un niveau d'une simple mention de langue.
 
 ## 2.5.0 — 2026-09-27
 

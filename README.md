@@ -169,7 +169,7 @@ et tous les chemins par défaut sont relatifs au dossier. Le moteur reste désac
 (`[cv] enabled = false`) ; dans ce cas la génération de CV est annoncée comme indisponible
 avec le motif, sans que le reste de l'application en souffre.
 
-Vérifié sur une instance vierge : 288 tests (257 Python, 21 JavaScript et 10 E2E Chromium),
+Vérifié sur une instance vierge : 298 tests (267 Python, 21 JavaScript et 10 E2E Chromium),
 isolation entre deux comptes, migration SQLite v8 et chemins utilisateur sous `/data/users/`.
 
 ## Démarrage sans Docker
@@ -360,7 +360,7 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-Les 257 tests Python et 21 tests JavaScript sont hors ligne. Les 10 parcours E2E utilisent
+Les 267 tests Python et 21 tests JavaScript sont hors ligne. Les 10 parcours E2E utilisent
 Playwright Chromium contre une instance temporaire isolée. L’ensemble couvre notamment la
 migration SQLite v8, le feedback cloisonné, l’authentification, l’audit, le diagnostic,
 la rétention des sauvegardes, l’accessibilité clavier, le SSRF, la reprise des jobs, les API,

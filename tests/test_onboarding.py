@@ -105,6 +105,7 @@ class OnboardingTest(unittest.TestCase):
         profile = json.loads(self.settings["profile_path"].read_text(encoding="utf-8"))
         master = json.loads(self.settings["cv"]["master_path"].read_text(encoding="utf-8"))
         self.assertEqual(master["identity"]["name"], "Ada Example")
+        self.assertEqual(profile["candidate"]["languages_line"], "French, English")
         self.assertGreaterEqual(len(profile["criteria"]), 5)
         self.assertEqual(profile["search"]["experience_filter"]["reject_if_minimum_required_years_gte"], 3)
         self.assertEqual(profile["search"]["max_age_days"], 45)

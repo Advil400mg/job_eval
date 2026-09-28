@@ -31,45 +31,6 @@ EXPIRED_RE = re.compile(
 )
 
 
-def _years_requirement(text: str) -> tuple[int | None, int | None, str | None]:
-    """Lowest stated experience requirement.
-
-    Returns (low, high, wording): high is filled when the announcement states a
-    range ("1 à 3 ans", "0-2 ans").
-    """
-    range_patterns = [
-        r"(\d{1,2})\s*(?:\+|ans?)?\s*(?:à|-|to)\s*(\d{1,2})\s*ans",
-        r"(\d{1,2})\s*(?:à|-|to)\s*(\d{1,2})\s*years?",
-    ]
-    single_patterns = [
-        r"minimum (?:de )?(\d{1,2})\s*ans?",
-        r"au moins (\d{1,2})\s*ans?",
-        r"(\d{1,2})\s*\+\s*(?:ans?|years?)",
-        r"(\d{1,2})\s*years?(?:\+)? (?:of )?experience",
-        r"expérience (?:professionnelle )?(?:minimale|requise|exigée|souhaitée)\s*:?\s*(\d{1,2})\s*ans?",
-    ]
-    candidates: list[tuple[int, int | None, str]] = []
-    for pattern in range_patterns:
-        for match in re.finditer(pattern, text, re.I):
-            low, high = int(match.group(1)), int(match.group(2))
-            if low > 20 or high > 20 or high < low:
-                continue
-            candidates.append((low, high, match.group(0).strip()))
-    for pattern in single_patterns:
-        for match in re.finditer(pattern, text, re.I):
-            try:
-                low = int(match.group(1))
-            except (IndexError, ValueError):
-                continue
-            if low > 20:
-                continue
-            candidates.append((low, None, match.group(0).strip()))
-    if not candidates:
-        return None, None, None
-    low, high, wording = min(candidates, key=lambda c: c[0])
-    return low, high, wording
-
-
 def contract_gate(text: str, facts: dict | None = None) -> dict:
     contract = (facts or extract_facts({"job_text": text}))["contract"]
     if contract["status"] == "contradictory":
@@ -112,11 +73,7 @@ def experience_gate(text: str, reject_at_years: int = 2,
         return {"gate": "experience", "status": "warn", "hard": False,
                 "reason": f"{preferred['value']} ans souhaités, pas exigés — accessibilité à vérifier"}
     else:
-        low, high, wording = _years_requirement(text)
-        if low is not None and re.search(
-            r"\b(?:souhaitée|appréciée|preferred|not mandatory|non obligatoire)\b", wording or "", re.I
-        ):
-            low = None
+        low, high, wording = None, None, None
     explicit_unstated = bool(re.search(
         r"expérience (?:souhaitée|requise)\s*:?\s*(?:non renseigné|non renseignée)",
         text, re.I))
@@ -144,9 +101,6 @@ def experience_gate(text: str, reject_at_years: int = 2,
                 "reason": "aucun minimum d'expérience écrit en années, "
                           "aucune mention junior — non prouvable"}
     if low >= reject_at_years:
-        if junior and re.search(r"\b(?:including internships|stages? (?:et|ou) projets)\b", text, re.I):
-            return {"gate": "experience", "status": "warn", "hard": False,
-                    "reason": f"{low} ans mais stages/projets explicitement comptés — à vérifier"}
         return {"gate": "experience", "status": "fail", "hard": True,
                 "reason": f"minimum exigé ≥ {reject_at_years} ans (« {wording} »)"}
     if high is not None and high > allowed_max_range:

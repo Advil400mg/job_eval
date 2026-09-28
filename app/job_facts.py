@@ -48,6 +48,17 @@ _PREFERRED = re.compile(r"\b(?:preferred|preferably|souhaité[e]?|apprécié[e]?
                         r"un plus|nice to have|not mandatory|non obligatoire|non exigé[e]?)\b", re.I)
 _REQUIRED = re.compile(r"\b(?:required|mandatory|must have|minimum|at least|"
                        r"au moins|exigé[e]?|requi[st]|obligatoire)\b", re.I)
+# A duration of a programme or assignment is not a candidate experience minimum.
+_EXPERIENCE_CONTEXT = re.compile(
+    r"\b(?:expériences?|experiences?|pratique|practice|profils? de|"
+    r"justifi\w*|minimum|au moins|at least|exig\w*|requis\w*|"
+    r"required|mandatory|ans? min\b|années? min\b|years? min\b)", re.I,
+)
+_SENIOR_PROGRESSION = re.compile(
+    r"\b(?:évolution|évoluer|progression|passage)\b.{0,45}\bvers\s+"
+    r"(?:un |le |une |la )?(?:poste |niveau )?(?:senior|confirmé[e]?)\b|"
+    r"\b(?:à terme|par la suite|plus tard)\b[^,;.!?]{0,30}\b(?:senior|confirmé[e]?)\b", re.I,
+)
 
 
 def _number(value: str) -> int:
@@ -84,9 +95,11 @@ def extract_facts(offer: dict) -> dict:
     else:
         contract = _fact()
 
-    required: list[tuple[int, int | None, str]] = []
+    required: list[tuple[int, int | None, str, bool]] = []
     preferred: list[tuple[int, str]] = []
     for sentence in sentences:
+        if not _EXPERIENCE_CONTEXT.search(sentence):
+            continue
         spans: list[tuple[int, int]] = []
         candidates: list[tuple[int, int | None]] = []
         for match in _EXPERIENCE_RANGE.finditer(sentence):
@@ -98,6 +111,11 @@ def extract_facts(offer: dict) -> dict:
             candidates.append((low, high))
         for match in _YEARS.finditer(sentence):
             if any(start <= match.start() < end for start, end in spans):
+                continue
+            # "Une année passée en formation" describes the programme, even if
+            # another clause in the sentence mentions professional experience.
+            if re.match(r"\s+(?:passée?|spent|de formation|d['’]apprentissage)\b",
+                        sentence[match.end():], re.I):
                 continue
             years = _number(match.group("years"))
             if years <= 20:
@@ -114,16 +132,27 @@ def extract_facts(offer: dict) -> dict:
             if _PREFERRED.search(sentence) and not explicit_required:
                 preferred.append((low, sentence))
             else:
-                required.append((low, high, sentence))
-    minimum = min(required, key=lambda pair: pair[0]) if required else None
+                required.append((low, high, sentence, bool(explicit_required)))
+    # A generic junior range must not erase an explicit, stricter minimum in
+    # the same offer. Preferences were separated above and cannot hard-fail.
+    explicit_minima = [item for item in required if item[3]]
+    minimum = (max(explicit_minima, key=lambda item: item[0]) if explicit_minima
+               else min(required, key=lambda item: item[0]) if required else None)
     wish = min(preferred, key=lambda pair: pair[0]) if preferred else None
     junior_hit = next((s for s in sentences if _JUNIOR.search(s) and not re.search(
         r"\b(?:ne mentionne ni|does not mention)\b.{0,30}\bjunior\b", s, re.I
     )), None)
-    senior_hit = next((s for s in sentences if _SENIOR.search(s) and not _SENIOR_MENTOR.search(s)
-                       and not re.search(
-        r"\b(?:ne mentionne ni|does not mention)\b.{0,40}\bsenior\b", s, re.I
-    )), None)
+    senior_hit = None
+    for sentence in sentences:
+        if re.search(r"\b(?:ne mentionne ni|does not mention)\b.{0,40}\bsenior\b",
+                     sentence, re.I):
+            continue
+        exclusions = [match.span() for pattern in (_SENIOR_MENTOR, _SENIOR_PROGRESSION)
+                      for match in pattern.finditer(sentence)]
+        if any(not any(start <= hit.start() < end for start, end in exclusions)
+               for hit in _SENIOR.finditer(sentence)):
+            senior_hit = sentence
+            break
     junior = (_fact(None, senior_hit, "contradictory") if junior_hit and senior_hit
               else _fact(True, junior_hit, "known") if junior_hit
               else _fact(False, senior_hit, "known") if senior_hit else _fact())
