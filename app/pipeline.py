@@ -43,6 +43,7 @@ def evaluate_url(url: str, profile: dict, evaluator: str | None = None) -> dict:
     record["title"] = offer["title"]
     record["company"] = offer["company"]
     record["location"] = offer["location"]
+    record["location_provenance"] = offer.get("location_provenance")
     record["published_at"] = offer["published_at"]
     record["published_at_provenance"] = offer["published_at_provenance"]
     record["job_text_chars"] = len(offer["job_text"])
@@ -87,6 +88,7 @@ def evaluate_text(url: str, text: str, profile: dict, evaluator: str | None = No
         "title": str(metadata.get("title") or url).strip(),
         "company": str(metadata.get("company") or "Non renseigné").strip(),
         "location": str(metadata.get("location") or "Non renseignée").strip(),
+        "location_provenance": "saisie manuelle (non vérifiée dans l'annonce)",
         "published_at": metadata.get("published_at") or None,
         "published_at_provenance": "date fournie manuellement" if metadata.get("published_at") else None,
         "job_text": clean[:60000],
@@ -94,7 +96,8 @@ def evaluate_text(url: str, text: str, profile: dict, evaluator: str | None = No
     record: dict = {
         "url": url, "status": "error", "stage": "gates", "error": None,
         "title": offer["title"], "company": offer["company"],
-        "location": offer["location"], "published_at": offer["published_at"],
+        "location": offer["location"], "location_provenance": offer["location_provenance"],
+        "published_at": offer["published_at"],
         "published_at_provenance": offer["published_at_provenance"],
         "job_text_chars": len(offer["job_text"]), "manual_text": True,
     }

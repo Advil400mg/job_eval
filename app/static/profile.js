@@ -2,6 +2,7 @@
   const { $, escapeHtml, fetchJSON, formatDate, showToast } = JEV;
   let profile = JSON.parse($("#profile_data").textContent);
   let revision = $("#profile_form").dataset.revision;
+  const structured = profile.search?.policy_version === 2;
 
   const lines = (value) => String(value || "").split(/\n+/).map((item) => item.trim()).filter(Boolean);
 
@@ -22,7 +23,20 @@
     $("#max_age_days").value = search.max_age_days ?? 30;
     $("#target_roles").value = (search.target_roles || []).join("\n");
     $("#locations").value = (search.locations || []).join("\n");
-    $("#reject_experience_years").value = experience.reject_if_minimum_required_years_gte ?? 2;
+    $("#reject_experience_years").value = experience.reject_if_minimum_required_years_gte ?? (structured ? "" : 2);
+    if (structured) {
+      $("#preferred_locations").value = (search.preferred_locations || []).join("\n");
+      $("#seniority").value = search.seniority || "any";
+      const accepted = new Set(search.contract_types || []);
+      [...$("#contract_types").options].forEach((option) => { option.selected = accepted.has(option.value); });
+      $("#candidate_years").value = experience.candidate_years ?? "";
+      const facts = profile.candidate_facts || {};
+      $("#candidate_name").value = facts.name || "";
+      $("#candidate_headline").value = facts.headline || "";
+      $("#candidate_skills").value = (facts.skills || []).join("\n");
+      $("#candidate_languages").value = facts.languages_line || "";
+      $("#profile_confirmed").checked = !!search.confirmed;
+    }
     $("#internships_count").checked = !!experience.internships_count_as_professional_experience;
     $("#hard_rejection_rules").value = (profile.hard_rejection_rules || []).join("\n");
     $("#criteria_editor").innerHTML = (profile.criteria || []).map(criterionRow).join("");
@@ -39,9 +53,20 @@
     updated.search.locations = lines($("#locations").value);
     updated.search.max_age_days = Number($("#max_age_days").value);
     updated.search.experience_filter = {
-      reject_if_minimum_required_years_gte: Number($("#reject_experience_years").value),
+      reject_if_minimum_required_years_gte: structured && $("#reject_experience_years").value === "" ? null : Number($("#reject_experience_years").value),
       internships_count_as_professional_experience: $("#internships_count").checked,
+      ...(structured ? { candidate_years: $("#candidate_years").value === "" ? null : Number($("#candidate_years").value) } : {}),
     };
+    if (structured) {
+      updated.search.preferred_locations = lines($("#preferred_locations").value);
+      updated.search.seniority = $("#seniority").value;
+      updated.search.contract_types = [...$("#contract_types").selectedOptions].map((option) => option.value);
+      updated.search.confirmed = $("#profile_confirmed").checked;
+      updated.candidate_facts = {
+        name: $("#candidate_name").value.trim(), headline: $("#candidate_headline").value.trim(),
+        skills: lines($("#candidate_skills").value), languages_line: $("#candidate_languages").value.trim(),
+      };
+    }
     updated.criteria = [...document.querySelectorAll("[data-criterion]")].map((row) => ({
       id: $("[data-field=id]", row).value.trim(),
       name: $("[data-field=name]", row).value.trim(),
@@ -52,6 +77,40 @@
     }));
     return updated;
   }
+
+  let previewTimer;
+  let previewRequest = 0;
+  async function updatePreview() {
+    if (!structured) return;
+    const requestId = ++previewRequest;
+    try {
+      const result = await fetchJSON("/api/profile/preview", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profile: collectProfile(), expected_revision: revision }),
+      });
+      if (requestId !== previewRequest) return;
+      const context = result.profile_context;
+      $("#profile_preview").textContent = [
+        `Postes visés : ${context.target_roles.join(", ")}`,
+        `Niveau : ${context.seniority} · Expérience déclarée : ${context.candidate_years ?? "inconnue"}`,
+        `Lieux acceptés : ${context.accepted_locations.join(", ") || "tous"}`,
+        `Lieux préférés : ${context.preferred_locations.join(", ") || "aucun"}`,
+        `Contrats acceptés : ${context.contract_types.join(", ") || "tous"}`,
+        `Langues déclarées : ${context.languages || "inconnues"}`,
+        ...result.criteria.map((criterion) => `${criterion.name} : ${criterion.description}`),
+      ].join("\n");
+    } catch (error) {
+      if (requestId === previewRequest) $("#profile_preview").textContent = "Aperçu indisponible : " + error.message;
+    }
+  }
+  if (structured) $("#profile_form").addEventListener("input", () => {
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(updatePreview, 350);
+  });
+  if (structured) $("#profile_form").addEventListener("change", () => {
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(updatePreview, 350);
+  });
 
   async function loadHistory() {
     try {
@@ -67,7 +126,7 @@
     try {
       const result = await fetchJSON("/api/profile", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ profile: collectProfile(), expected_revision: revision }) });
       profile = result.profile; revision = result.revision; $("#profile_form").dataset.revision = revision;
-      renderProfile(); await loadHistory(); showToast(result.changed ? "Profil enregistré." : "Aucune modification.", "success");
+      renderProfile(); await loadHistory(); await updatePreview(); showToast(result.changed ? "Profil enregistré." : "Aucune modification.", "success");
     } catch (error) {
       $("#profile_errors").textContent = error.message; $("#profile_errors").classList.remove("hidden");
     } finally { button.disabled = false; }
@@ -90,7 +149,7 @@
     button.disabled = true;
     try {
       const result = await fetchJSON(`/api/profile/history/${button.dataset.restoreProfile}/restore`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expected_revision: revision }) });
-      profile = result.profile; revision = result.revision; renderProfile(); await loadHistory(); showToast("Version restaurée.", "success");
+      profile = result.profile; revision = result.revision; $("#profile_form").dataset.revision = revision; renderProfile(); await loadHistory(); await updatePreview(); showToast("Version restaurée.", "success");
     } catch (error) { showToast(error.message, "error"); button.disabled = false; }
   });
 
@@ -146,5 +205,21 @@
     catch (error) { showToast(error.message, "error"); button.disabled = false; }
   });
 
-  renderProfile(); loadHistory(); loadBackups();
+  if (!structured) $("#profile_adopt").addEventListener("click", async (event) => {
+    const button = event.currentTarget;
+    const confirmed = await JEV.confirmAction({
+      title: "Adopter un profil personnalisable",
+      message: "Créer une nouvelle version à vérifier ? Votre profil actuel et les évaluations précédentes resteront dans l'historique. Aucune nouvelle évaluation ne sera lancée avant votre confirmation des faits, du niveau, des contrats et des critères.",
+      confirmLabel: "Créer la version à vérifier",
+    });
+    if (!confirmed) return;
+    button.disabled = true;
+    try {
+      await fetchJSON("/api/profile/adopt", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ expected_revision: revision }) });
+      window.location.reload();
+    } catch (error) { showToast(error.message, "error"); button.disabled = false; }
+  });
+
+  renderProfile(); updatePreview(); loadHistory(); loadBackups();
 })();

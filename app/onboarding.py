@@ -58,11 +58,16 @@ def status(user_id: str | None = None) -> dict:
     missing = []
     if profile is None or not isinstance(profile.get("criteria"), list) or not profile["criteria"]:
         missing.append("PROFILE.json")
-    if master is None or validate_master(master):
+    has_master = master is not None and not validate_master(master)
+    manual_profile = (isinstance(profile, dict) and
+                      profile.get("generated_from") == "Déclarations manuelles du propriétaire ; aucun CV importé" and
+                      not profile_mod.validate_profile(profile))
+    if not has_master and not manual_profile:
         missing.append("CV_MASTER.json")
     job = store.get_onboarding_job(user_id)
     return {
         "needed": bool(missing),
+        "cv_available": has_master,
         "missing": missing,
         "api_key_set": config.settings()["api_key_set"],
         "profile_path": str(profile_path),
@@ -285,11 +290,16 @@ def _split_preferences(value: str) -> list[str]:
     return [part.strip() for part in re.split(r"[\n,;]+", value or "") if part.strip()]
 
 
+def _split_places(value: str) -> list[str]:
+    """Keep city/country pairs intact; each line or semicolon is one place."""
+    return [part.strip() for part in re.split(r"[\n;]+", value or "") if part.strip()]
+
+
 def build_profile(master: dict, target_roles: str, locations: str,
                   reject_experience_years: int, max_age_days: int) -> dict:
     identity = master["identity"]
     roles = _split_preferences(target_roles) or [identity["headline_default"]]
-    places = _split_preferences(locations)
+    places = _split_places(locations)
     skill_text = ", ".join(group["text"] for group in master["skill_groups"][:8])
     role_text = ", ".join(roles)
     location_text = (", ".join(places) if places else
@@ -344,6 +354,97 @@ def build_profile(master: dict, target_roles: str, locations: str,
     }
 
 
+def build_personal_profile(master: dict, target_roles: str, locations: str,
+                           *, seniority: str = "any", candidate_years: float | None = None,
+                           reject_experience_years: int | None = None,
+                           preferred_locations: str = "", contract_types: list[str] | None = None,
+                           max_age_days: int = 30, confirmed: bool = False) -> dict:
+    """Build a generic policy; a CV's extracted facts remain separate from corrections."""
+    base = build_profile(master, target_roles, locations, 2, max_age_days)
+    identity = master["identity"]
+    base["search"].update({
+        "policy_version": 2,
+        "confirmed": confirmed,
+        "seniority": seniority,
+        "preferred_locations": _split_places(preferred_locations),
+        "contract_types": contract_types or [],
+    })
+    base["search"]["experience_filter"].update({
+        "candidate_years": candidate_years,
+        "reject_if_minimum_required_years_gte": reject_experience_years,
+    })
+    base["candidate_facts"] = {
+        "name": identity["name"], "headline": identity["headline_default"],
+        "skills": [group["text"] for group in master["skill_groups"]],
+        "languages_line": identity.get("languages_line") or "",
+    }
+    descriptions = {
+        "experience_fit": "Comparer les exigences explicites d'expérience aux années déclarées ; "
+                          "sans données suffisantes, signaler l'incertitude.",
+        "role_fit": "Comparer les missions réelles au métier et au niveau visés, sans supposer "
+                    "qu'il s'agit d'un poste en cybersécurité.",
+        "skills_match": "Comparer les compétences déclarées aux compétences réellement requises.",
+        "location_fit": "Comparer le lieu de travail prouvé aux lieux acceptés et préférés ; "
+                        "ne pas supposer qu'un lieu inconnu est incompatible.",
+        "language_fit": "Comparer toutes les langues exigées aux niveaux explicitement déclarés, "
+                        "sans supposer que l'anglais est la seule langue pertinente.",
+    }
+    for criterion in base["criteria"]:
+        if criterion["id"] in descriptions:
+            criterion["description"] = descriptions[criterion["id"]]
+    base["hard_rejection_rules"] = [
+        "Appliquer uniquement les contrats acceptés et les exigences d'expérience "
+        "explicitement incompatibles avec le profil.",
+        "Offre expirée ou sans chemin de candidature actif.",
+        f"Date de publication non prouvable dans la fenêtre de {max_age_days} jours.",
+    ]
+    base["version"] = 2
+    return base
+
+
+def initialize_manual(data: dict, user_id: str | None = None) -> dict:
+    """Create an evaluation-only profile from facts declared by the account owner."""
+    if not isinstance(data, dict):
+        raise OnboardingError("Profil manuel invalide")
+    name = data.get("name")
+    roles = data.get("target_roles")
+    if not isinstance(name, str) or not name.strip() or len(name) > 500:
+        raise OnboardingError("Nom du candidat requis")
+    if not isinstance(roles, str) or not _split_preferences(roles):
+        raise OnboardingError("Au moins un poste visé est requis")
+    for field in ("locations", "preferred_locations", "languages_line", "skills"):
+        if not isinstance(data.get(field, ""), str) or len(data.get(field, "")) > 5000:
+            raise OnboardingError(f"{field} est invalide")
+    master = {"identity": {"name": name.strip(), "headline_default": _split_preferences(roles)[0],
+                           "languages_line": data.get("languages_line", "")},
+              "skill_groups": [{"text": skill} for skill in _split_preferences(data.get("skills", ""))]}
+    result = build_personal_profile(master, roles, data.get("locations", ""),
+                                    seniority=data.get("seniority", "any"),
+                                    candidate_years=data.get("candidate_years"),
+                                    reject_experience_years=data.get("reject_experience_years"),
+                                    preferred_locations=data.get("preferred_locations", ""),
+                                    contract_types=data.get("contract_types", []),
+                                    max_age_days=data.get("max_age_days", 30), confirmed=False)
+    result["generated_from"] = "Déclarations manuelles du propriétaire ; aucun CV importé"
+    errors = validate_profile(result)
+    if errors:
+        raise OnboardingError(" | ".join(errors[:12]))
+    with _LOCK:
+        if not store.start_onboarding(user_id):
+            raise OnboardingInProgress("L'initialisation est déjà en cours.")
+        try:
+            if not status(user_id)["needed"]:
+                raise OnboardingComplete("L'initialisation est déjà terminée.")
+            profile_path, _, _ = paths(user_id)
+            _atomic_write(profile_path, json.dumps(result, ensure_ascii=False, indent=2).encode("utf-8") + b"\n")
+        except Exception as exc:
+            store.finish_onboarding(user_id, "failed", str(exc))
+            raise
+        store.finish_onboarding(user_id, "done")
+    return {"ok": True, "candidate": name.strip(), "profile_path": str(profile_path),
+            "cv_available": False}
+
+
 def validate_profile(profile: dict) -> list[str]:
     return profile_mod.validate_profile(profile)
 
@@ -365,9 +466,9 @@ def _atomic_write(path: Path, content: bytes) -> None:
 
 
 def initialize(pdf_bytes: bytes, filename: str, target_roles: str = "", locations: str = "",
-               reject_experience_years: int = 2, max_age_days: int = 30,
-               user_id: str | None = None) -> dict:
-    if not 1 <= reject_experience_years <= 50:
+               reject_experience_years: int | None = 2, max_age_days: int = 30,
+               user_id: str | None = None, personalization: dict | None = None) -> dict:
+    if reject_experience_years is not None and not 1 <= reject_experience_years <= 50:
         raise OnboardingError("Le seuil d'expérience doit être compris entre 1 et 50 ans.")
     if not 1 <= max_age_days <= 365:
         raise OnboardingError("La fraîcheur doit être comprise entre 1 et 365 jours.")
@@ -381,8 +482,19 @@ def initialize(pdf_bytes: bytes, filename: str, target_roles: str = "", location
                 raise OnboardingComplete("L’onboarding est déjà terminé.")
             cv_text = extract_pdf_text(pdf_bytes)
             master = _generate_master(cv_text, Path(filename or "cv.pdf").name)
-            profile = build_profile(master, target_roles, locations,
-                                    reject_experience_years, max_age_days)
+            if personalization is None:
+                profile = build_profile(master, target_roles, locations,
+                                        reject_experience_years or 2, max_age_days)
+            else:
+                profile = build_personal_profile(
+                    master, target_roles, locations,
+                    seniority=personalization.get("seniority", "any"),
+                    candidate_years=personalization.get("candidate_years"),
+                    reject_experience_years=reject_experience_years,
+                    preferred_locations=personalization.get("preferred_locations", ""),
+                    contract_types=personalization.get("contract_types", []),
+                    max_age_days=max_age_days,
+                )
             profile_errors = validate_profile(profile)
             if profile_errors:
                 raise OnboardingError("PROFILE invalide : " + " | ".join(profile_errors[:12]))

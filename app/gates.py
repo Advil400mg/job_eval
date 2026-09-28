@@ -11,6 +11,7 @@ import re
 from datetime import date, datetime
 
 from .job_facts import extract_facts
+from . import locations, policy
 
 STUDENT_RE = re.compile(
     r"\b(stage|stagiaire|internship|alternance|apprentissage|apprenti|"
@@ -54,6 +55,25 @@ def contract_gate(text: str, facts: dict | None = None) -> dict:
                 "reason": "type de contrat explicite : " + ", ".join(dict.fromkeys(kinds))}
     return {"gate": "contract_type", "status": "unknown", "hard": False,
             "reason": "type de contrat non identifiable dans la page"}
+
+
+def contract_gate_for_profile(text: str, facts: dict, accepted: list[str]) -> dict:
+    """Apply only the user's chosen contract exclusions, never a global internship ban."""
+    fact = facts["contract"]
+    if fact["status"] == "contradictory":
+        return {"gate": "contract_type", "status": "warn", "hard": False,
+                "reason": "mentions de contrat contradictoires — à vérifier"}
+    if not accepted:
+        return {"gate": "contract_type", "status": "pass", "hard": False,
+                "reason": "aucune restriction de contrat déclarée (type non présumé)"}
+    if fact["status"] != "known":
+        return {"gate": "contract_type", "status": "unknown", "hard": False,
+                "reason": "type de contrat non prouvé dans l'offre"}
+    if fact["value"] not in accepted:
+        return {"gate": "contract_type", "status": "fail", "hard": True,
+                "reason": f"contrat {fact['value']} non accepté (« {fact['evidence']} »)"}
+    return {"gate": "contract_type", "status": "pass", "hard": True,
+            "reason": f"contrat accepté (« {fact['evidence']} »)"}
 
 
 def experience_gate(text: str, reject_at_years: int = 2,
@@ -118,6 +138,33 @@ def experience_gate(text: str, reject_at_years: int = 2,
                       + (f" + mention junior (« {junior_word} »)" if junior else "")}
 
 
+def experience_gate_for_profile(facts: dict, candidate_years: float | None,
+                                reject_at_years: int | None) -> dict:
+    """Only an explicit required minimum can disqualify a structured profile."""
+    minimum = facts["experience_min"]
+    preferred = facts["experience_preferred"]
+    if minimum["status"] == "contradictory":
+        return {"gate": "experience", "status": "warn", "hard": False,
+                "reason": "exigences d'expérience contradictoires — à vérifier"}
+    if minimum["status"] != "known":
+        if preferred["status"] == "known":
+            return {"gate": "experience", "status": "warn", "hard": False,
+                    "reason": f"{preferred['value']} ans souhaités, sans minimum exigé"}
+        return {"gate": "experience", "status": "unknown", "hard": False,
+                "reason": "aucun minimum d'expérience prouvé ; compatibilité à vérifier"}
+    minimum_years = minimum["value"]
+    evidence = minimum["evidence"]
+    if (reject_at_years is not None and minimum_years >= reject_at_years) or (
+            candidate_years is not None and minimum_years > candidate_years):
+        return {"gate": "experience", "status": "fail", "hard": True,
+                "reason": f"minimum exigé {minimum_years} ans incompatible (« {evidence} »)"}
+    if candidate_years is None and minimum_years > 0:
+        return {"gate": "experience", "status": "unknown", "hard": False,
+                "reason": f"minimum exigé {minimum_years} ans, expérience du candidat non déclarée (« {evidence} »)"}
+    return {"gate": "experience", "status": "pass", "hard": True,
+            "reason": f"minimum exigé compatible (« {evidence} »)"}
+
+
 def freshness_gate(published_at: str | None, max_age_days: int) -> dict:
     if not published_at:
         return {"gate": "freshness", "status": "fail", "hard": True,
@@ -173,6 +220,15 @@ def run_gates(offer: dict, profile: dict, facts: dict | None = None) -> list[dic
     max_age = search.get("max_age_days", 30)
     text = offer.get("job_text", "")
     facts = facts if facts is not None else extract_facts(offer)
+    if policy.structured(profile):
+        return [
+            contract_gate_for_profile(text, facts, search.get("contract_types", [])),
+            experience_gate_for_profile(facts, exp_filter.get("candidate_years"), reject_at),
+            locations.location_gate(offer, search.get("locations", []),
+                                    search.get("preferred_locations", [])),
+            freshness_gate(offer.get("published_at"), max_age),
+            availability_gate(text),
+        ]
     return [
         contract_gate(text, facts),
         experience_gate(text, reject_at, facts=facts),

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import re
 
-from . import gates
+from . import gates, languages, policy
 
 _WORK_UNCERTAINTY = re.compile(
     r"\b(?:astreintes?|on-call|déplacements|travel|interventions sur site)\b.*"
@@ -113,7 +113,8 @@ def assess_evaluation(jev_result: dict, facts: dict, gate_results: list[dict],
     flags: list[str] = []
     reasons: list[str] = []
 
-    for name in ("contract", "experience_min", "junior"):
+    for name in (("contract", "experience_min", "junior") if not policy.structured(profile)
+                 else ("contract", "experience_min")):
         fact = facts.get(name, {})
         if fact.get("status") in ("unknown", "contradictory"):
             missing.append({"field": name, "status": fact.get("status"),
@@ -131,12 +132,28 @@ def assess_evaluation(jev_result: dict, facts: dict, gate_results: list[dict],
             flags.append(f"unknown:{field}")
             reasons.append(reason)
 
-    requirement = _required_english_sentence(text)
-    if requirement and not _candidate_english_level(profile):
-        missing.append({"field": "candidate_english_level", "status": "unknown",
-                        "evidence": requirement})
-        flags.append("unknown:candidate_english_level")
-        reasons.append("niveau d'anglais requis, mais non vérifiable dans le profil")
+    if policy.structured(profile):
+        declared = languages.candidate_levels(policy.candidate_facts(profile).get("languages_line", ""))
+        for language, evidence, required_level in languages.required_languages(text):
+            candidate_level = declared.get(language)
+            insufficient = (required_level is not None and type(candidate_level) is int
+                            and candidate_level < required_level)
+            unverifiable = (candidate_level is None or
+                            (required_level is not None and candidate_level is True))
+            if insufficient or unverifiable:
+                field = f"candidate_language_level:{language}"
+                missing.append({"field": field, "status": "mismatch" if insufficient else "unknown",
+                                "evidence": evidence})
+                flags.append(("mismatch:" if insufficient else "unknown:") + field)
+                reasons.append(f"langue {language} exigée : " + (
+                    "niveau déclaré insuffisant" if insufficient else "niveau non vérifiable dans le profil"))
+    else:
+        requirement = _required_english_sentence(text)
+        if requirement and not _candidate_english_level(profile):
+            missing.append({"field": "candidate_english_level", "status": "unknown",
+                            "evidence": requirement})
+            flags.append("unknown:candidate_english_level")
+            reasons.append("niveau d'anglais requis, mais non vérifiable dans le profil")
 
     dimensions = jev_result.get("dimensions") or []
     clarity = next((dimension for dimension in dimensions if dimension.get("id") == "clarity"), {})
@@ -173,7 +190,8 @@ def assess_evaluation(jev_result: dict, facts: dict, gate_results: list[dict],
                           if item.get("id") == "technical_fit"), {})
     # A clearly non-cyber role may lack stated experience. That unknown cannot
     # override a confident Jev rejection on the required technical criterion.
-    if (decision["status"] == "review_required" and not jev_result.get("jev_approved")
+    if (not policy.structured(profile) and decision["status"] == "review_required"
+            and not jev_result.get("jev_approved")
             and technical.get("score", 100) < 25
             and technical.get("confidence", 0) >= max(
                 jev_result.get("minimum_confidence", 0.5), 0.8)):

@@ -89,6 +89,140 @@ class JobFactsTests(unittest.TestCase):
         self.assertEqual(facts["junior"]["status"], "unknown")
         self.assertIsNone(facts["experience_min"]["value"])
 
+    # ── Navigation cleanup regressions ─────────────────────────────────────
+
+    def test_skip_to_content_does_not_create_false_senior_hit(self):
+        """'principal' in 'Aller au contenu principal' must not match _SENIOR."""
+        text = ("Aller au contenu principal\n\n"
+                "CDI Développeur junior Python H/F\n\n"
+                "Nous recherchons un développeur junior.")
+        facts = extract_facts({"job_text": text})
+        self.assertEqual(facts["junior"]["value"], True)
+
+    def test_related_offer_senior_not_confused_with_advertised_role(self):
+        """Senior job cards in 'offres recommandées' must not make offer senior."""
+        from app.extract import _clean_job_text
+        text = _clean_job_text(
+            "CDI Développeur junior Python H/F\n\n"
+            "Offres similaires\n"
+            "Senior Architecte CDI - Paris - 70000€"
+        )
+        facts = extract_facts({"job_text": text})
+        self.assertEqual(facts["junior"]["value"], True)
+
+    def test_breadcrumb_nav_does_not_create_senior_hit(self):
+        """Breadcrumb-style nav menus must not be scanned for seniority."""
+        text = ("Accueil > Emploi > Détail\n"
+                "CDI Analyste junior, zéro à deux ans d'expérience.")
+        facts = extract_facts({"job_text": text})
+        self.assertEqual(facts["junior"]["value"], True)
+
+    def test_english_skip_to_content_safe(self):
+        text = ("Skip to main content\n"
+                "Junior Developer CDI - 0 to 2 years experience.")
+        facts = extract_facts({"job_text": text})
+        self.assertEqual(facts["junior"]["value"], True)
+
+    # ── Contract-type extraction regressions ───────────────────────────────
+
+    def test_cdd_extracted_as_fixed_term(self):
+        text = "CDD Développeur Python, 12 mois renouvelable."
+        facts = extract_facts({"job_text": text})
+        self.assertEqual(facts["contract"]["value"], "fixed_term")
+        self.assertEqual(facts["contract"]["status"], "known")
+        self.assertIn(facts["contract"]["evidence"], text)
+
+    def test_fixed_term_english_extracted(self):
+        text = "Fixed-term contract for a junior DevOps engineer, 6 months."
+        facts = extract_facts({"job_text": text})
+        self.assertEqual(facts["contract"]["value"], "fixed_term")
+        self.assertEqual(facts["contract"]["status"], "known")
+
+    def test_befristet_extracted(self):
+        text = "Befristete Stelle als Junior Entwickler, CDD, 24 Monate."
+        facts = extract_facts({"job_text": text})
+        self.assertEqual(facts["contract"]["value"], "fixed_term")
+
+    def test_freelance_extracted(self):
+        text = ("Mission freelance pour consultant junior en cybersécurité. "
+                "Durée 6 mois renouvelables.")
+        facts = extract_facts({"job_text": text})
+        self.assertEqual(facts["contract"]["value"], "freelance")
+        self.assertEqual(facts["contract"]["status"], "known")
+
+    def test_freelance_independant_extracted(self):
+        text = "Mission indépendante en cybersécurité, portage salarial."
+        facts = extract_facts({"job_text": text})
+        self.assertEqual(facts["contract"]["value"], "freelance")
+
+    def test_cdd_and_cdi_contradictory(self):
+        text = "CDI ou CDD au choix du candidat, poste junior."
+        facts = extract_facts({"job_text": text})
+        self.assertEqual(facts["contract"]["status"], "contradictory")
+
+    def test_internship_and_freelance_contradictory(self):
+        text = "Stage de fin d'études ou mission freelance au choix."
+        facts = extract_facts({"job_text": text})
+        self.assertEqual(facts["contract"]["status"], "contradictory")
+
+    def test_permanent_internship_contradictory_preserved(self):
+        text = "CDI avec stage obligatoire de 6 mois en début de contrat."
+        facts = extract_facts({"job_text": text})
+        self.assertEqual(facts["contract"]["status"], "contradictory")
+
+    def test_past_internship_not_mistaken_for_contract(self):
+        """A past internship mentioned as experience is not the contract type."""
+        text = ("CDI en support technique. Un stage préalable en entreprise "
+                "est un plus mais pas obligatoire.")
+        facts = extract_facts({"job_text": text})
+        self.assertEqual(facts["contract"]["value"], "permanent")
+        self.assertEqual(facts["contract"]["status"], "known")
+
+    def test_past_freelance_experience_does_not_conflict_with_cdi(self):
+        text = "Contrat CDI. Une expérience en freelance est un plus."
+        self.assertEqual(extract_facts({"job_text": text})["contract"]["value"], "permanent")
+
+    def test_independent_personality_is_not_freelance_contract(self):
+        text = "Poste CDI. Nous cherchons un consultant indépendant d’esprit."
+        self.assertEqual(extract_facts({"job_text": text})["contract"]["value"], "permanent")
+
+    def test_temporary_freelance_mission_does_not_imply_cdd(self):
+        text = "Freelance, mission temporaire de 6 mois."
+        self.assertEqual(extract_facts({"job_text": text})["contract"]["value"], "freelance")
+
+    def test_no_contract_type_returns_unknown(self):
+        text = ("Poste de niveau junior. Compétences Python et Linux requises. "
+                "Aucune information sur le type de contrat.")
+        facts = extract_facts({"job_text": text})
+        self.assertEqual(facts["contract"]["status"], "unknown")
+        self.assertIsNone(facts["contract"]["value"])
+
+    def test_apprenticeship_as_internship(self):
+        text = "Apprenticeship position for cybersecurity analyst."
+        facts = extract_facts({"job_text": text})
+        self.assertEqual(facts["contract"]["value"], "internship")
+        self.assertEqual(facts["contract"]["status"], "known")
+
+    def test_apprenticeship_curly_apostrophe(self):
+        facts = extract_facts({"job_text": "Contrat d’alternance pour développeur."})
+        self.assertEqual(facts["contract"]["value"], "internship")
+
+    def test_praktikum_as_internship(self):
+        text = "Praktikum im Bereich Cybersicherheit, 6 Monate."
+        facts = extract_facts({"job_text": text})
+        self.assertEqual(facts["contract"]["value"], "internship")
+
+    def test_cdd_negated_not_extracted(self):
+        text = "Ce n'est pas un CDD mais un CDI junior."
+        facts = extract_facts({"job_text": text})
+        self.assertEqual(facts["contract"]["value"], "permanent")
+        self.assertEqual(facts["contract"]["status"], "known")
+
+    def test_freelance_negated_not_extracted(self):
+        text = "Poste en CDI, pas de mission freelance."
+        facts = extract_facts({"job_text": text})
+        self.assertEqual(facts["contract"]["value"], "permanent")
+
 
 if __name__ == "__main__":
     unittest.main()

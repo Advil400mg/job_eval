@@ -6,7 +6,7 @@ La suite de tests combine trois niveaux complémentaires :
 2. tests JavaScript hors navigateur pour les fonctions d’interface isolables ;
 3. parcours E2E Playwright Chromium pour les interactions réelles, le clavier et le responsive.
 
-Pour la v2.6, la suite contient 267 tests Python, 21 tests JavaScript et 10 parcours E2E.
+Pour la v2.6, la suite contient 331 tests Python, 21 tests JavaScript et 11 parcours E2E.
 Aucune clé OpenRouter ni donnée personnelle n’est nécessaire.
 
 ## Installation

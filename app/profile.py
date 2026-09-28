@@ -11,7 +11,7 @@ import tempfile
 import threading
 from pathlib import Path
 
-from . import config, store
+from . import config, policy, store
 
 _LOCK = threading.Lock()
 _CRITERION_ID = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
@@ -84,8 +84,33 @@ def validate_profile(profile: dict) -> list[str]:
     if not isinstance(search, dict):
         errors.append("search doit être un objet")
         search = {}
-    _string_list(search.get("target_roles"), "search.target_roles", errors, 50)
+    roles = _string_list(search.get("target_roles"), "search.target_roles", errors, 50)
     _string_list(search.get("locations"), "search.locations", errors, 100)
+    is_structured = search.get("policy_version") == 2
+    if "policy_version" in search and search["policy_version"] != 2:
+        errors.append("search.policy_version est invalide")
+    if is_structured:
+        if not roles:
+            errors.append("search.target_roles doit contenir au moins un poste visé")
+        if search.get("seniority") not in policy.SENIORITY:
+            errors.append("search.seniority est invalide")
+        if not isinstance(search.get("confirmed"), bool):
+            errors.append("search.confirmed doit être booléen")
+        _string_list(search.get("preferred_locations", []), "search.preferred_locations", errors, 100)
+        contract_types = _string_list(search.get("contract_types", []), "search.contract_types", errors, 10)
+        if any(kind not in policy.CONTRACT_TYPES for kind in contract_types):
+            errors.append("search.contract_types contient un type de contrat inconnu")
+        facts = profile.get("candidate_facts")
+        if not isinstance(facts, dict):
+            errors.append("candidate_facts doit être un objet")
+        else:
+            for key in ("name", "headline", "languages_line"):
+                text = facts.get(key)
+                if not isinstance(text, str) or len(text) > 500:
+                    errors.append(f"candidate_facts.{key} doit être une chaîne de 500 caractères maximum")
+            _string_list(facts.get("skills", []), "candidate_facts.skills", errors, 100)
+            if not isinstance(facts.get("name"), str) or not facts["name"].strip():
+                errors.append("candidate_facts.name ne peut pas être vide")
     max_age = search.get("max_age_days")
     if isinstance(max_age, bool) or not isinstance(max_age, int) or not 1 <= max_age <= 3650:
         errors.append("search.max_age_days doit être un entier entre 1 et 3650")
@@ -94,8 +119,20 @@ def validate_profile(profile: dict) -> list[str]:
         errors.append("search.experience_filter doit être un objet")
     else:
         years = experience.get("reject_if_minimum_required_years_gte")
-        if isinstance(years, bool) or not isinstance(years, int) or not 0 <= years <= 50:
-            errors.append("search.experience_filter.reject_if_minimum_required_years_gte est invalide")
+        if years is not None or not is_structured:
+            if isinstance(years, bool) or not isinstance(years, int) or not 0 <= years <= 50:
+                errors.append("search.experience_filter.reject_if_minimum_required_years_gte est invalide")
+        if is_structured:
+            candidate_years = experience.get("candidate_years")
+            if (candidate_years is not None and
+                (isinstance(candidate_years, bool) or not isinstance(candidate_years, (int, float))
+                 or not 0 <= candidate_years <= 60)):
+                errors.append("search.experience_filter.candidate_years est invalide")
+            if (candidate_years is not None and isinstance(candidate_years, (int, float))
+                    and not isinstance(candidate_years, bool)
+                    and isinstance(years, int) and not isinstance(years, bool)
+                    and years <= candidate_years):
+                errors.append("le seuil de rejet est inférieur ou égal à l'expérience déclarée")
         if not isinstance(experience.get("internships_count_as_professional_experience"), bool):
             errors.append("search.experience_filter.internships_count_as_professional_experience doit être booléen")
 
@@ -146,12 +183,15 @@ def editable_profile(current: dict, proposed: dict) -> dict:
     for key in ("minimum_global_score", "minimum_confidence", "criteria", "hard_rejection_rules"):
         if key in proposed:
             result[key] = copy.deepcopy(proposed[key])
+    if "candidate_facts" in proposed and policy.structured(result):
+        result["candidate_facts"] = copy.deepcopy(proposed["candidate_facts"])
     if "search" in proposed:
         incoming = proposed["search"]
         current_search = result.get("search")
         existing: dict = copy.deepcopy(current_search) if isinstance(current_search, dict) else {}
         if isinstance(incoming, dict):
-            for key in ("target_roles", "locations", "max_age_days", "experience_filter"):
+            for key in ("target_roles", "locations", "preferred_locations", "contract_types",
+                        "seniority", "confirmed", "max_age_days", "experience_filter"):
                 if key in incoming:
                     existing[key] = copy.deepcopy(incoming[key])
         else:
@@ -212,6 +252,65 @@ def update_profile(proposed: dict, expected_revision: str, source: str = "manual
         return {"profile": updated, "revision": updated_revision, "version": version, "changed": True}
 
 
+def _replace_profile(proposed: dict, expected_revision: str, source: str,
+                     user_id: str | None = None) -> dict:
+    """Internal full-snapshot replacement for adoption and historical restoration."""
+    with _LOCK:
+        previous = load_profile(user_id)
+        old_revision = revision(previous)
+        if expected_revision != old_revision:
+            raise ProfileConflict("Le profil a été modifié depuis son chargement")
+        errors = validate_profile(proposed)
+        if errors:
+            raise ProfileError(" | ".join(errors[:20]))
+        new_revision = revision(proposed)
+        store.save_profile_version(previous, old_revision, "initial", user_id)
+        if new_revision == old_revision:
+            return {"profile": previous, "revision": old_revision, "changed": False}
+        _atomic_write(proposed, user_id)
+        try:
+            version = store.save_profile_version(proposed, new_revision, source, user_id)
+        except Exception:
+            _atomic_write(previous, user_id)
+            raise
+        return {"profile": proposed, "revision": new_revision, "version": version,
+                "changed": True}
+
+
+def adopt_structured(expected_revision: str, user_id: str | None = None) -> dict:
+    existing = load_profile(user_id)
+    if policy.structured(existing):
+        raise ProfileError("Le profil est déjà personnalisable")
+    updated = copy.deepcopy(existing)
+    search = updated["search"]
+    search.update({"policy_version": 2, "confirmed": False, "seniority": "any",
+                   "preferred_locations": [],
+                   "contract_types": ["permanent", "fixed_term", "freelance"]})
+    search["experience_filter"]["candidate_years"] = None
+    candidate = updated.get("candidate") or {}
+    updated["candidate_facts"] = {
+        "name": str(candidate.get("name") or "").strip(),
+        "headline": str(candidate.get("headline") or "").strip(),
+        "skills": candidate.get("skills") or [],
+        "languages_line": str(candidate.get("languages_line") or "").strip(),
+    }
+    updated["version"] = 2
+    return _replace_profile(updated, expected_revision, "adopt-personalized", user_id)
+
+
+def preview_profile(proposed: dict, expected_revision: str,
+                    user_id: str | None = None) -> dict:
+    current_profile = load_profile(user_id)
+    if revision(current_profile) != expected_revision:
+        raise ProfileConflict("Le profil a été modifié depuis son chargement")
+    merged = editable_profile(current_profile, proposed)
+    errors = validate_profile(merged)
+    if errors:
+        raise ProfileError(" | ".join(errors[:20]))
+    return {"profile_context": policy.context(merged),
+            "criteria": policy.effective_criteria(merged)}
+
+
 def history(limit: int = 50, user_id: str | None = None) -> list[dict]:
     current(user_id)
     return store.list_profile_versions(limit, user_id)
@@ -221,7 +320,7 @@ def restore(version_id: str, expected_revision: str, user_id: str | None = None)
     version = store.get_profile_version(version_id, user_id)
     if not version:
         raise ProfileNotFound("Version du profil inconnue")
-    return update_profile(
+    return _replace_profile(
         version["profile"], expected_revision,
         source=f"restore:{version_id}", user_id=user_id,
     )

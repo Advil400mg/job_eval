@@ -20,6 +20,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+import re
 from typing import NoReturn
 
 
@@ -35,6 +36,107 @@ STANDARD_DIMENSIONS = (
     ("growth", "Progression professionnelle", "Named mentoring, training, varied hands-on work or a credible technical growth path, not only a vague promise."),
     ("clarity", "Clarté et fiabilité", "The first assignment, team, contract, location and work constraints are explicitly stated; important missing facts reduce this score."),
 )
+
+# ---------------------------------------------------------------------------
+# Profile context schema & sanitisation
+# ---------------------------------------------------------------------------
+
+PROFILE_CONTEXT_FIELDS = frozenset({
+    "target_roles", "seniority", "candidate_years",
+    "accepted_locations", "preferred_locations",
+    "languages", "contract_types",
+})
+ALLOWED_SENIORITY = frozenset({"junior", "intermediate", "senior", "any"})
+
+
+def _sanitize_profile_string(value):
+    """Reject control chars, injection patterns, and excessive length."""
+    if not isinstance(value, str):
+        return value
+    if re.search(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", value):
+        die("ERROR: profile_context string contains control characters.")
+    if len(value) > 500:
+        die("ERROR: profile_context string exceeds max length (500).")
+    injection = re.compile(
+        r"(?:ignore\s+(?:all\s+)?(?:previous|above)"
+        r"|forget\s+(?:all\s+)?(?:previous|above)"
+        r"|you\s+are\s+(?:now\s+)?an?\s+\w+\s+(?:AI|assistant|model|agent)"
+        r"|new\s+instructions?\s*[:=]"
+        r"|rewrite\s+(?:the\s+)?(?:prompt|system)"
+        r"|override\s+(?:all\s+)?(?:instructions?|rules?|system|prompts?)"
+        r")",
+        re.IGNORECASE,
+    )
+    if injection.search(value):
+        die("ERROR: profile_context string contains disallowed pattern.")
+    return value.strip()
+
+
+def _sanitize_profile_list(items):
+    """Sanitise each element of a string list."""
+    return [_sanitize_profile_string(v) for v in items]
+
+
+def validate_profile_context(ctx):
+    """Validate profile_context payload; die on the first defect."""
+    if not isinstance(ctx, dict):
+        die("ERROR: profile_context must be a JSON object.")
+    for key in ctx:
+        if key not in PROFILE_CONTEXT_FIELDS:
+            die(f"ERROR: profile_context contains unknown field '{key}'.")
+
+    if "target_roles" in ctx:
+        tr = ctx["target_roles"]
+        if not isinstance(tr, list) or not all(
+            isinstance(v, str) and v.strip() for v in tr
+        ):
+            die("ERROR: profile_context.target_roles must be a list of non-empty strings.")
+        ctx["target_roles"] = _sanitize_profile_list(tr)
+
+    if "seniority" in ctx:
+        s = ctx["seniority"]
+        if not isinstance(s, str) or s not in ALLOWED_SENIORITY:
+            die("ERROR: profile_context.seniority must be one of: junior, intermediate, senior, any.")
+
+    if "candidate_years" in ctx:
+        cy = ctx["candidate_years"]
+        if cy is not None:
+            if isinstance(cy, bool) or not isinstance(cy, (int, float)):
+                die("ERROR: profile_context.candidate_years must be a number or null.")
+            if cy < 0 or cy > 100:
+                die("ERROR: profile_context.candidate_years out of range (0-100).")
+
+    if "accepted_locations" in ctx:
+        al = ctx["accepted_locations"]
+        if not isinstance(al, list) or not all(
+            isinstance(v, str) and v.strip() for v in al
+        ):
+            die("ERROR: profile_context.accepted_locations must be a list of non-empty strings.")
+        ctx["accepted_locations"] = _sanitize_profile_list(al)
+
+    if "preferred_locations" in ctx:
+        pl = ctx["preferred_locations"]
+        if not isinstance(pl, list) or not all(
+            isinstance(v, str) and v.strip() for v in pl
+        ):
+            die("ERROR: profile_context.preferred_locations must be a list of non-empty strings.")
+        ctx["preferred_locations"] = _sanitize_profile_list(pl)
+
+    if "languages" in ctx:
+        lang = ctx["languages"]
+        if not isinstance(lang, str):
+            die("ERROR: profile_context.languages must be a string.")
+        ctx["languages"] = _sanitize_profile_string(lang)
+
+    if "contract_types" in ctx:
+        ct = ctx["contract_types"]
+        if not isinstance(ct, list) or not all(
+            isinstance(v, str) and v.strip() for v in ct
+        ):
+            die("ERROR: profile_context.contract_types must be a list of non-empty strings.")
+        ctx["contract_types"] = _sanitize_profile_list(ct)
+
+    return ctx
 
 
 # ---------------------------------------------------------------------------
@@ -112,6 +214,9 @@ def validate_input(data):
             if not isinstance(evidence, str) or evidence not in data["job_text"]:
                 die(f"ERROR: unverified offer_context evidence for '{name}'.")
 
+    if "profile_context" in data:
+        validate_profile_context(data["profile_context"])
+
 
 def validate_response(response, criteria_ids, proof_questions=None):
     """Validate all scored answers and every requested evidence choice."""
@@ -158,8 +263,8 @@ def evidence_sentences(job_text, maximum=80):
             if len(chunk.strip()) >= 18 and index < maximum}
 
 
-def build_questions(criteria, sentences):
-    """Score as before, plus a typed source-passage selection per criterion."""
+def build_questions(criteria, sentences, profile_context=None):
+    """Score configured criteria, plus a typed source-passage selection."""
     import re
     questions = {}
     proofs = {}
@@ -167,15 +272,20 @@ def build_questions(criteria, sentences):
     for criterion in criteria:
         cid = criterion["id"]
         description = criterion["description"]
+        instructions = (
+            "A preferred qualification is not mandatory; a mandatory minimum is "
+            "not cancelled by a job title. Use only explicit evidence; "
+            "missing information is unknown, not a positive match."
+        ) if profile_context else (
+            "A preferred qualification is not mandatory; a mandatory minimum is "
+            "not cancelled by a junior title. Distinguish hands-on duties from "
+            "governance or unspecified staffing. Use only explicit evidence; "
+            "missing information is unknown, not a positive match."
+        )
         questions[cid] = {
             "type": "score",
-            "instructions": (
-                f"Evaluate how well this job offer satisfies this criterion: {description}. "
-                "A preferred qualification is not mandatory; a mandatory minimum is "
-                "not cancelled by a junior title. Distinguish hands-on duties from "
-                "governance or unspecified staffing. Use only explicit evidence; "
-                "missing information is unknown, not a positive match."
-            ),
+            "instructions": f"Evaluate how well this job offer satisfies this criterion: {description}. "
+                            + instructions,
             "criteria": [
                 f"The offer clearly conflicts with: {description}",
                 f"The offer mostly fails to satisfy: {description}",
@@ -205,11 +315,46 @@ def build_questions(criteria, sentences):
     return questions, proofs
 
 
-def dimension_criteria(profile_criteria):
-    """Keep standard assessments beside, not inside, the configured global score."""
+def _parameterize_dimension(key, base_description, context):
+    """Generate profile-aware dimension descriptions; context already sanitised."""
+    if key == "technical":
+        roles = context.get("target_roles") or []
+        role_str = ", ".join(r.strip() for r in roles[:3] if r.strip())
+        return ("Does the actual work match the targeted occupation(s): "
+                f"{role_str or 'not specified'}? Do not privilege technical over "
+                "non-technical roles, or infer fit from the title alone.")
+
+    if key == "junior":
+        seniority = context.get("seniority") or "any"
+        candidate_years = context.get("candidate_years")
+        years = (f"The candidate reports {candidate_years:g} years of professional experience. "
+                 if candidate_years is not None else
+                 "The candidate has not declared years of professional experience. ")
+        return (years + f"Compare actual responsibilities and mandatory requirements with "
+                f"the candidate's target seniority ({seniority}); do not assume a junior "
+                "candidate or an entry-level opening. An unknown requirement is not a match.")
+
+    if key == "growth":
+        return ("Credible professional development aligned with the candidate's career stage: "
+                "specific responsibilities, progression or mentoring where appropriate, "
+                "not only vague promises.")
+
+    return base_description
+
+
+def dimension_criteria(profile_criteria, profile_context=None):
+    """Keep standard assessments beside, not inside, the configured global score.
+
+    When profile_context is provided, descriptions for 'technical' and 'junior'
+    dimensions are parameterized based on target_roles, seniority, etc.
+    """
     reserved = {criterion["id"] for criterion in profile_criteria}
     dimensions = []
     for key, name, description in STANDARD_DIMENSIONS:
+        if profile_context:
+            description = _parameterize_dimension(key, description, profile_context)
+            name = {"technical": "Adéquation au métier",
+                    "junior": "Adéquation du niveau"}.get(key, name)
         question_id = f"dim_{key}"
         while question_id in reserved:
             question_id = "_" + question_id
@@ -320,10 +465,10 @@ def main():
     job_text = data["job_text"]
     criteria = data["criteria"]
     criteria_ids = [c["id"] for c in criteria]
-    dimensions = dimension_criteria(criteria)
+    dimensions = dimension_criteria(criteria, data.get("profile_context"))
     all_criteria = criteria + dimensions
     questions, proof_questions = build_questions(
-        all_criteria, evidence_sentences(job_text))
+        all_criteria, evidence_sentences(job_text), data.get("profile_context"))
 
     # --- 2. Call Jev in bounded batches; a partial assessment is never emitted ---
     items = list(questions.items())

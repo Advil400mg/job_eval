@@ -19,7 +19,7 @@ import subprocess
 import sys
 import tempfile
 
-from . import config
+from . import config, policy
 from .job_facts import extract_facts
 
 
@@ -65,7 +65,7 @@ def evaluate(offer: dict, profile: dict, evaluator: str | None = None) -> dict:
         or profile.get("minimum_global_score", 68),
         "minimum_confidence": settings["minimum_confidence"]
         or profile.get("minimum_confidence", 0.5),
-        "criteria": profile["criteria"],
+        "criteria": policy.effective_criteria(profile),
         "offer_context": verified_context,
         # surcharges optionnelles, lues par scripts/evaluate_job.py
         "api_endpoint": settings["openrouter"]["endpoint"],
@@ -73,6 +73,8 @@ def evaluate(offer: dict, profile: dict, evaluator: str | None = None) -> dict:
         "timeout_seconds": settings["openrouter"]["timeout_seconds"],
         "max_retries": settings["openrouter"]["max_retries"],
     }
+    if context := policy.context(profile):
+        payload["profile_context"] = context
 
     env = dict(os.environ)
     env["OPENROUTER_API_KEY"] = api_key

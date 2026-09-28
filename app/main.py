@@ -24,7 +24,7 @@ from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 
-from . import accounts, analytics, audit, backup, config, cv, diagnostics, jobs, network, onboarding, pipeline
+from . import accounts, analytics, audit, backup, config, cv, diagnostics, jobs, network, onboarding, pipeline, policy
 from . import profile as profile_mod
 from . import security, store
 from .version import APP_VERSION
@@ -81,6 +81,20 @@ class ManualEvaluateRequest(BaseModel):
 class ProfileUpdateRequest(BaseModel):
     profile: dict
     expected_revision: str = Field(..., min_length=64, max_length=64)
+
+
+class ManualProfileRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=500)
+    target_roles: str = Field(..., min_length=1, max_length=5000)
+    locations: str = Field("", max_length=5000)
+    preferred_locations: str = Field("", max_length=5000)
+    skills: str = Field("", max_length=5000)
+    languages_line: str = Field("", max_length=5000)
+    seniority: str = "any"
+    candidate_years: float | None = Field(None, ge=0, le=60)
+    reject_experience_years: int | None = Field(None, ge=1, le=50)
+    contract_types: list[str] = Field(default_factory=list, max_length=4)
+    max_age_days: int = Field(30, ge=1, le=3650)
 
 
 class ProfileRestoreRequest(BaseModel):
@@ -302,13 +316,16 @@ def _profile_context(user_id: str) -> tuple[dict, dict, list[dict]]:
         or profile.get("minimum_confidence", 0.5),
         "max_age_days": profile.get("search", {}).get("max_age_days", 30),
     }
-    return profile, thresholds, profile.get("criteria", [])
+    return profile, thresholds, policy.effective_criteria(profile)
 
 
 def _page_context(request: Request, active: str, title: str) -> dict:
     settings = config.settings()
     cv_ok, cv_why = cv.available()
     user = _current_user(request)
+    setup = onboarding.status(user["id"])
+    if not setup["cv_available"]:
+        cv_ok, cv_why = False, "aucun CV importé : profil manuel limité à l'évaluation"
     return {
         "request": request, "active": active, "page_title": title,
         "api_key_set": settings["api_key_set"], "cv_available": cv_ok,
@@ -449,6 +466,7 @@ def index(request: Request):
     return _render_page(request, "evaluate.html", "evaluate", "Évaluer", {
         "thresholds": thresholds, "criteria": criteria,
         "target_roles": profile.get("search", {}).get("target_roles", []),
+        "profile_review_required": policy.structured(profile) and not profile["search"]["confirmed"],
     })
 
 
@@ -491,10 +509,18 @@ def profile_page(request: Request):
         return _render_page(request, "profile.html", "profile", "Profil")
     current = profile_mod.current(user_id)
     profile, thresholds, criteria = _profile_context(user_id)
-    master = json.loads((config.user_dir(user_id) / "CV_MASTER.json").read_text(encoding="utf-8"))
+    master_path = config.user_dir(user_id) / "CV_MASTER.json"
+    master = json.loads(master_path.read_text(encoding="utf-8")) if master_path.is_file() else {}
+    identity = master.get("identity", {})
+    if not identity:
+        facts = policy.candidate_facts(profile)
+        identity = {"name": facts.get("name", ""), "headline_default": facts.get("headline", ""),
+                    "languages_line": facts.get("languages_line", ""), "mobility": "",
+                    "email": "", "phone": ""}
     return _render_page(request, "profile.html", "profile", "Profil", {
         "profile": profile, "thresholds": thresholds, "criteria": criteria,
-        "identity": master.get("identity", {}), "profile_revision": current["revision"],
+        "identity": identity, "profile_revision": current["revision"],
+        "manual_profile": not master,
     })
 
 
@@ -503,9 +529,16 @@ def _require_onboarding_complete(user_id: str) -> None:
     if setup["needed"]:
         raise HTTPException(
             428,
-            detail={"message": "Initialisation requise : importer d'abord un CV PDF.",
+            detail={"message": "Initialisation requise : créez un profil manuel ou importez un CV PDF.",
                     "onboarding": setup},
         )
+
+
+def _require_evaluation_profile(user_id: str) -> None:
+    _require_onboarding_complete(user_id)
+    current = pipeline.load_profile(user_id)
+    if policy.structured(current) and not current["search"]["confirmed"]:
+        raise HTTPException(428, "Confirmez les faits et les préférences du profil avant d'évaluer.")
 
 
 @app.get("/api/onboarding")
@@ -516,8 +549,10 @@ def get_onboarding(request: Request):
 @app.post("/api/onboarding")
 async def create_onboarding(
     request: Request, cv_pdf: UploadFile = File(...), target_roles: str = Form(""),
-    locations: str = Form(""), reject_experience_years: int = Form(2),
-    max_age_days: int = Form(30),
+    locations: str = Form(""), reject_experience_years: int | None = Form(None),
+    max_age_days: int = Form(30), seniority: str = Form("any"),
+    candidate_years: float | None = Form(None), preferred_locations: str = Form(""),
+    contract_types: str = Form(""),
 ):
     security.enforce_rate(
         request, "onboarding", config.settings()["security"]["onboarding_per_hour"], 3600,
@@ -545,6 +580,9 @@ async def create_onboarding(
             reject_experience_years,
             max_age_days,
             user_id=user_id,
+            personalization={"seniority": seniority, "candidate_years": candidate_years,
+                             "preferred_locations": preferred_locations,
+                             "contract_types": [item.strip() for item in contract_types.split(",") if item.strip()]},
         )
         _audit("onboarding.started", actor_id=user_id, subject_type="user", subject_id=user_id)
         return result
@@ -560,6 +598,24 @@ async def create_onboarding(
         raise HTTPException(400, str(exc)) from exc
 
 
+@app.post("/api/onboarding/manual")
+def create_manual_profile(request: Request, payload: ManualProfileRequest):
+    user_id = _user_id(request)
+    security.enforce_rate(
+        request, "onboarding", config.settings()["security"]["onboarding_per_hour"], 3600,
+    )
+    if not onboarding.status(user_id)["needed"]:
+        raise HTTPException(409, "L'initialisation est déjà terminée.")
+    try:
+        result = onboarding.initialize_manual(payload.model_dump(), user_id=user_id)
+    except (onboarding.OnboardingComplete, onboarding.OnboardingInProgress) as exc:
+        raise HTTPException(409, str(exc)) from exc
+    except onboarding.OnboardingError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    _audit("onboarding.manual_completed", actor_id=user_id, subject_type="user", subject_id=user_id)
+    return result
+
+
 @app.get("/healthz")
 def healthz():
     return {"ok": True, "version": APP_VERSION, "auth_required": True}
@@ -568,7 +624,7 @@ def healthz():
 @app.post("/api/evaluate")
 def evaluate(request: Request, payload: EvaluateRequest):
     user_id = _user_id(request)
-    _require_onboarding_complete(user_id)
+    _require_evaluation_profile(user_id)
     security.enforce_rate(
         request, "evaluate", config.settings()["security"]["evaluate_per_minute"], 60,
     )
@@ -583,7 +639,7 @@ def evaluate(request: Request, payload: EvaluateRequest):
 @app.post("/api/evaluate/manual")
 def evaluate_manual(request: Request, payload: ManualEvaluateRequest):
     user_id = _user_id(request)
-    _require_onboarding_complete(user_id)
+    _require_evaluation_profile(user_id)
     security.enforce_rate(
         request, "evaluate", config.settings()["security"]["evaluate_per_minute"], 60,
     )
@@ -778,6 +834,32 @@ def update_profile(request: Request, payload: ProfileUpdateRequest):
         raise HTTPException(400, str(exc)) from exc
 
 
+@app.post("/api/profile/adopt")
+def adopt_profile(request: Request, payload: ProfileRestoreRequest):
+    user_id = _user_id(request)
+    _require_onboarding_complete(user_id)
+    try:
+        result = profile_mod.adopt_structured(payload.expected_revision, user_id=user_id)
+    except profile_mod.ProfileConflict as exc:
+        raise HTTPException(409, str(exc)) from exc
+    except profile_mod.ProfileError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    _audit("profile.adopted", actor_id=user_id, subject_type="profile", subject_id=user_id)
+    return result
+
+
+@app.post("/api/profile/preview")
+def preview_profile(request: Request, payload: ProfileUpdateRequest):
+    user_id = _user_id(request)
+    _require_onboarding_complete(user_id)
+    try:
+        return profile_mod.preview_profile(payload.profile, payload.expected_revision, user_id=user_id)
+    except profile_mod.ProfileConflict as exc:
+        raise HTTPException(409, str(exc)) from exc
+    except profile_mod.ProfileError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
 @app.get("/api/profile/history")
 def profile_history(request: Request, limit: int = Query(50, ge=1, le=200)):
     user_id = _user_id(request)
@@ -922,6 +1004,8 @@ def list_cv_jobs(
 def create_cv(request: Request, payload: CvRequest):
     user_id = _user_id(request)
     _require_onboarding_complete(user_id)
+    if not onboarding.status(user_id)["cv_available"]:
+        raise HTTPException(428, "Importez un CV avant de demander un CV adapté ; le profil manuel ne fournit pas de CV source.")
     security.enforce_rate(
         request, "cv", config.settings()["security"]["cv_per_hour"], 3600,
     )
