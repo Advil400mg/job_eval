@@ -1,0 +1,39 @@
+{
+  "id": "SYNTH-023-A",
+  "expected_class": "ambiguous",
+  "difficulty": "hard",
+  "language": "fr",
+  "offer": {
+    "url": "https://jobs.example.test/synth-023",
+    "title": "Junior Platform Security Engineer",
+    "company": "Frost Platform",
+    "location": "Lausanne",
+    "published_days_ago": 5,
+    "contract_hint": "unknown",
+    "experience_hint": "débutant accepté",
+    "job_text": "Titre junior et débutant accepté, mais le poste demande de définir seul l'architecture Kubernetes de production, d'approuver les exceptions de sécurité, d'assurer une astreinte critique et de conseiller les équipes seniors. Les outils Linux, Terraform et Python correspondent au profil, pourtant l'autonomie et l'impact attendus ressemblent à un rôle confirmé."
+  },
+  "expected": {
+    "facts": {
+      "contract": null,
+      "experience_min": 0,
+      "junior": true,
+      "role_nature": "technical_lead",
+      "evidence": [
+        "Titre junior et débutant accepté, mais le poste demande de définir seul l'architecture Kubernetes de production, d'approuver les exceptions de sécurité, d'assurer une astreinte critique et de conseiller les équipes seniors.",
+        "Les outils Linux, Terraform et Python correspondent au profil, pourtant l'autonomie et l'impact attendus ressemblent à un rôle confirmé."
+      ]
+    },
+    "gates": {
+      "experience": "warn"
+    },
+    "evidence_contains": [
+      "Titre junior et débutant accepté, mais le poste demande de définir seul l'architecture Kubernetes de production, d'approuver les exceptions de sécurité, d'assurer une astreinte critique et de conseiller les équipes seniors.",
+      "Les outils Linux, Terraform et Python correspondent au profil, pourtant l'autonomie et l'impact attendus ressemblent à un rôle confirmé."
+    ],
+    "must_remain_unknown": [
+      "contract_type",
+      "actual_seniority"
+    ]
+  }
+}

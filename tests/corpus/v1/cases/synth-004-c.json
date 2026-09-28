@@ -1,0 +1,36 @@
+{
+  "id": "SYNTH-004-C",
+  "expected_class": "compatible",
+  "difficulty": "easy",
+  "language": "en",
+  "offer": {
+    "url": "https://jobs.example.test/synth-004",
+    "title": "Junior Network Security Analyst",
+    "company": "Amber Networks",
+    "location": "Bruxelles",
+    "published_days_ago": 5,
+    "contract_hint": "CDI",
+    "experience_hint": "0-2 years",
+    "job_text": "Junior permanent network security position in Brussels for candidates with zero to two years of experience. Work includes Wireshark traffic analysis, firewall rule reviews, Suricata tuning, TLS certificate operations and small Python automation tasks. The team offers a six-month onboarding programme and pairs each newcomer with an experienced analyst."
+  },
+  "expected": {
+    "facts": {
+      "contract": "permanent",
+      "experience_min": 0,
+      "experience_max": 2,
+      "junior": true,
+      "role_nature": "technical",
+      "evidence": [
+        "Junior permanent network security position in Brussels for candidates with zero to two years of experience.",
+        "Work includes Wireshark traffic analysis, firewall rule reviews, Suricata tuning, TLS certificate operations and small Python automation tasks.",
+        "The team offers a six-month onboarding programme and pairs each newcomer with an experienced analyst."
+      ]
+    },
+    "gates": {},
+    "evidence_contains": [
+      "Junior permanent network security position in Brussels for candidates with zero to two years of experience.",
+      "Work includes Wireshark traffic analysis, firewall rule reviews, Suricata tuning, TLS certificate operations and small Python automation tasks.",
+      "The team offers a six-month onboarding programme and pairs each newcomer with an experienced analyst."
+    ]
+  }
+}

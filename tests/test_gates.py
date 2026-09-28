@@ -126,6 +126,28 @@ class Decision(unittest.TestCase):
         self.assertEqual(res["status"], "jev_excluded")
         self.assertEqual(res["hard_gate_failures"][0]["gate"], "freshness")
 
+    def test_low_jev_confidence_is_reported_without_rewriting_a_source_backed_junior_pass(self):
+        facts = {"junior": {"status": "known", "value": True},
+                 "experience_min": {"status": "known", "value": 0}}
+        result = {"jev_approved": True, "low_confidence_criteria": ["junior_fit"],
+                  "criteria": [{"id": "junior_fit", "required": True, "passed": True,
+                                "evidence": {"quote": "Débutant accepté."}}]}
+        decision = gates.decide(result, self.pass_gates, facts)
+        self.assertEqual(decision["status"], "qualified")
+        self.assertEqual(decision["confidence_reservations"], ["faible confiance Jev : junior_fit"])
+        facts["junior"] = {"status": "contradictory", "value": None}
+        self.assertEqual(gates.decide(result, self.pass_gates, facts)["status"], "review_required")
+
+    def test_missing_experience_stays_reviewable_without_proven_negative_evidence(self):
+        unknown = [{"gate": "experience", "status": "unknown", "hard": False,
+                    "reason": "minimum non indiqué"}]
+        result = {"jev_approved": False, "minimum_confidence": 0.5,
+                  "criteria": [{"id": "technical_fit", "required": True, "passed": False,
+                                "score": 2, "min_score": 55, "confidence": 0.94}]}
+        decision = gates.decide(result, self.pass_gates + unknown)
+        self.assertEqual(decision["status"], "review_required")
+        self.assertEqual(decision["unknowns"][0]["gate"], "experience")
+
     def test_soft_failure_does_not_exclude(self):
         soft = [{"gate": "contract_type", "status": "fail", "hard": False, "reason": "x"}]
         res = gates.decide({"jev_approved": True}, soft)

@@ -1,0 +1,37 @@
+{
+  "id": "HOLD-001-A",
+  "expected_class": "ambiguous",
+  "difficulty": "hard",
+  "language": "fr",
+  "offer": {
+    "url": "https://jobs.example.test/hold-001-a",
+    "title": "Analyste SOC junior — anglais requis",
+    "company": "Entreprise fictive",
+    "location": "Bruxelles",
+    "published_days_ago": 5,
+    "job_text": "CDI junior à Bruxelles, ouvert aux candidats ayant zéro à deux ans de pratique. L'équipe supervise Elastic et Linux, documente les alertes et écrit des détections en Python. L'anglais est la seule langue utilisée par l'équipe et les clients. Le candidat doit pouvoir communiquer couramment avec les clients, mais le profil de candidature ne donne aucun niveau de langue vérifié ni certification linguistique."
+  },
+  "expected": {
+    "facts": {
+      "contract": "permanent",
+      "experience_min": 0,
+      "junior": true,
+      "evidence": [
+        "CDI junior à Bruxelles, ouvert aux candidats ayant zéro à deux ans de pratique.",
+        "L'équipe supervise Elastic et Linux, documente les alertes et écrit des détections en Python.",
+        "L'anglais est la seule langue utilisée par l'équipe et les clients.",
+        "Le candidat doit pouvoir communiquer couramment avec les clients, mais le profil de candidature ne donne aucun niveau de langue vérifié ni certification linguistique."
+      ],
+      "experience_max": 2
+    },
+    "gates": {
+      "contract_type": "pass",
+      "experience": "pass"
+    },
+    "evidence_contains": [
+      "CDI junior à Bruxelles, ouvert aux candidats ayant zéro à deux ans de pratique.",
+      "Le candidat doit pouvoir communiquer couramment avec les clients, mais le profil de candidature ne donne aucun niveau de langue vérifié ni certification linguistique."
+    ]
+  },
+  "rationale": "Niveau anglais du candidat inconnu, malgré la nécessité professionnelle."
+}

@@ -10,15 +10,11 @@ from __future__ import annotations
 import re
 from datetime import date, datetime
 
+from .job_facts import extract_facts
+
 STUDENT_RE = re.compile(
     r"\b(stage|stagiaire|internship|alternance|apprentissage|apprenti|"
     r"contrat de professionnalisation|statut étudiant|etudiant|Praktikum)\b",
-    re.I,
-)
-
-SENIOR_ONLY_RE = re.compile(
-    r"\b(expérience (?:professionnelle )?(?:confirmée|démontrée|significative)|"
-    r"senior|expert confirmé|minimum \d+ ans|au moins \d+ ans)\b",
     re.I,
 )
 
@@ -74,17 +70,15 @@ def _years_requirement(text: str) -> tuple[int | None, int | None, str | None]:
     return low, high, wording
 
 
-def contract_gate(text: str) -> dict:
-    offer = text[:8000]
-    if STUDENT_RE.search(offer):
-        hit = STUDENT_RE.search(offer)
-        return {"gate": "contract_type", "status": "fail", "hard": True,
-                "reason": f"statut étudiant / stage / alternance détecté (« {hit.group(0)} »)"}
-    student_body = STUDENT_RE.search(text)
-    if student_body and not re.search(r"\b(stage|alternance)\b.{0,40}(exclu|pas|aucun)", text, re.I):
+def contract_gate(text: str, facts: dict | None = None) -> dict:
+    contract = (facts or extract_facts({"job_text": text}))["contract"]
+    if contract["status"] == "contradictory":
         return {"gate": "contract_type", "status": "warn", "hard": False,
-                "reason": f"mention de « {student_body.group(0)} » dans le corps du texte "
-                          f"— à vérifier manuellement"}
+                "reason": "mentions de contrat contradictoires — à vérifier"}
+    if contract["value"] == "internship":
+        return {"gate": "contract_type", "status": "fail", "hard": True,
+                "reason": f"stage ou alternance exigé (« {contract['evidence']} »)"}
+    offer = text[:8000]
     kinds = []
     for pattern, label in (
         (r"\bCDI\b", "CDI"), (r"\bCDD\b", "CDD"),
@@ -102,38 +96,72 @@ def contract_gate(text: str) -> dict:
 
 
 def experience_gate(text: str, reject_at_years: int = 2,
-                    allowed_max_range: int = 2) -> dict:
-    """Apply the profile's experience_filter (reject at >= 2 years; a range that
-    reaches beyond 2 years needs an explicit junior/entry-level mention)."""
-    low, high, wording = _years_requirement(text)
+                    allowed_max_range: int = 2,
+                    facts: dict | None = None) -> dict:
+    """Reject only proven mandatory experience; preferences never become minima."""
+    facts = facts or extract_facts({"job_text": text})
+    minimum = facts["experience_min"]
+    preferred = facts["experience_preferred"]
+    junior_fact = facts["junior"]
+    if minimum["status"] == "known":
+        low = minimum["value"]
+        maximum = facts.get("experience_max", {})
+        high = maximum.get("value") if maximum.get("status") == "known" else None
+        wording = minimum["evidence"]
+    elif preferred["status"] == "known":
+        return {"gate": "experience", "status": "warn", "hard": False,
+                "reason": f"{preferred['value']} ans souhaités, pas exigés — accessibilité à vérifier"}
+    else:
+        low, high, wording = _years_requirement(text)
+        if low is not None and re.search(
+            r"\b(?:souhaitée|appréciée|preferred|not mandatory|non obligatoire)\b", wording or "", re.I
+        ):
+            low = None
     explicit_unstated = bool(re.search(
         r"expérience (?:souhaitée|requise)\s*:?\s*(?:non renseigné|non renseignée)",
         text, re.I))
-    junior = JUNIOR_HINT_RE.search(text)
+    junior = junior_fact["value"] is True
+    junior_match = JUNIOR_HINT_RE.search(text) if junior else None
+    junior_word = junior_match.group(0) if junior_match else junior_fact.get("evidence") or "junior"
     if low is None:
+        if junior_fact["status"] == "contradictory":
+            return {"gate": "experience", "status": "warn", "hard": False,
+                    "reason": "indices de séniorité et d'accès junior contradictoires"}
         if not junior and explicit_unstated:
             return {"gate": "experience", "status": "pass", "hard": True,
                     "reason": "expérience requise « non renseignée » sur la fiche"}
+        if junior and re.search(
+            r"\b(?:définir seul|approuver les exceptions|astreinte critique|"
+            r"lead (?:the |a )?team|own (?:the )?(?:security )?strategy)\b", text, re.I
+        ):
+            return {"gate": "experience", "status": "warn", "hard": False,
+                    "reason": "intitulé junior, mais responsabilités de niveau confirmé"}
         if junior:
             return {"gate": "experience", "status": "pass", "hard": True,
                     "reason": f"aucun minimum en années ; mention junior explicite "
-                              f"(« {junior.group(0)} »)"}
+                              f"(« {junior_word} »)"}
         return {"gate": "experience", "status": "unknown", "hard": False,
                 "reason": "aucun minimum d'expérience écrit en années, "
                           "aucune mention junior — non prouvable"}
-    if low >= reject_at_years and not junior:
+    if low >= reject_at_years:
+        if junior and re.search(r"\b(?:including internships|stages? (?:et|ou) projets)\b", text, re.I):
+            return {"gate": "experience", "status": "warn", "hard": False,
+                    "reason": f"{low} ans mais stages/projets explicitement comptés — à vérifier"}
         return {"gate": "experience", "status": "fail", "hard": True,
                 "reason": f"minimum exigé ≥ {reject_at_years} ans (« {wording} »)"}
-    if high is not None and high > allowed_max_range and not junior:
+    if high is not None and high > allowed_max_range:
+        if junior:
+            return {"gate": "experience", "status": "warn", "hard": False,
+                    "reason": f"fourchette {low}-{high} ans et ouverture junior — vérifier l'exigence réelle"}
         return {"gate": "experience", "status": "fail", "hard": True,
                 "reason": f"fourchette {low}-{high} ans sans mention junior/entry-level "
                           f"(« {wording} »)"}
-    if low >= 1 and junior and SENIOR_ONLY_RE.search(text):
+    if junior_fact["status"] == "contradictory":
         return {"gate": "experience", "status": "warn", "hard": False,
                 "reason": f"« {wording} » mais corps d'annonce au registre senior"}
     return {"gate": "experience", "status": "pass", "hard": True,
             "reason": f"exigence compatible (« {wording} »)"
-                      + (f" + mention junior (« {junior.group(0)} »)" if junior else "")}
+                      + (f" + mention junior (« {junior_word} »)" if junior else "")}
 
 
 def freshness_gate(published_at: str | None, max_age_days: int) -> dict:
@@ -184,35 +212,66 @@ def availability_gate(text: str) -> dict:
             "reason": "page servie avec contenu d'offre complet, aucune mention de clôture"}
 
 
-def run_gates(offer: dict, profile: dict) -> list[dict]:
+def run_gates(offer: dict, profile: dict, facts: dict | None = None) -> list[dict]:
     search = profile.get("search", {})
     exp_filter = search.get("experience_filter", {})
     reject_at = exp_filter.get("reject_if_minimum_required_years_gte", 2)
     max_age = search.get("max_age_days", 30)
     text = offer.get("job_text", "")
+    facts = facts if facts is not None else extract_facts(offer)
     return [
-        contract_gate(text),
-        experience_gate(text, reject_at),
+        contract_gate(text, facts),
+        experience_gate(text, reject_at, facts=facts),
         freshness_gate(offer.get("published_at"), max_age),
         availability_gate(text),
     ]
 
 
-def decide(jev_result: dict, gates: list[dict]) -> dict:
-    """Final status: qualified / jev_excluded / rejected (+ reasons)."""
+def decide(jev_result: dict, gates: list[dict], facts: dict | None = None) -> dict:
+    """Keep Jev's raw verdict; separate proven exclusion from human review."""
     hard_failed = [g for g in gates if g["status"] == "fail" and g.get("hard")]
     approved = bool(jev_result.get("jev_approved"))
-    if approved and not hard_failed:
-        status = "qualified"
-    elif approved and hard_failed:
+    warnings = [{"gate": g["gate"], "reason": g["reason"]}
+                for g in gates if g["status"] == "warn"]
+    unknowns = [{"gate": g["gate"], "reason": g["reason"]}
+                for g in gates if g["status"] == "unknown"]
+    review_reasons = [g["reason"] for g in warnings + unknowns]
+    confidence_reservations = []
+    for criterion in jev_result.get("criteria") or []:
+        if criterion.get("required") and criterion.get("id") in (jev_result.get("low_confidence_criteria") or []):
+            note = f"faible confiance Jev : {criterion['id']}"
+            junior_fact = (facts or {}).get("junior", {})
+            minimum = (facts or {}).get("experience_min", {})
+            supported_junior = (criterion.get("id") == "junior_fit"
+                                and junior_fact.get("status") == "known"
+                                and junior_fact.get("value") is True
+                                and (minimum.get("status") != "known" or minimum.get("value", 99) < 2)
+                                and criterion.get("evidence"))
+            if supported_junior and approved:
+                confidence_reservations.append(note)
+            else:
+                review_reasons.append(note)
+        if approved and criterion.get("required") and criterion.get("passed") and not criterion.get("evidence"):
+            review_reasons.append(f"preuve Jev absente : {criterion['id']}")
+    for name, fact in (facts or {}).items():
+        if fact.get("status") == "contradictory":
+            review_reasons.append(f"fait contradictoire : {name}")
+    if approved and hard_failed:
         status = "jev_excluded"
+    elif hard_failed:
+        status = "rejected"
+    elif review_reasons:
+        status = "review_required"
+    elif approved:
+        status = "qualified"
     else:
         status = "rejected"
     return {
         "status": status,
+        "review_required": status == "review_required",
+        "review_reasons": list(dict.fromkeys(review_reasons)) if status == "review_required" else [],
+        "confidence_reservations": confidence_reservations,
         "hard_gate_failures": [{"gate": g["gate"], "reason": g["reason"]} for g in hard_failed],
-        "warnings": [{"gate": g["gate"], "reason": g["reason"]}
-                     for g in gates if g["status"] == "warn"],
-        "unknowns": [{"gate": g["gate"], "reason": g["reason"]}
-                     for g in gates if g["status"] == "unknown"],
+        "warnings": warnings,
+        "unknowns": unknowns,
     }

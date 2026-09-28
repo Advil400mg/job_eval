@@ -1,6 +1,6 @@
 ---
 # Copier vers group_vars/all/main.yml et adapter.
-jev_version: "2.5.0"
+jev_version: "2.6.0"
 jev_domain: "jev.example.com"
 jev_acme_email: "admin@example.com"
 jev_timezone: "Europe/Paris"
@@ -17,4 +17,4 @@ jev_ssh_port: 22
 
 # L’archive du tag GitHub est utilisée par défaut. Cette valeur peut pointer
 # vers un miroir ou une archive interne.
-# jev_release_url: "https://github.com/Advil400mg/job_eval/archive/refs/tags/v2.5.0.tar.gz"
+# jev_release_url: "https://github.com/Advil400mg/job_eval/archive/refs/tags/v2.6.0.tar.gz"

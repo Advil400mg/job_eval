@@ -1,0 +1,40 @@
+{
+  "id": "SYNTH-020-I",
+  "expected_class": "incompatible",
+  "difficulty": "medium",
+  "language": "en",
+  "offer": {
+    "url": "https://jobs.example.test/synth-020",
+    "title": "Remote Security Lead",
+    "company": "Oceanic Systems",
+    "location": "Worldwide remote",
+    "published_days_ago": 5,
+    "contract_hint": "unknown",
+    "experience_hint": "4 years",
+    "job_text": "Remote security lead contract advertised worldwide, but applicants must already hold work authorization in the United States. Four years of professional experience are required. The role owns incident response, cloud security architecture, vendor risk and management reporting, and supervises a distributed team of analysts."
+  },
+  "expected": {
+    "facts": {
+      "contract": null,
+      "experience_min": 4,
+      "junior": false,
+      "role_nature": "management",
+      "evidence": [
+        "Remote security lead contract advertised worldwide, but applicants must already hold work authorization in the United States.",
+        "Four years of professional experience are required.",
+        "The role owns incident response, cloud security architecture, vendor risk and management reporting, and supervises a distributed team of analysts."
+      ]
+    },
+    "gates": {
+      "experience": "fail"
+    },
+    "evidence_contains": [
+      "Remote security lead contract advertised worldwide, but applicants must already hold work authorization in the United States.",
+      "Four years of professional experience are required.",
+      "The role owns incident response, cloud security architecture, vendor risk and management reporting, and supervises a distributed team of analysts."
+    ],
+    "must_remain_unknown": [
+      "contract_type"
+    ]
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "id": "HOLD-007-C",
+  "expected_class": "compatible",
+  "difficulty": "hard",
+  "language": "en",
+  "offer": {
+    "url": "https://jobs.example.test/hold-007-c",
+    "title": "Entry-level AppSec Engineer",
+    "company": "Entreprise fictive",
+    "location": "Lausanne",
+    "published_days_ago": 5,
+    "job_text": "Permanent entry-level application security role in Lausanne. Recent graduates are welcome and no previous full-time employment is needed. You review Python applications with Burp Suite and SonarQube, check OWASP issues and help maintain CI security controls. A security engineer provides structured mentoring, and the scope of the application team is specified in the employment offer."
+  },
+  "expected": {
+    "facts": {
+      "contract": "permanent",
+      "experience_min": null,
+      "junior": true,
+      "evidence": [
+        "Permanent entry-level application security role in Lausanne.",
+        "Recent graduates are welcome and no previous full-time employment is needed.",
+        "You review Python applications with Burp Suite and SonarQube, check OWASP issues and help maintain CI security controls.",
+        "A security engineer provides structured mentoring, and the scope of the application team is specified in the employment offer."
+      ]
+    },
+    "gates": {
+      "contract_type": "pass",
+      "experience": "pass"
+    },
+    "evidence_contains": [
+      "Permanent entry-level application security role in Lausanne.",
+      "A security engineer provides structured mentoring, and the scope of the application team is specified in the employment offer."
+    ]
+  },
+  "rationale": "Accès junior et missions AppSec concrètes."
+}

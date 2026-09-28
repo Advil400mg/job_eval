@@ -169,8 +169,8 @@ et tous les chemins par défaut sont relatifs au dossier. Le moteur reste désac
 (`[cv] enabled = false`) ; dans ce cas la génération de CV est annoncée comme indisponible
 avec le motif, sans que le reste de l'application en souffre.
 
-Vérifié sur une instance vierge : 245 tests (219 Python, 19 JavaScript et 7 E2E Chromium),
-isolation entre deux comptes, migration SQLite v7 et chemins utilisateur sous `/data/users/`.
+Vérifié sur une instance vierge : 288 tests (257 Python, 21 JavaScript et 10 E2E Chromium),
+isolation entre deux comptes, migration SQLite v8 et chemins utilisateur sous `/data/users/`.
 
 ## Démarrage sans Docker
 
@@ -219,7 +219,7 @@ Points de portabilité vérifiés :
 | `TZ=Europe/Paris` | horodatages cohérents avec le fuseau attendu |
 | `HOME=/tmp` | dossier inscriptible pour les bibliothèques tierces |
 
-## Déploiement de production — v2.5
+## Déploiement de production — v2.6 (préparation sur `dev`)
 
 La pile de production se trouve dans `deploy/` :
 
@@ -246,8 +246,8 @@ ansible-vault encrypt group_vars/all/vault.yml
 ansible-playbook site.yml --ask-vault-pass
 ```
 
-La publication v2.5.0 utilisera l’archive immuable du tag `v2.5.0`. Créer ce tag uniquement après la
-fusion du PR dans `main`.
+La publication v2.6.0 utilisera l’archive immuable du tag `v2.6.0`. Ne créer ce tag qu’après
+la fusion de la PR dans `main` ; la branche `dev` seule ne constitue pas une publication.
 
 ## API
 
@@ -265,6 +265,7 @@ fusion du PR dans `main`.
 | `GET` | `/api/stats?view=latest\|all&days=N` | KPI filtrables, scores, critères et portes |
 | `GET` | `/api/offers` | pagination, recherche, filtres, tri et vue dernière/toutes les évaluations |
 | `GET` | `/api/offers/history?url=…` | détail et historique des évaluations d'une URL normalisée |
+| `GET`, `PUT` | `/api/evaluations/{run_id}/feedback` | lecture (`?url=…`) et correction d'une évaluation du compte connecté, avec révision optimiste |
 | `GET` | `/api/history?page=N` | lots paginés, filtrables par état |
 | `GET` | `/api/criteria` | critères et seuils du profil chargé |
 | `GET`, `PUT` | `/api/profile` | lecture et mise à jour validée du profil avec révision optimiste |
@@ -323,7 +324,8 @@ par l'application.
 
 - **Évaluer** : saisie des URLs, déduplication avant envoi, lot actif et derniers lots.
 - **Offres** : pagination serveur, recherche, filtres, tri, dernière évaluation par URL par
-  défaut et accès à tout l'historique dans un panneau latéral.
+  défaut et accès à tout l'historique dans un panneau latéral ; preuves tirées du texte de
+  l'annonce, inconnues explicites, revue humaine et correction enregistrable par évaluation.
 - **Lots** : progression persistée, reprise après redémarrage, annulation, relance des URL
   manquantes, compteurs, exports et détail complet des résultats.
 - **CV** : tâches en cours, PDF terminés et erreurs, avec reprise du polling après rechargement ;
@@ -336,10 +338,13 @@ Les scores gardent un affichage visuel : valeur numérique, barre colorée et ma
 Les petits indicateurs de critères ont désormais une légende textuelle (`bloquant`,
 `confiance faible`, `satisfait`) afin de ne pas dépendre uniquement de la couleur.
 
-SQLite migre automatiquement les anciennes bases vers le schéma v7, rattache les données au
+SQLite migre automatiquement les anciennes bases vers le schéma v8, rattache les données au
 premier administrateur, remplace les unicités globales par des unicités par utilisateur et ajoute
-le journal d’audit. Les résultats JSON complets restent conservés ; aucune ancienne évaluation
-n'est supprimée.
+le journal d’audit et les retours d'évaluation. Les résultats JSON complets restent conservés ;
+aucune ancienne évaluation n'est supprimée. Les anciens résultats sans preuve restent lisibles.
+Le feedback appartient à une évaluation précise (lot + URL) et à son compte ; une édition
+concurrente renvoie 409 plutôt que d'écraser un autre onglet. Les notes libres restent dans
+SQLite et les sauvegardes, pas dans le journal d'audit.
 Les paramètres `utm_*`, `fbclid`, `gclid`, fragments et slash final sont ignorés pour
 regrouper les réévaluations d'une même URL.
 
@@ -355,11 +360,12 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-Les 219 tests Python et 19 tests JavaScript sont hors ligne. Les 7 parcours E2E utilisent
+Les 257 tests Python et 21 tests JavaScript sont hors ligne. Les 10 parcours E2E utilisent
 Playwright Chromium contre une instance temporaire isolée. L’ensemble couvre notamment la
-migration SQLite v7, l’authentification, l’audit, le diagnostic, la rétention des sauvegardes,
-l’accessibilité clavier, le SSRF, la reprise des jobs, les API, le score visuel et la pagination.
-Aucune clé API n’est nécessaire.
+migration SQLite v8, le feedback cloisonné, l’authentification, l’audit, le diagnostic,
+la rétention des sauvegardes, l’accessibilité clavier, le SSRF, la reprise des jobs, les API,
+le score visuel et la pagination. Le banc live distinct est payant et exploratoire
+(`benchmarks/evaluation-v2.6.md`). Aucune clé API n’est nécessaire pour ces trois suites.
 
 Le détail de l’architecture des suites, des fixtures E2E et des commandes de débogage se trouve
 dans [`tests/README.md`](tests/README.md).

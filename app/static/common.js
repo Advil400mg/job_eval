@@ -24,6 +24,7 @@
 
   const statusMap = {
     qualified: ["Qualifiée", "ok"],
+    review_required: ["Revue requise", "warn"],
     jev_excluded: ["Exclue par une porte", "warn"],
     rejected: ["Refusée Jev", "bad"],
     unverified: ["Non vérifiée", "unknown"],
@@ -94,7 +95,9 @@
       const low = typeof criterion.confidence === "number" && criterion.confidence < minimumConfidence;
       const css = criterion.required && !criterion.passed ? "bad" : low ? "warn" : "ok";
       const score = Math.max(0, Math.min(100, criterion.score || 0));
-      return `<div class="criterion-row ${css}"><div class="criterion-copy"><strong>${escapeHtml(criterion.name || criterion.id)}</strong><code>${escapeHtml(criterion.id)}</code><span>${criterion.required ? `obligatoire · seuil ${criterion.min_score}` : "non obligatoire"}${low ? " · confiance faible" : ""}</span></div><div class="criterion-score"><strong>${num(criterion.score)}</strong><div class="mini-track"><span style="width:${score}%"></span></div><small>confiance ${num(criterion.confidence, 2)}</small></div></div>`;
+      const proof = criterion.evidence?.quote;
+      const evidence = proof ? `<blockquote class="criterion-evidence">« ${escapeHtml(proof)} »<small>Passage de l’annonce · confiance ${num(criterion.evidence.confidence, 2)}</small></blockquote>` : "";
+      return `<div class="criterion-row ${css}"><div class="criterion-copy"><strong>${escapeHtml(criterion.name || criterion.id)}</strong><code>${escapeHtml(criterion.id)}</code><span>${criterion.required ? `obligatoire · seuil ${criterion.min_score}` : "non obligatoire"}${low ? " · confiance faible" : ""}</span>${evidence}</div><div class="criterion-score"><strong>${num(criterion.score)}</strong><div class="mini-track"><span style="width:${score}%"></span></div><small>confiance ${num(criterion.confidence, 2)}</small></div></div>`;
     }).join("")}</div>`;
   }
 

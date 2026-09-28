@@ -1,0 +1,35 @@
+{
+  "id": "HOLD-009-I",
+  "expected_class": "incompatible",
+  "difficulty": "hard",
+  "language": "fr",
+  "offer": {
+    "url": "https://jobs.example.test/hold-009-i",
+    "title": "Responsable gouvernance cyber",
+    "company": "Entreprise fictive",
+    "location": "Paris",
+    "published_days_ago": 5,
+    "job_text": "CDI senior en gouvernance de la sécurité à Paris. Le poste exige cinq ans d'expérience professionnelle confirmée et comprend principalement la rédaction de politiques, le pilotage de comités, les cartographies de conformité et les programmes ISO 27001. Il n'inclut pas d'exploitation des outils de sécurité, d'ingénierie réseau, de détection ou de développement technique au quotidien."
+  },
+  "expected": {
+    "facts": {
+      "contract": "permanent",
+      "experience_min": 5,
+      "junior": false,
+      "evidence": [
+        "CDI senior en gouvernance de la sécurité à Paris.",
+        "Le poste exige cinq ans d'expérience professionnelle confirmée et comprend principalement la rédaction de politiques, le pilotage de comités, les cartographies de conformité et les programmes ISO 27001.",
+        "Il n'inclut pas d'exploitation des outils de sécurité, d'ingénierie réseau, de détection ou de développement technique au quotidien."
+      ]
+    },
+    "gates": {
+      "contract_type": "pass",
+      "experience": "fail"
+    },
+    "evidence_contains": [
+      "CDI senior en gouvernance de la sécurité à Paris.",
+      "Il n'inclut pas d'exploitation des outils de sécurité, d'ingénierie réseau, de détection ou de développement technique au quotidien."
+    ]
+  },
+  "rationale": "Exigence senior obligatoire et GRC."
+}

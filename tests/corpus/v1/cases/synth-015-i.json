@@ -1,0 +1,37 @@
+{
+  "id": "SYNTH-015-I",
+  "expected_class": "incompatible",
+  "difficulty": "easy",
+  "language": "fr",
+  "offer": {
+    "url": "https://jobs.example.test/synth-015",
+    "title": "Alternance Sécurité Cloud",
+    "company": "Golden Academy",
+    "location": "Lyon",
+    "published_days_ago": 5,
+    "contract_hint": "alternance",
+    "experience_hint": "étudiant",
+    "job_text": "Contrat d'alternance de vingt-quatre mois réservé aux étudiants inscrits dans l'école partenaire. Les missions couvrent AWS, IAM, Docker, Terraform et Python. Le contenu est technique mais le statut étudiant et le rythme école-entreprise sont obligatoires; aucune embauche directe en CDI n'est proposée dans cette annonce."
+  },
+  "expected": {
+    "facts": {
+      "contract": "apprenticeship",
+      "experience_min": null,
+      "junior": null,
+      "role_nature": "technical",
+      "evidence": [
+        "Contrat d'alternance de vingt-quatre mois réservé aux étudiants inscrits dans l'école partenaire.",
+        "Les missions couvrent AWS, IAM, Docker, Terraform et Python.",
+        "Le contenu est technique mais le statut étudiant et le rythme école-entreprise sont obligatoires; aucune embauche directe en CDI n'est proposée dans cette annonce."
+      ]
+    },
+    "gates": {
+      "contract_type": "fail"
+    },
+    "evidence_contains": [
+      "Contrat d'alternance de vingt-quatre mois réservé aux étudiants inscrits dans l'école partenaire.",
+      "Les missions couvrent AWS, IAM, Docker, Terraform et Python.",
+      "Le contenu est technique mais le statut étudiant et le rythme école-entreprise sont obligatoires; aucune embauche directe en CDI n'est proposée dans cette annonce."
+    ]
+  }
+}

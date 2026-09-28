@@ -1,0 +1,36 @@
+{
+  "id": "SYNTH-026-A",
+  "expected_class": "ambiguous",
+  "difficulty": "medium",
+  "language": "fr",
+  "offer": {
+    "url": "https://jobs.example.test/synth-026",
+    "title": "VIE Security Engineer",
+    "company": "Coral Mobility",
+    "location": "Luxembourg",
+    "published_days_ago": 5,
+    "contract_hint": "VIE",
+    "experience_hint": "0-1 an",
+    "job_text": "Mission VIE de vingt-quatre mois au Luxembourg pour un profil de zéro à un an d'expérience. Le travail est technique: sécurité réseau, Linux, Python, durcissement cloud et gestion de vulnérabilités. Le statut VIE n'est ni un stage ni un CDI classique; son acceptabilité dépend des contraintes personnelles et administratives du candidat."
+  },
+  "expected": {
+    "facts": {
+      "contract": "vie",
+      "experience_min": 0,
+      "experience_max": 1,
+      "junior": true,
+      "role_nature": "technical",
+      "evidence": [
+        "Mission VIE de vingt-quatre mois au Luxembourg pour un profil de zéro à un an d'expérience.",
+        "Le travail est technique: sécurité réseau, Linux, Python, durcissement cloud et gestion de vulnérabilités.",
+        "Le statut VIE n'est ni un stage ni un CDI classique; son acceptabilité dépend des contraintes personnelles et administratives du candidat."
+      ]
+    },
+    "gates": {},
+    "evidence_contains": [
+      "Mission VIE de vingt-quatre mois au Luxembourg pour un profil de zéro à un an d'expérience.",
+      "Le travail est technique: sécurité réseau, Linux, Python, durcissement cloud et gestion de vulnérabilités.",
+      "Le statut VIE n'est ni un stage ni un CDI classique; son acceptabilité dépend des contraintes personnelles et administratives du candidat."
+    ]
+  }
+}

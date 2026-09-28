@@ -20,6 +20,7 @@ import sys
 import tempfile
 
 from . import config
+from .job_facts import extract_facts
 
 
 class JevError(RuntimeError):
@@ -42,6 +43,17 @@ def evaluate(offer: dict, profile: dict, evaluator: str | None = None) -> dict:
         raise JevError("clé API absente : renseigner OPENROUTER_API_KEY ou "
                        "[openrouter] dans config.toml")
 
+    text = offer["job_text"]
+    facts = extract_facts(offer)
+    verified_context = {
+        name: {"value": fact["value"], "evidence": fact["evidence"]}
+        for name in ("contract", "experience_min", "experience_preferred", "junior")
+        if (fact := facts[name])["status"] == "known" and fact["evidence"] in text
+    }
+    for name in ("title", "location"):
+        value = offer.get(name)
+        if isinstance(value, str) and value and value in text:
+            verified_context[name] = {"value": value, "evidence": value}
     payload = {
         "url": offer["url"],
         "title": offer["title"],
@@ -54,6 +66,7 @@ def evaluate(offer: dict, profile: dict, evaluator: str | None = None) -> dict:
         "minimum_confidence": settings["minimum_confidence"]
         or profile.get("minimum_confidence", 0.5),
         "criteria": profile["criteria"],
+        "offer_context": verified_context,
         # surcharges optionnelles, lues par scripts/evaluate_job.py
         "api_endpoint": settings["openrouter"]["endpoint"],
         "model": settings["openrouter"]["model"],

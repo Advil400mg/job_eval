@@ -1,0 +1,36 @@
+{
+  "id": "HOLD-005-C",
+  "expected_class": "compatible",
+  "difficulty": "hard",
+  "language": "en",
+  "offer": {
+    "url": "https://jobs.example.test/hold-005-c",
+    "title": "Junior SOC Engineer",
+    "company": "Entreprise fictive",
+    "location": "Bruxelles",
+    "published_days_ago": 5,
+    "job_text": "Permanent junior SOC role in Brussels for new graduates with no professional experience requirement. Daily responsibilities are Elastic alert triage, Linux log analysis, packet capture with Wireshark and Python detection scripts. A named senior analyst reviews investigations in the first six months. The first shift, team, tooling and training programme are confirmed before the offer is accepted."
+  },
+  "expected": {
+    "facts": {
+      "contract": "permanent",
+      "experience_min": null,
+      "junior": true,
+      "evidence": [
+        "Permanent junior SOC role in Brussels for new graduates with no professional experience requirement.",
+        "Daily responsibilities are Elastic alert triage, Linux log analysis, packet capture with Wireshark and Python detection scripts.",
+        "A named senior analyst reviews investigations in the first six months.",
+        "The first shift, team, tooling and training programme are confirmed before the offer is accepted."
+      ]
+    },
+    "gates": {
+      "contract_type": "pass",
+      "experience": "pass"
+    },
+    "evidence_contains": [
+      "Permanent junior SOC role in Brussels for new graduates with no professional experience requirement.",
+      "The first shift, team, tooling and training programme are confirmed before the offer is accepted."
+    ]
+  },
+  "rationale": "Rôle technique junior et conditions définies."
+}

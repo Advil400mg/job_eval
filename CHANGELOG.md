@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.6.0 — 2026-09-28 (préparation sur `dev`, non publiée)
+
+- Extraction conservatrice des faits de contrat, d'expérience et d'accès junior avec passages de l'annonce recopiés ; séparation des exigences et des préférences.
+- Préservation du score pondéré Jev et ajout de dimensions explicatives, preuves sélectionnées dans le texte source et motifs de revue humaine pour les incertitudes.
+- Distinction entre rejet technique prouvé, exclusion par porte et offre à examiner ; les résultats v2.5 restent lisibles.
+- Migration SQLite v8 : retours utilisateur sur chaque évaluation, cloisonnés par compte et par couple lot/offre, avec révision optimiste ; texte libre exclu du journal d'audit.
+- Tiroir d'offre enrichi (preuves échappées, informations manquantes, réserves et retour modifiable) et filtre « Revue requise ».
+- Banc synthétique hors ligne et live, corpus relu par l'agent et holdout synthétique. Leur comparaison explore les régressions mais ne constitue pas une validation indépendante sur des offres réelles.
+
 ## 2.5.0 — 2026-09-27
 
 - Ajout d’un journal d’audit SQLite v7, filtrable et limité aux métadonnées autorisées.

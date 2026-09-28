@@ -108,6 +108,13 @@ class ApplicationUpdateRequest(BaseModel):
     location: str | None = Field(None, max_length=300)
 
 
+class EvaluationFeedbackRequest(BaseModel):
+    url: str = Field(..., max_length=2048)
+    verdict: str = Field(..., max_length=32)
+    note: str = Field("", max_length=2000)
+    revision: int = Field(0, ge=0)
+
+
 class InvitationRequest(BaseModel):
     email: str | None = Field(None, max_length=320)
     expires_hours: int = Field(72, ge=1, le=720)
@@ -257,7 +264,8 @@ def _offer_row(item: dict, cv_jobs: dict[str, dict] | None = None,
             {"id": criterion.get("id"), "name": criterion.get("name"),
              "score": criterion.get("score"), "confidence": criterion.get("confidence"),
              "required": criterion.get("required"), "passed": criterion.get("passed"),
-             "min_score": criterion.get("min_score")}
+             "min_score": criterion.get("min_score"),
+             "evidence": criterion.get("evidence")}
             for criterion in jev.get("criteria") or []
         ],
         "gates": [
@@ -267,6 +275,12 @@ def _offer_row(item: dict, cv_jobs: dict[str, dict] | None = None,
         ],
         "gate_failures": [gate.get("gate")
                           for gate in decision.get("hard_gate_failures") or []],
+        "review_required": bool(decision.get("review_required")),
+        "review_reasons": decision.get("review_reasons") or [],
+        "confidence_reservations": decision.get("confidence_reservations") or [],
+        "facts": item.get("facts") or {},
+        "dimensions": (item.get("evaluation") or {}).get("dimensions") or [],
+        "missing_information": (item.get("evaluation") or {}).get("missing_information") or [],
         "jev_model": jev.get("jev_model"), "usage": jev.get("usage"),
         "evaluation_count": item.get("evaluation_count", 1),
         "cv": _cv_summary(item.get("url", ""), cv_jobs),
@@ -683,6 +697,33 @@ def get_offer_history(request: Request, url: str):
     applications = store.applications_for_urls([item.get("url", "") for item in items], user_id)
     return {"offer": _offer_row(items[0], cv_jobs, applications),
             "history": [_offer_row(item, cv_jobs, applications) for item in items]}
+
+
+@app.get("/api/evaluations/{run_id}/feedback")
+def get_evaluation_feedback(request: Request, run_id: str,
+                            url: str = Query(..., min_length=1, max_length=2048)):
+    user_id = _user_id(request)
+    if not store.feedback_target_exists(run_id, url, user_id):
+        raise HTTPException(404, "Évaluation inconnue")
+    return {"feedback": store.get_evaluation_feedback(run_id, url, user_id)}
+
+
+@app.put("/api/evaluations/{run_id}/feedback")
+def put_evaluation_feedback(request: Request, run_id: str,
+                            payload: EvaluationFeedbackRequest):
+    user_id = _user_id(request)
+    try:
+        feedback = store.put_evaluation_feedback(
+            run_id, payload.url, payload.verdict, payload.note,
+            payload.revision, user_id,
+        )
+    except store.FeedbackConflict as exc:
+        raise HTTPException(409, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    if feedback is None:
+        raise HTTPException(404, "Évaluation inconnue")
+    return {"feedback": feedback}
 
 
 @app.get("/api/history")

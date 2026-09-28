@@ -1,0 +1,37 @@
+{
+  "id": "SYNTH-001-C",
+  "expected_class": "compatible",
+  "difficulty": "easy",
+  "language": "fr",
+  "offer": {
+    "url": "https://jobs.example.test/synth-001",
+    "title": "Junior SOC & Detection Engineer",
+    "company": "Blue Lantern Security",
+    "location": "Bruxelles",
+    "published_days_ago": 5,
+    "contract_hint": "CDI",
+    "experience_hint": "0 à 2 ans",
+    "job_text": "CDI au sein d'un SOC à Bruxelles. Poste junior ouvert aux jeunes diplômés avec mentorat quotidien. Vous qualifiez les alertes dans Elastic SIEM, analysez les journaux Linux et le trafic Wireshark, écrivez des règles Sigma et automatisez des contrôles simples en Python. Aucune expérience minimale n'est exigée; une première expérience de stage est appréciée."
+  },
+  "expected": {
+    "facts": {
+      "contract": "permanent",
+      "experience_min": 0,
+      "junior": true,
+      "role_nature": "technical",
+      "evidence": [
+        "CDI au sein d'un SOC à Bruxelles.",
+        "Poste junior ouvert aux jeunes diplômés avec mentorat quotidien.",
+        "Vous qualifiez les alertes dans Elastic SIEM, analysez les journaux Linux et le trafic Wireshark, écrivez des règles Sigma et automatisez des contrôles simples en Python.",
+        "Aucune expérience minimale n'est exigée; une première expérience de stage est appréciée."
+      ]
+    },
+    "gates": {},
+    "evidence_contains": [
+      "CDI au sein d'un SOC à Bruxelles.",
+      "Poste junior ouvert aux jeunes diplômés avec mentorat quotidien.",
+      "Vous qualifiez les alertes dans Elastic SIEM, analysez les journaux Linux et le trafic Wireshark, écrivez des règles Sigma et automatisez des contrôles simples en Python.",
+      "Aucune expérience minimale n'est exigée; une première expérience de stage est appréciée."
+    ]
+  }
+}

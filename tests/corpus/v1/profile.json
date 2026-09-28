@@ -1,0 +1,97 @@
+{
+  "version": 1,
+  "candidate": {
+    "name": "Candidat synthétique",
+    "headline": "Ingénieur cybersécurité junior",
+    "skills": [
+      "Linux",
+      "Python",
+      "réseaux",
+      "Docker",
+      "sécurité cloud",
+      "SIEM"
+    ]
+  },
+  "search": {
+    "target_roles": [
+      "Security Engineer",
+      "SOC Analyst",
+      "Cloud Security",
+      "DevSecOps",
+      "Network Security",
+      "IAM"
+    ],
+    "locations": [
+      "Bruxelles",
+      "Luxembourg",
+      "Genève",
+      "Lausanne",
+      "Paris",
+      "Bordeaux",
+      "Nice"
+    ],
+    "max_age_days": 30,
+    "experience_filter": {
+      "reject_if_minimum_required_years_gte": 2,
+      "internships_count_as_professional_experience": false
+    }
+  },
+  "criteria": [
+    {
+      "id": "technical_fit",
+      "name": "Adéquation technique",
+      "description": "Le poste correspond à un profil junior technique en cybersécurité, réseau, cloud, détection, IAM, DevSecOps ou AppSec et valorise Linux, Python, réseaux ou automatisation.",
+      "weight": 5,
+      "required": true,
+      "min_score": 55
+    },
+    {
+      "id": "junior_fit",
+      "name": "Accessibilité junior",
+      "description": "Le poste est réellement accessible à un candidat avec moins d'un an d'expérience professionnelle hors stages; les responsabilités et prérequis ne sont pas de niveau confirmé ou senior.",
+      "weight": 5,
+      "required": true,
+      "min_score": 60
+    },
+    {
+      "id": "hands_on",
+      "name": "Contenu hands-on",
+      "description": "Les missions sont concrètes et techniques, avec des outils, systèmes, analyses, configurations ou développements, plutôt que principalement gouvernance, conformité, stratégie ou gestion de projet.",
+      "weight": 4,
+      "required": true,
+      "min_score": 55
+    },
+    {
+      "id": "career_growth",
+      "name": "Progression",
+      "description": "Le poste offre mentorat, formation, variété technique ou une progression crédible pour un ingénieur cybersécurité junior.",
+      "weight": 2,
+      "required": false,
+      "min_score": 0
+    },
+    {
+      "id": "location_fit",
+      "name": "Localisation",
+      "description": "La localisation ou les modalités de télétravail sont compatibles avec les lieux ciblés en Belgique, Luxembourg, Suisse romande, Paris, Bordeaux ou Nice.",
+      "weight": 2,
+      "required": false,
+      "min_score": 0
+    },
+    {
+      "id": "role_clarity",
+      "name": "Clarté du poste",
+      "description": "L'annonce décrit clairement la première mission, l'équipe, les outils, le périmètre technique et les attentes, sans promesse vague d'affectation future.",
+      "weight": 2,
+      "required": false,
+      "min_score": 0
+    }
+  ],
+  "hard_rejection_rules": [
+    "stage ou alternance",
+    "minimum d'expérience professionnelle d'au moins deux ans sans ouverture junior explicite",
+    "poste principalement GRC, conformité, stratégie, PMO, sensibilisation ou conseil vague",
+    "support informatique générique sans sécurité"
+  ],
+  "minimum_global_score": 68,
+  "minimum_confidence": 0.5
+}

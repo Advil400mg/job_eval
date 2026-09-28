@@ -1,0 +1,36 @@
+{
+  "id": "SYNTH-005-C",
+  "expected_class": "compatible",
+  "difficulty": "easy",
+  "language": "fr",
+  "offer": {
+    "url": "https://jobs.example.test/synth-005",
+    "title": "Junior IAM Engineer",
+    "company": "Orchid Identity",
+    "location": "Luxembourg",
+    "published_days_ago": 5,
+    "contract_hint": "CDI",
+    "experience_hint": "0 à 1 an",
+    "job_text": "CDI junior au Luxembourg, accessible avec zéro à un an d'expérience. Vous configurez le SSO, OAuth2 et OpenID Connect, participez au cycle de vie des comptes dans Entra ID et automatisez des contrôles d'accès avec Python. Formation Okta et PAM prévue; les changements sensibles sont revus par un ingénieur confirmé."
+  },
+  "expected": {
+    "facts": {
+      "contract": "permanent",
+      "experience_min": 0,
+      "experience_max": 1,
+      "junior": true,
+      "role_nature": "technical",
+      "evidence": [
+        "CDI junior au Luxembourg, accessible avec zéro à un an d'expérience.",
+        "Vous configurez le SSO, OAuth2 et OpenID Connect, participez au cycle de vie des comptes dans Entra ID et automatisez des contrôles d'accès avec Python.",
+        "Formation Okta et PAM prévue; les changements sensibles sont revus par un ingénieur confirmé."
+      ]
+    },
+    "gates": {},
+    "evidence_contains": [
+      "CDI junior au Luxembourg, accessible avec zéro à un an d'expérience.",
+      "Vous configurez le SSO, OAuth2 et OpenID Connect, participez au cycle de vie des comptes dans Entra ID et automatisez des contrôles d'accès avec Python.",
+      "Formation Okta et PAM prévue; les changements sensibles sont revus par un ingénieur confirmé."
+    ]
+  }
+}

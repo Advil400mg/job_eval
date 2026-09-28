@@ -1,0 +1,2357 @@
+{
+  "source": "Live TypeSafe Jev via OpenRouter; synthetic offers only",
+  "baseline_tag": "v2.5.0",
+  "candidate": "v2.6.0 dev worktree",
+  "model": "typesafe/jev-1.13-20260917",
+  "corpora": {
+    "corpus": {
+      "cases": 30,
+      "sha256": "f3512f84b6b94dcc932578f867760bcd8674f71e38ae25f43d738923e963c3bb"
+    },
+    "holdout": {
+      "cases": 12,
+      "sha256": "cda69d18ddfae0b52c97c471b73e84755b0d8c069ee75496405c177055baaf60"
+    }
+  },
+  "runs": {
+    "v25_corpus": {
+      "generated_at": "2026-09-28T01:12:14+00:00",
+      "duration_seconds": 6.384,
+      "repetitions": 1,
+      "verdicts": {
+        "total": 30,
+        "correct": 14,
+        "accuracy": 0.4667,
+        "false_positives": 3,
+        "false_positive_rate": 0.1,
+        "by_class": {
+          "compatible": {
+            "total": 10,
+            "correct": 7,
+            "recall": 0.7
+          },
+          "incompatible": {
+            "total": 10,
+            "correct": 4,
+            "recall": 0.4
+          },
+          "ambiguous": {
+            "total": 10,
+            "correct": 3,
+            "recall": 0.3
+          }
+        },
+        "prediction_distribution": {
+          "incompatible": 9,
+          "ambiguous": 11,
+          "compatible": 10
+        }
+      },
+      "gates": {
+        "checked": 11,
+        "correct": 4
+      },
+      "failures": 0,
+      "cost_usd": 0.002976,
+      "unstable_cases": [],
+      "source_quotes": {
+        "checked": 0,
+        "invalid": 0
+      },
+      "cases": [
+        {
+          "id": "SYNTH-001-C",
+          "repetition": 1,
+          "expected": "compatible",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "fail",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 9.9792e-05
+        },
+        {
+          "id": "SYNTH-002-C",
+          "repetition": 1,
+          "expected": "compatible",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "unknown",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 9.9414e-05
+        },
+        {
+          "id": "SYNTH-003-C",
+          "repetition": 1,
+          "expected": "compatible",
+          "predicted": "compatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 9.8532e-05
+        },
+        {
+          "id": "SYNTH-004-C",
+          "repetition": 1,
+          "expected": "compatible",
+          "predicted": "compatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 9.8658e-05
+        },
+        {
+          "id": "SYNTH-005-C",
+          "repetition": 1,
+          "expected": "compatible",
+          "predicted": "compatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 9.954e-05
+        },
+        {
+          "id": "SYNTH-006-C",
+          "repetition": 1,
+          "expected": "compatible",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "unknown",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 9.9834e-05
+        },
+        {
+          "id": "SYNTH-007-C",
+          "repetition": 1,
+          "expected": "compatible",
+          "predicted": "compatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 9.9582e-05
+        },
+        {
+          "id": "SYNTH-008-C",
+          "repetition": 1,
+          "expected": "compatible",
+          "predicted": "compatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 9.8574e-05
+        },
+        {
+          "id": "SYNTH-009-C",
+          "repetition": 1,
+          "expected": "compatible",
+          "predicted": "compatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 9.8658e-05
+        },
+        {
+          "id": "SYNTH-010-C",
+          "repetition": 1,
+          "expected": "compatible",
+          "predicted": "compatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 9.9792e-05
+        },
+        {
+          "id": "SYNTH-011-I",
+          "repetition": 1,
+          "expected": "incompatible",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "unknown",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 9.9624e-05
+        },
+        {
+          "id": "SYNTH-012-I",
+          "repetition": 1,
+          "expected": "incompatible",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "fail",
+            "experience": "unknown",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 9.9288e-05
+        },
+        {
+          "id": "SYNTH-013-I",
+          "repetition": 1,
+          "expected": "incompatible",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 9.9372e-05
+        },
+        {
+          "id": "SYNTH-014-I",
+          "repetition": 1,
+          "expected": "incompatible",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "unknown",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 9.8154e-05
+        },
+        {
+          "id": "SYNTH-015-I",
+          "repetition": 1,
+          "expected": "incompatible",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "fail",
+            "experience": "unknown",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 9.912e-05
+        },
+        {
+          "id": "SYNTH-016-I",
+          "repetition": 1,
+          "expected": "incompatible",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "unknown",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 9.954e-05
+        },
+        {
+          "id": "SYNTH-017-I",
+          "repetition": 1,
+          "expected": "incompatible",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "unknown",
+            "experience": "unknown",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 9.9582e-05
+        },
+        {
+          "id": "SYNTH-018-A",
+          "repetition": 1,
+          "expected": "ambiguous",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 9.9582e-05
+        },
+        {
+          "id": "SYNTH-019-I",
+          "repetition": 1,
+          "expected": "incompatible",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "unknown",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 9.9078e-05
+        },
+        {
+          "id": "SYNTH-020-I",
+          "repetition": 1,
+          "expected": "incompatible",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "unknown",
+            "experience": "unknown",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 9.828e-05
+        },
+        {
+          "id": "SYNTH-021-A",
+          "repetition": 1,
+          "expected": "ambiguous",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "unknown",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 9.9834e-05
+        },
+        {
+          "id": "SYNTH-022-A",
+          "repetition": 1,
+          "expected": "ambiguous",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 9.9582e-05
+        },
+        {
+          "id": "SYNTH-023-A",
+          "repetition": 1,
+          "expected": "ambiguous",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "unknown",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 9.9582e-05
+        },
+        {
+          "id": "SYNTH-024-A",
+          "repetition": 1,
+          "expected": "ambiguous",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "unknown",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 9.9288e-05
+        },
+        {
+          "id": "SYNTH-025-A",
+          "repetition": 1,
+          "expected": "ambiguous",
+          "predicted": "compatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 9.8406e-05
+        },
+        {
+          "id": "SYNTH-026-A",
+          "repetition": 1,
+          "expected": "ambiguous",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "fail",
+            "experience": "unknown",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 9.9582e-05
+        },
+        {
+          "id": "SYNTH-027-A",
+          "repetition": 1,
+          "expected": "ambiguous",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 9.9372e-05
+        },
+        {
+          "id": "SYNTH-028-I",
+          "repetition": 1,
+          "expected": "incompatible",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "fail",
+            "experience": "unknown",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 9.8196e-05
+        },
+        {
+          "id": "SYNTH-029-A",
+          "repetition": 1,
+          "expected": "ambiguous",
+          "predicted": "compatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 9.8742e-05
+        },
+        {
+          "id": "SYNTH-030-A",
+          "repetition": 1,
+          "expected": "ambiguous",
+          "predicted": "compatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 9.9372e-05
+        }
+      ]
+    },
+    "v26_corpus": {
+      "generated_at": "2026-09-28T01:12:32+00:00",
+      "duration_seconds": 12.914,
+      "repetitions": 1,
+      "verdicts": {
+        "total": 30,
+        "correct": 30,
+        "accuracy": 1.0,
+        "false_positives": 0,
+        "false_positive_rate": 0.0,
+        "by_class": {
+          "compatible": {
+            "total": 10,
+            "correct": 10,
+            "recall": 1.0
+          },
+          "incompatible": {
+            "total": 10,
+            "correct": 10,
+            "recall": 1.0
+          },
+          "ambiguous": {
+            "total": 10,
+            "correct": 10,
+            "recall": 1.0
+          }
+        },
+        "prediction_distribution": {
+          "compatible": 10,
+          "incompatible": 10,
+          "ambiguous": 10
+        }
+      },
+      "gates": {
+        "checked": 11,
+        "correct": 11
+      },
+      "failures": 0,
+      "cost_usd": 0.007677,
+      "unstable_cases": [],
+      "source_quotes": {
+        "checked": 306,
+        "invalid": 0
+      },
+      "cases": [
+        {
+          "id": "SYNTH-001-C",
+          "repetition": 1,
+          "expected": "compatible",
+          "predicted": "compatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000266154
+        },
+        {
+          "id": "SYNTH-002-C",
+          "repetition": 1,
+          "expected": "compatible",
+          "predicted": "compatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000267246
+        },
+        {
+          "id": "SYNTH-003-C",
+          "repetition": 1,
+          "expected": "compatible",
+          "predicted": "compatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000252714
+        },
+        {
+          "id": "SYNTH-004-C",
+          "repetition": 1,
+          "expected": "compatible",
+          "predicted": "compatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000248766
+        },
+        {
+          "id": "SYNTH-005-C",
+          "repetition": 1,
+          "expected": "compatible",
+          "predicted": "compatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000262458
+        },
+        {
+          "id": "SYNTH-006-C",
+          "repetition": 1,
+          "expected": "compatible",
+          "predicted": "compatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000263466
+        },
+        {
+          "id": "SYNTH-007-C",
+          "repetition": 1,
+          "expected": "compatible",
+          "predicted": "compatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000262962
+        },
+        {
+          "id": "SYNTH-008-C",
+          "repetition": 1,
+          "expected": "compatible",
+          "predicted": "compatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.00025531800000000004
+        },
+        {
+          "id": "SYNTH-009-C",
+          "repetition": 1,
+          "expected": "compatible",
+          "predicted": "compatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.00025338600000000003
+        },
+        {
+          "id": "SYNTH-010-C",
+          "repetition": 1,
+          "expected": "compatible",
+          "predicted": "compatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000261114
+        },
+        {
+          "id": "SYNTH-011-I",
+          "repetition": 1,
+          "expected": "incompatible",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "fail",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000264726
+        },
+        {
+          "id": "SYNTH-012-I",
+          "repetition": 1,
+          "expected": "incompatible",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "fail",
+            "experience": "unknown",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000249858
+        },
+        {
+          "id": "SYNTH-013-I",
+          "repetition": 1,
+          "expected": "incompatible",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "fail",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.00025909800000000003
+        },
+        {
+          "id": "SYNTH-014-I",
+          "repetition": 1,
+          "expected": "incompatible",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "unknown",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000235494
+        },
+        {
+          "id": "SYNTH-015-I",
+          "repetition": 1,
+          "expected": "incompatible",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "fail",
+            "experience": "unknown",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000248346
+        },
+        {
+          "id": "SYNTH-016-I",
+          "repetition": 1,
+          "expected": "incompatible",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "fail",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.00025725
+        },
+        {
+          "id": "SYNTH-017-I",
+          "repetition": 1,
+          "expected": "incompatible",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "unknown",
+            "experience": "fail",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000258762
+        },
+        {
+          "id": "SYNTH-018-A",
+          "repetition": 1,
+          "expected": "ambiguous",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "warn",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000269514
+        },
+        {
+          "id": "SYNTH-019-I",
+          "repetition": 1,
+          "expected": "incompatible",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "unknown",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000252042
+        },
+        {
+          "id": "SYNTH-020-I",
+          "repetition": 1,
+          "expected": "incompatible",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "unknown",
+            "experience": "fail",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.00023666999999999997
+        },
+        {
+          "id": "SYNTH-021-A",
+          "repetition": 1,
+          "expected": "ambiguous",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "warn",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000273798
+        },
+        {
+          "id": "SYNTH-022-A",
+          "repetition": 1,
+          "expected": "ambiguous",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "unknown",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.00025968599999999997
+        },
+        {
+          "id": "SYNTH-023-A",
+          "repetition": 1,
+          "expected": "ambiguous",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "unknown",
+            "experience": "warn",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.00025095
+        },
+        {
+          "id": "SYNTH-024-A",
+          "repetition": 1,
+          "expected": "ambiguous",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.00025321800000000004
+        },
+        {
+          "id": "SYNTH-025-A",
+          "repetition": 1,
+          "expected": "ambiguous",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000241458
+        },
+        {
+          "id": "SYNTH-026-A",
+          "repetition": 1,
+          "expected": "ambiguous",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.00026094599999999996
+        },
+        {
+          "id": "SYNTH-027-A",
+          "repetition": 1,
+          "expected": "ambiguous",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000258258
+        },
+        {
+          "id": "SYNTH-028-I",
+          "repetition": 1,
+          "expected": "incompatible",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "fail",
+            "experience": "unknown",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.00023683799999999998
+        },
+        {
+          "id": "SYNTH-029-A",
+          "repetition": 1,
+          "expected": "ambiguous",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.00024927
+        },
+        {
+          "id": "SYNTH-030-A",
+          "repetition": 1,
+          "expected": "ambiguous",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.00026716200000000004
+        }
+      ]
+    },
+    "v25_holdout": {
+      "generated_at": "2026-09-28T01:12:41+00:00",
+      "duration_seconds": 2.504,
+      "repetitions": 1,
+      "verdicts": {
+        "total": 12,
+        "correct": 6,
+        "accuracy": 0.5,
+        "false_positives": 3,
+        "false_positive_rate": 0.25,
+        "by_class": {
+          "compatible": {
+            "total": 4,
+            "correct": 4,
+            "recall": 1.0
+          },
+          "incompatible": {
+            "total": 4,
+            "correct": 1,
+            "recall": 0.25
+          },
+          "ambiguous": {
+            "total": 4,
+            "correct": 1,
+            "recall": 0.25
+          }
+        },
+        "prediction_distribution": {
+          "compatible": 7,
+          "ambiguous": 4,
+          "incompatible": 1
+        }
+      },
+      "gates": {
+        "checked": 24,
+        "correct": 22
+      },
+      "failures": 0,
+      "cost_usd": 0.001196,
+      "unstable_cases": [],
+      "source_quotes": {
+        "checked": 0,
+        "invalid": 0
+      },
+      "cases": [
+        {
+          "id": "HOLD-001-A",
+          "repetition": 1,
+          "expected": "ambiguous",
+          "predicted": "compatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000100128
+        },
+        {
+          "id": "HOLD-002-A",
+          "repetition": 1,
+          "expected": "ambiguous",
+          "predicted": "compatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 9.9036e-05
+        },
+        {
+          "id": "HOLD-003-A",
+          "repetition": 1,
+          "expected": "ambiguous",
+          "predicted": "compatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000100422
+        },
+        {
+          "id": "HOLD-004-A",
+          "repetition": 1,
+          "expected": "ambiguous",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "unknown",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000100254
+        },
+        {
+          "id": "HOLD-005-C",
+          "repetition": 1,
+          "expected": "compatible",
+          "predicted": "compatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 9.891e-05
+        },
+        {
+          "id": "HOLD-006-C",
+          "repetition": 1,
+          "expected": "compatible",
+          "predicted": "compatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000100212
+        },
+        {
+          "id": "HOLD-007-C",
+          "repetition": 1,
+          "expected": "compatible",
+          "predicted": "compatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 9.8952e-05
+        },
+        {
+          "id": "HOLD-008-C",
+          "repetition": 1,
+          "expected": "compatible",
+          "predicted": "compatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000100254
+        },
+        {
+          "id": "HOLD-009-I",
+          "repetition": 1,
+          "expected": "incompatible",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "unknown",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000100212
+        },
+        {
+          "id": "HOLD-010-I",
+          "repetition": 1,
+          "expected": "incompatible",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "unknown",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 9.87e-05
+        },
+        {
+          "id": "HOLD-011-I",
+          "repetition": 1,
+          "expected": "incompatible",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "fail",
+            "experience": "unknown",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 9.8994e-05
+        },
+        {
+          "id": "HOLD-012-I",
+          "repetition": 1,
+          "expected": "incompatible",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "unknown",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.00010038
+        }
+      ]
+    },
+    "v26_holdout": {
+      "generated_at": "2026-09-28T01:12:51+00:00",
+      "duration_seconds": 5.047,
+      "repetitions": 1,
+      "verdicts": {
+        "total": 12,
+        "correct": 12,
+        "accuracy": 1.0,
+        "false_positives": 0,
+        "false_positive_rate": 0.0,
+        "by_class": {
+          "compatible": {
+            "total": 4,
+            "correct": 4,
+            "recall": 1.0
+          },
+          "incompatible": {
+            "total": 4,
+            "correct": 4,
+            "recall": 1.0
+          },
+          "ambiguous": {
+            "total": 4,
+            "correct": 4,
+            "recall": 1.0
+          }
+        },
+        "prediction_distribution": {
+          "ambiguous": 4,
+          "compatible": 4,
+          "incompatible": 4
+        }
+      },
+      "gates": {
+        "checked": 24,
+        "correct": 24
+      },
+      "failures": 0,
+      "cost_usd": 0.003177,
+      "unstable_cases": [],
+      "source_quotes": {
+        "checked": 128,
+        "invalid": 0
+      },
+      "cases": [
+        {
+          "id": "HOLD-001-A",
+          "repetition": 1,
+          "expected": "ambiguous",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.00027430200000000003
+        },
+        {
+          "id": "HOLD-002-A",
+          "repetition": 1,
+          "expected": "ambiguous",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000254898
+        },
+        {
+          "id": "HOLD-003-A",
+          "repetition": 1,
+          "expected": "ambiguous",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000277326
+        },
+        {
+          "id": "HOLD-004-A",
+          "repetition": 1,
+          "expected": "ambiguous",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000272958
+        },
+        {
+          "id": "HOLD-005-C",
+          "repetition": 1,
+          "expected": "compatible",
+          "predicted": "compatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000253218
+        },
+        {
+          "id": "HOLD-006-C",
+          "repetition": 1,
+          "expected": "compatible",
+          "predicted": "compatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000274806
+        },
+        {
+          "id": "HOLD-007-C",
+          "repetition": 1,
+          "expected": "compatible",
+          "predicted": "compatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000255402
+        },
+        {
+          "id": "HOLD-008-C",
+          "repetition": 1,
+          "expected": "compatible",
+          "predicted": "compatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.00027279
+        },
+        {
+          "id": "HOLD-009-I",
+          "repetition": 1,
+          "expected": "incompatible",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "fail",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000271866
+        },
+        {
+          "id": "HOLD-010-I",
+          "repetition": 1,
+          "expected": "incompatible",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "unknown",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000248346
+        },
+        {
+          "id": "HOLD-011-I",
+          "repetition": 1,
+          "expected": "incompatible",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "fail",
+            "experience": "unknown",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000251202
+        },
+        {
+          "id": "HOLD-012-I",
+          "repetition": 1,
+          "expected": "incompatible",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "unknown",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000269934
+        }
+      ]
+    },
+    "v26_corpus_stability": {
+      "generated_at": "2026-09-28T01:25:57+00:00",
+      "duration_seconds": 10.046,
+      "repetitions": 3,
+      "verdicts": {
+        "total": 27,
+        "correct": 27,
+        "accuracy": 1.0,
+        "false_positives": 0,
+        "false_positive_rate": 0.0,
+        "by_class": {
+          "compatible": {
+            "total": 0,
+            "correct": 0,
+            "recall": null
+          },
+          "incompatible": {
+            "total": 12,
+            "correct": 12,
+            "recall": 1.0
+          },
+          "ambiguous": {
+            "total": 15,
+            "correct": 15,
+            "recall": 1.0
+          }
+        },
+        "prediction_distribution": {
+          "incompatible": 12,
+          "ambiguous": 15
+        }
+      },
+      "gates": {
+        "checked": 15,
+        "correct": 15
+      },
+      "failures": 0,
+      "cost_usd": 0.006887,
+      "unstable_cases": [],
+      "source_quotes": {
+        "checked": 224,
+        "invalid": 0
+      },
+      "cases": [
+        {
+          "id": "SYNTH-013-I",
+          "repetition": 1,
+          "expected": "incompatible",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "fail",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.00025909800000000003
+        },
+        {
+          "id": "SYNTH-017-I",
+          "repetition": 1,
+          "expected": "incompatible",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "unknown",
+            "experience": "fail",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000258762
+        },
+        {
+          "id": "SYNTH-018-A",
+          "repetition": 1,
+          "expected": "ambiguous",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "warn",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000269514
+        },
+        {
+          "id": "SYNTH-019-I",
+          "repetition": 1,
+          "expected": "incompatible",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "unknown",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000252042
+        },
+        {
+          "id": "SYNTH-021-A",
+          "repetition": 1,
+          "expected": "ambiguous",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "warn",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000273798
+        },
+        {
+          "id": "SYNTH-023-A",
+          "repetition": 1,
+          "expected": "ambiguous",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "unknown",
+            "experience": "warn",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.00025095
+        },
+        {
+          "id": "SYNTH-024-A",
+          "repetition": 1,
+          "expected": "ambiguous",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.00025321800000000004
+        },
+        {
+          "id": "SYNTH-025-A",
+          "repetition": 1,
+          "expected": "ambiguous",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000241458
+        },
+        {
+          "id": "SYNTH-028-I",
+          "repetition": 1,
+          "expected": "incompatible",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "fail",
+            "experience": "unknown",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.00023683799999999998
+        },
+        {
+          "id": "SYNTH-013-I",
+          "repetition": 2,
+          "expected": "incompatible",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "fail",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.00025909800000000003
+        },
+        {
+          "id": "SYNTH-017-I",
+          "repetition": 2,
+          "expected": "incompatible",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "unknown",
+            "experience": "fail",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000258762
+        },
+        {
+          "id": "SYNTH-018-A",
+          "repetition": 2,
+          "expected": "ambiguous",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "warn",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000269514
+        },
+        {
+          "id": "SYNTH-019-I",
+          "repetition": 2,
+          "expected": "incompatible",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "unknown",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000252042
+        },
+        {
+          "id": "SYNTH-021-A",
+          "repetition": 2,
+          "expected": "ambiguous",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "warn",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000273798
+        },
+        {
+          "id": "SYNTH-023-A",
+          "repetition": 2,
+          "expected": "ambiguous",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "unknown",
+            "experience": "warn",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.00025095
+        },
+        {
+          "id": "SYNTH-024-A",
+          "repetition": 2,
+          "expected": "ambiguous",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.00025321800000000004
+        },
+        {
+          "id": "SYNTH-025-A",
+          "repetition": 2,
+          "expected": "ambiguous",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000241458
+        },
+        {
+          "id": "SYNTH-028-I",
+          "repetition": 2,
+          "expected": "incompatible",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "fail",
+            "experience": "unknown",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.00023683799999999998
+        },
+        {
+          "id": "SYNTH-013-I",
+          "repetition": 3,
+          "expected": "incompatible",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "fail",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.00025909800000000003
+        },
+        {
+          "id": "SYNTH-017-I",
+          "repetition": 3,
+          "expected": "incompatible",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "unknown",
+            "experience": "fail",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000258762
+        },
+        {
+          "id": "SYNTH-018-A",
+          "repetition": 3,
+          "expected": "ambiguous",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "warn",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000269514
+        },
+        {
+          "id": "SYNTH-019-I",
+          "repetition": 3,
+          "expected": "incompatible",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "unknown",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000252042
+        },
+        {
+          "id": "SYNTH-021-A",
+          "repetition": 3,
+          "expected": "ambiguous",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "warn",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000273798
+        },
+        {
+          "id": "SYNTH-023-A",
+          "repetition": 3,
+          "expected": "ambiguous",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "unknown",
+            "experience": "warn",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.00025095
+        },
+        {
+          "id": "SYNTH-024-A",
+          "repetition": 3,
+          "expected": "ambiguous",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.00025321800000000004
+        },
+        {
+          "id": "SYNTH-025-A",
+          "repetition": 3,
+          "expected": "ambiguous",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000241458
+        },
+        {
+          "id": "SYNTH-028-I",
+          "repetition": 3,
+          "expected": "incompatible",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "fail",
+            "experience": "unknown",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.00023683799999999998
+        }
+      ]
+    },
+    "v26_holdout_stability": {
+      "generated_at": "2026-09-28T01:19:44+00:00",
+      "duration_seconds": 13.686,
+      "repetitions": 3,
+      "verdicts": {
+        "total": 36,
+        "correct": 36,
+        "accuracy": 1.0,
+        "false_positives": 0,
+        "false_positive_rate": 0.0,
+        "by_class": {
+          "compatible": {
+            "total": 12,
+            "correct": 12,
+            "recall": 1.0
+          },
+          "incompatible": {
+            "total": 12,
+            "correct": 12,
+            "recall": 1.0
+          },
+          "ambiguous": {
+            "total": 12,
+            "correct": 12,
+            "recall": 1.0
+          }
+        },
+        "prediction_distribution": {
+          "ambiguous": 12,
+          "compatible": 12,
+          "incompatible": 12
+        }
+      },
+      "gates": {
+        "checked": 72,
+        "correct": 72
+      },
+      "failures": 0,
+      "cost_usd": 0.009531,
+      "unstable_cases": [],
+      "source_quotes": {
+        "checked": 386,
+        "invalid": 0
+      },
+      "cases": [
+        {
+          "id": "HOLD-001-A",
+          "repetition": 1,
+          "expected": "ambiguous",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.00027430200000000003
+        },
+        {
+          "id": "HOLD-002-A",
+          "repetition": 1,
+          "expected": "ambiguous",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000254898
+        },
+        {
+          "id": "HOLD-003-A",
+          "repetition": 1,
+          "expected": "ambiguous",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000277326
+        },
+        {
+          "id": "HOLD-004-A",
+          "repetition": 1,
+          "expected": "ambiguous",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000272958
+        },
+        {
+          "id": "HOLD-005-C",
+          "repetition": 1,
+          "expected": "compatible",
+          "predicted": "compatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000253218
+        },
+        {
+          "id": "HOLD-006-C",
+          "repetition": 1,
+          "expected": "compatible",
+          "predicted": "compatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000274806
+        },
+        {
+          "id": "HOLD-007-C",
+          "repetition": 1,
+          "expected": "compatible",
+          "predicted": "compatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000255402
+        },
+        {
+          "id": "HOLD-008-C",
+          "repetition": 1,
+          "expected": "compatible",
+          "predicted": "compatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.00027279
+        },
+        {
+          "id": "HOLD-009-I",
+          "repetition": 1,
+          "expected": "incompatible",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "fail",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000271866
+        },
+        {
+          "id": "HOLD-010-I",
+          "repetition": 1,
+          "expected": "incompatible",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "unknown",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000248346
+        },
+        {
+          "id": "HOLD-011-I",
+          "repetition": 1,
+          "expected": "incompatible",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "fail",
+            "experience": "unknown",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000251202
+        },
+        {
+          "id": "HOLD-012-I",
+          "repetition": 1,
+          "expected": "incompatible",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "unknown",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000269934
+        },
+        {
+          "id": "HOLD-001-A",
+          "repetition": 2,
+          "expected": "ambiguous",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.00027430200000000003
+        },
+        {
+          "id": "HOLD-002-A",
+          "repetition": 2,
+          "expected": "ambiguous",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000254898
+        },
+        {
+          "id": "HOLD-003-A",
+          "repetition": 2,
+          "expected": "ambiguous",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000277326
+        },
+        {
+          "id": "HOLD-004-A",
+          "repetition": 2,
+          "expected": "ambiguous",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000272958
+        },
+        {
+          "id": "HOLD-005-C",
+          "repetition": 2,
+          "expected": "compatible",
+          "predicted": "compatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000253218
+        },
+        {
+          "id": "HOLD-006-C",
+          "repetition": 2,
+          "expected": "compatible",
+          "predicted": "compatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000274806
+        },
+        {
+          "id": "HOLD-007-C",
+          "repetition": 2,
+          "expected": "compatible",
+          "predicted": "compatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000255402
+        },
+        {
+          "id": "HOLD-008-C",
+          "repetition": 2,
+          "expected": "compatible",
+          "predicted": "compatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.00027279
+        },
+        {
+          "id": "HOLD-009-I",
+          "repetition": 2,
+          "expected": "incompatible",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "fail",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000271866
+        },
+        {
+          "id": "HOLD-010-I",
+          "repetition": 2,
+          "expected": "incompatible",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "unknown",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000248346
+        },
+        {
+          "id": "HOLD-011-I",
+          "repetition": 2,
+          "expected": "incompatible",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "fail",
+            "experience": "unknown",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000251202
+        },
+        {
+          "id": "HOLD-012-I",
+          "repetition": 2,
+          "expected": "incompatible",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "unknown",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000269934
+        },
+        {
+          "id": "HOLD-001-A",
+          "repetition": 3,
+          "expected": "ambiguous",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.00027430200000000003
+        },
+        {
+          "id": "HOLD-002-A",
+          "repetition": 3,
+          "expected": "ambiguous",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000254898
+        },
+        {
+          "id": "HOLD-003-A",
+          "repetition": 3,
+          "expected": "ambiguous",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000277326
+        },
+        {
+          "id": "HOLD-004-A",
+          "repetition": 3,
+          "expected": "ambiguous",
+          "predicted": "ambiguous",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000272958
+        },
+        {
+          "id": "HOLD-005-C",
+          "repetition": 3,
+          "expected": "compatible",
+          "predicted": "compatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000253218
+        },
+        {
+          "id": "HOLD-006-C",
+          "repetition": 3,
+          "expected": "compatible",
+          "predicted": "compatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000274806
+        },
+        {
+          "id": "HOLD-007-C",
+          "repetition": 3,
+          "expected": "compatible",
+          "predicted": "compatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000255402
+        },
+        {
+          "id": "HOLD-008-C",
+          "repetition": 3,
+          "expected": "compatible",
+          "predicted": "compatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "pass",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.00027279
+        },
+        {
+          "id": "HOLD-009-I",
+          "repetition": 3,
+          "expected": "incompatible",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "fail",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000271866
+        },
+        {
+          "id": "HOLD-010-I",
+          "repetition": 3,
+          "expected": "incompatible",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "unknown",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000248346
+        },
+        {
+          "id": "HOLD-011-I",
+          "repetition": 3,
+          "expected": "incompatible",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "fail",
+            "experience": "unknown",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000251202
+        },
+        {
+          "id": "HOLD-012-I",
+          "repetition": 3,
+          "expected": "incompatible",
+          "predicted": "incompatible",
+          "status": "ok",
+          "gates": {
+            "contract_type": "pass",
+            "experience": "unknown",
+            "freshness": "pass",
+            "availability": "pass"
+          },
+          "cost_usd": 0.000269934
+        }
+      ]
+    }
+  }
+}

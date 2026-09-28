@@ -1,0 +1,35 @@
+{
+  "id": "SYNTH-006-C",
+  "expected_class": "compatible",
+  "difficulty": "medium",
+  "language": "fr",
+  "offer": {
+    "url": "https://jobs.example.test/synth-006",
+    "title": "Junior 5G Security Research Engineer",
+    "company": "Signal Forge",
+    "location": "Nice",
+    "published_days_ago": 5,
+    "contract_hint": "CDI",
+    "experience_hint": "premier emploi",
+    "job_text": "CDI de premier emploi en R&D sécurité télécom à Nice. Missions: analyse de paquets 5G avec Wireshark, tests sur Open5GS, durcissement Linux, scripts Python et validation de configurations TLS. Le poste accepte les jeunes diplômés et prévoit un accompagnement sur les normes 3GPP; aucune ancienneté professionnelle minimale n'est demandée."
+  },
+  "expected": {
+    "facts": {
+      "contract": "permanent",
+      "experience_min": 0,
+      "junior": true,
+      "role_nature": "technical",
+      "evidence": [
+        "CDI de premier emploi en R&D sécurité télécom à Nice.",
+        "Missions: analyse de paquets 5G avec Wireshark, tests sur Open5GS, durcissement Linux, scripts Python et validation de configurations TLS.",
+        "Le poste accepte les jeunes diplômés et prévoit un accompagnement sur les normes 3GPP; aucune ancienneté professionnelle minimale n'est demandée."
+      ]
+    },
+    "gates": {},
+    "evidence_contains": [
+      "CDI de premier emploi en R&D sécurité télécom à Nice.",
+      "Missions: analyse de paquets 5G avec Wireshark, tests sur Open5GS, durcissement Linux, scripts Python et validation de configurations TLS.",
+      "Le poste accepte les jeunes diplômés et prévoit un accompagnement sur les normes 3GPP; aucune ancienneté professionnelle minimale n'est demandée."
+    ]
+  }
+}

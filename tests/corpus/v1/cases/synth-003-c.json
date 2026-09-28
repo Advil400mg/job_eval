@@ -1,0 +1,39 @@
+{
+  "id": "SYNTH-003-C",
+  "expected_class": "compatible",
+  "difficulty": "easy",
+  "language": "en",
+  "offer": {
+    "url": "https://jobs.example.test/synth-003",
+    "title": "Entry-level Cloud Security Engineer",
+    "company": "Northwind Cloud Lab",
+    "location": "Genève",
+    "published_days_ago": 5,
+    "contract_hint": "permanent",
+    "experience_hint": "entry-level",
+    "job_text": "Permanent entry-level cloud security role in Geneva. Recent graduates are welcome. You will assist with AWS IAM reviews, vulnerability scanning, Terraform policy checks, Linux hardening and Python security automation. A senior engineer provides structured training and reviews all production changes. No prior full-time cloud security experience is required."
+  },
+  "expected": {
+    "facts": {
+      "contract": "permanent",
+      "experience_min": 0,
+      "junior": true,
+      "role_nature": "technical",
+      "evidence": [
+        "Permanent entry-level cloud security role in Geneva.",
+        "Recent graduates are welcome.",
+        "You will assist with AWS IAM reviews, vulnerability scanning, Terraform policy checks, Linux hardening and Python security automation.",
+        "A senior engineer provides structured training and reviews all production changes.",
+        "No prior full-time cloud security experience is required."
+      ]
+    },
+    "gates": {},
+    "evidence_contains": [
+      "Permanent entry-level cloud security role in Geneva.",
+      "Recent graduates are welcome.",
+      "You will assist with AWS IAM reviews, vulnerability scanning, Terraform policy checks, Linux hardening and Python security automation.",
+      "A senior engineer provides structured training and reviews all production changes.",
+      "No prior full-time cloud security experience is required."
+    ]
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "id": "SYNTH-008-C",
+  "expected_class": "compatible",
+  "difficulty": "medium",
+  "language": "en",
+  "offer": {
+    "url": "https://jobs.example.test/synth-008",
+    "title": "Graduate Security Operations Engineer",
+    "company": "Green Harbor Bank",
+    "location": "Paris",
+    "published_days_ago": 5,
+    "contract_hint": "permanent",
+    "experience_hint": "less than 1 year",
+    "job_text": "Permanent graduate security operations programme in Paris for recent graduates with less than one year of professional experience. Rotations cover SOC monitoring, vulnerability management, cloud security and IAM. Tools include Splunk, Linux, Python, AWS and Docker. Training, technical mentoring and a defined engineering role after the programme are guaranteed."
+  },
+  "expected": {
+    "facts": {
+      "contract": "permanent",
+      "experience_min": 0,
+      "junior": true,
+      "role_nature": "technical",
+      "evidence": [
+        "Permanent graduate security operations programme in Paris for recent graduates with less than one year of professional experience.",
+        "Rotations cover SOC monitoring, vulnerability management, cloud security and IAM.",
+        "Tools include Splunk, Linux, Python, AWS and Docker.",
+        "Training, technical mentoring and a defined engineering role after the programme are guaranteed."
+      ]
+    },
+    "gates": {},
+    "evidence_contains": [
+      "Permanent graduate security operations programme in Paris for recent graduates with less than one year of professional experience.",
+      "Rotations cover SOC monitoring, vulnerability management, cloud security and IAM.",
+      "Tools include Splunk, Linux, Python, AWS and Docker.",
+      "Training, technical mentoring and a defined engineering role after the programme are guaranteed."
+    ]
+  }
+}

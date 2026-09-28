@@ -8,8 +8,9 @@ import traceback
 
 from . import config
 from . import gates as gates_mod
-from . import jev, profile as profile_mod, store
+from . import evaluation, jev, profile as profile_mod, store
 from .extract import FetchError, extract, fetch_html
+from .job_facts import extract_facts
 
 
 def profile_path(user_id: str | None = None) -> str:
@@ -47,7 +48,9 @@ def evaluate_url(url: str, profile: dict, evaluator: str | None = None) -> dict:
     record["job_text_chars"] = len(offer["job_text"])
 
     record["stage"] = "gates"
-    gate_results = gates_mod.run_gates(offer, profile)
+    facts = extract_facts(offer)
+    record["facts"] = facts
+    gate_results = gates_mod.run_gates(offer, profile, facts)
     record["gate_results"] = gate_results
 
     record["stage"] = "jev"
@@ -62,7 +65,9 @@ def evaluate_url(url: str, profile: dict, evaluator: str | None = None) -> dict:
         return record
 
     record["jev"] = jev_result
-    record["decision"] = gates_mod.decide(jev_result, gate_results)
+    assessment = evaluation.assess_evaluation(jev_result, facts, gate_results, offer, profile)
+    record["evaluation"] = assessment
+    record["decision"] = assessment["decision"]
     record["status"] = "ok"
     record["stage"] = "done"
     return record
@@ -93,7 +98,9 @@ def evaluate_text(url: str, text: str, profile: dict, evaluator: str | None = No
         "published_at_provenance": offer["published_at_provenance"],
         "job_text_chars": len(offer["job_text"]), "manual_text": True,
     }
-    gate_results = gates_mod.run_gates(offer, profile)
+    facts = extract_facts(offer)
+    record["facts"] = facts
+    gate_results = gates_mod.run_gates(offer, profile, facts)
     record["gate_results"] = gate_results
     record["stage"] = "jev"
     try:
@@ -104,7 +111,9 @@ def evaluate_text(url: str, text: str, profile: dict, evaluator: str | None = No
                               "warnings": [], "unknowns": []}
         return record
     record["jev"] = jev_result
-    record["decision"] = gates_mod.decide(jev_result, gate_results)
+    assessment = evaluation.assess_evaluation(jev_result, facts, gate_results, offer, profile)
+    record["evaluation"] = assessment
+    record["decision"] = assessment["decision"]
     record["status"] = "ok"
     record["stage"] = "done"
     return record
