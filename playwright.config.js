@@ -1,4 +1,8 @@
+import { existsSync } from 'node:fs';
 import { defineConfig, devices } from '@playwright/test';
+
+const python = process.env.JEV_E2E_PYTHON ||
+  (existsSync('.venv/bin/python') ? '.venv/bin/python' : 'python');
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -15,7 +19,7 @@ export default defineConfig({
     ...devices['Desktop Chrome'],
   },
   webServer: {
-    command: '.venv/bin/python tests/e2e/serve.py',
+    command: `${python} tests/e2e/serve.py`,
     url: 'http://127.0.0.1:8769/healthz',
     reuseExistingServer: false,
     timeout: 120_000,
