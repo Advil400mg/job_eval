@@ -13,4 +13,15 @@ __pycache__/
 /node_modules/
 /test-results/
 /playwright-report/
+.env.*
+!.env.example
+secrets/
+photos/
+*.sqlite*
+*.db
+*.grist
+*.xlsx
+*.xls
+*.pem
+*.key
 

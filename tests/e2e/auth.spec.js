@@ -3,7 +3,7 @@ import { login } from './helpers.js';
 
 test('connexion refusée puis réussie et déconnexion', async ({ page }) => {
   await page.goto('/login');
-  await page.getByLabel(/email ou nom d’utilisateur/i).fill('admin');
+  await page.getByLabel(/email ou nom d['’]utilisateur/i).fill('admin');
   await page.getByLabel(/mot de passe/i).fill('incorrect-password');
   await page.getByRole('button', { name: /se connecter/i }).click();
   await expect(page.getByText(/identifiant ou mot de passe incorrect/i)).toBeVisible();

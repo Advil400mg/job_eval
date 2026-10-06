@@ -1,56 +1,58 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="fr" data-theme="light">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <title>{{ page_title }} — Jev</title>
+<script src="/static/shell.js?v={{ asset_version }}"></script>
 <link rel="stylesheet" href="/static/style.css?v={{ asset_version }}">
+<link rel="stylesheet" href="/static/ui-v3.css?v={{ asset_version }}">
 </head>
-<body data-page="{{ active }}">
+<body data-page="{{ active }}" data-cv-available="{{ 'true' if cv_available else 'false' }}" class="jev-app">
 <a href="#main-content" class="skip-link">Aller au contenu principal</a>
-<header class="app-header">
-  <a class="brand" href="/" aria-label="Jev — nouvelle évaluation">
-    <span class="brand-mark">J</span><span><strong>Jev</strong><small>Job evaluator</small></span>
-  </a>
-  <nav class="main-nav" aria-label="Navigation principale">
-    <a href="/" class="{% if active == 'evaluate' %}active{% endif %}"{% if active == 'evaluate' %} aria-current="page"{% endif %}>Évaluer</a>
-    <a href="/offers" class="{% if active == 'offers' %}active{% endif %}"{% if active == 'offers' %} aria-current="page"{% endif %}>Offres</a>
-    <a href="/runs" class="{% if active == 'runs' %}active{% endif %}"{% if active == 'runs' %} aria-current="page"{% endif %}>Lots <span id="nav_runs_badge" class="nav-badge hidden"></span></a>
-    <a href="/cv" class="{% if active == 'cv' %}active{% endif %}"{% if active == 'cv' %} aria-current="page"{% endif %}>CV <span id="nav_cv_badge" class="nav-badge hidden"></span></a>
-    <a href="/applications" class="{% if active == 'applications' %}active{% endif %}"{% if active == 'applications' %} aria-current="page"{% endif %}>Candidatures</a>
-    <a href="/analytics" class="{% if active == 'analytics' %}active{% endif %}"{% if active == 'analytics' %} aria-current="page"{% endif %}>Analyses</a>
-  </nav>
-  <div class="header-actions">
-    {% if is_admin %}<a class="profile-link {% if active == 'admin' %}active{% endif %}" href="/admin">Administration</a>{% endif %}
-    <a class="profile-link {% if active == 'profile' %}active{% endif %}" href="/profile" aria-label="Profil candidat"{% if active == 'profile' %} aria-current="page"{% endif %}>Profil</a>
-    {% if current_user %}<span class="muted">{{ current_user.display_name or current_user.username }}</span>{% endif %}
-    {% if auth_enabled %}<form method="post" action="/logout"><button class="logout-btn" type="submit">Déconnexion</button></form>{% endif %}
+<div class="app-layout">
+  <aside id="app_sidebar" class="app-sidebar" aria-label="Menu de l’application">
+    <a class="brand" href="/dashboard" aria-label="Jev — vue d’ensemble"><span class="brand-mark">J</span><span><strong>jev</strong><small>Votre recherche, éclairée.</small></span></a>
+    <p class="nav-section-label">MON ESPACE</p>
+    <nav class="main-nav" aria-label="Navigation principale">
+      <a href="/dashboard" class="{% if active == 'dashboard' %}active{% endif %}"{% if active == 'dashboard' %} aria-current="page"{% endif %}><span aria-hidden="true">◫</span>Vue d’ensemble</a>
+      <a href="/offers" class="{% if active == 'offers' %}active{% endif %}"{% if active == 'offers' %} aria-current="page"{% endif %}><span aria-hidden="true">▤</span>Offres</a>
+      <a href="/" class="{% if active == 'evaluate' %}active{% endif %}"{% if active == 'evaluate' %} aria-current="page"{% endif %}><span aria-hidden="true">＋</span>Évaluer</a>
+      <a href="/applications" class="{% if active == 'applications' %}active{% endif %}"{% if active == 'applications' %} aria-current="page"{% endif %}><span aria-hidden="true">↗</span>Candidatures</a>
+      <a href="/cv" class="{% if active == 'cv' %}active{% endif %}"{% if active == 'cv' %} aria-current="page"{% endif %}><span aria-hidden="true">▧</span>CV<span id="nav_cv_badge" class="nav-badge hidden"></span></a>
+      <a href="/runs" class="{% if active == 'runs' %}active{% endif %}"{% if active == 'runs' %} aria-current="page"{% endif %}><span aria-hidden="true">≡</span>Lots<span id="nav_runs_badge" class="nav-badge hidden"></span></a>
+      <a href="/analytics" class="{% if active == 'analytics' %}active{% endif %}"{% if active == 'analytics' %} aria-current="page"{% endif %}><span aria-hidden="true">▥</span>Analyses</a>
+      <a href="/profile" class="{% if active == 'profile' %}active{% endif %}" aria-label="Profil candidat"{% if active == 'profile' %} aria-current="page"{% endif %}><span aria-hidden="true">○</span>Mon profil</a>
+    </nav>
+    {% if is_admin %}<div class="sidebar-settings"><p class="nav-section-label">GESTION</p><a class="profile-link {% if active == 'admin' %}active{% endif %}" href="/admin">Administration</a></div>{% endif %}
+    <div class="sidebar-account"><span class="user-avatar" aria-hidden="true">{{ (current_user.display_name or current_user.username)|first|upper }}</span><div><strong>{{ current_user.display_name or current_user.username }}</strong><span>{{ 'Administrateur' if is_admin else 'Espace personnel' }}</span></div></div>
+  </aside>
+  <button id="app_menu_backdrop" class="nav-backdrop hidden" type="button" aria-label="Fermer le menu"></button>
+  <div id="app_workspace" class="app-workspace">
+    <header class="app-header">
+      <button id="app_menu_toggle" class="icon-btn nav-menu-toggle" type="button" aria-label="Ouvrir le menu" aria-expanded="false" aria-controls="app_sidebar">☰</button>
+      <span class="app-breadcrumb">Mon espace <span aria-hidden="true">/</span> {{ page_title }}</span>
+      <div class="header-actions"><button class="icon-btn theme-toggle" type="button" data-theme-toggle aria-label="Activer le thème sombre" title="Changer de thème">◐</button><a class="user-avatar" href="/profile" aria-label="Ouvrir mon profil">{{ (current_user.display_name or current_user.username)|first|upper }}</a>{% if auth_enabled %}<form method="post" action="/logout"><button class="logout-btn" type="submit">Déconnexion</button></form>{% endif %}</div>
+    </header>
+    <div class="app-notices">
+      <div id="script_notice" class="global-alert">JavaScript est indisponible. Les formulaires de connexion restent utilisables ; les listes dynamiques, l’édition du profil et les évaluations nécessitent JavaScript.</div>
+      {% if not api_key_set %}<div class="global-alert" role="status"><strong>Évaluation indisponible.</strong> La clé API n’est pas configurée. Les résultats et le suivi existants restent consultables.</div>{% endif %}
+      {% if not cv_available %}<div class="global-alert" role="status"><strong>Génération de CV indisponible.</strong> {{ cv_detail }}</div>{% endif %}
+    </div>
+    <main id="main-content" tabindex="-1" class="page-shell {% block shell_class %}{% endblock %}">{% block content %}{% endblock %}</main>
+    <footer class="app-footer">Jev aide à comparer une offre à votre profil. Un score n’est pas une garantie de recrutement.</footer>
   </div>
-</header>
-
-{% if not api_key_set %}<div class="global-alert">Clé API absente : l’évaluation et l’analyse du CV échoueront.</div>{% endif %}
-{% if not cv_available %}<div class="global-alert">Moteur CV indisponible : {{ cv_detail }}</div>{% endif %}
-
-<main id="main-content" tabindex="-1" class="page-shell {% block shell_class %}{% endblock %}">
-  {% block content %}{% endblock %}
-</main>
-
+</div>
 <dialog id="action_dialog" class="action-dialog" role="alertdialog" aria-modal="true" aria-labelledby="action_dialog_title" aria-describedby="action_dialog_message">
   <form method="dialog" class="action-dialog-card">
-    <h2 id="action_dialog_title">Confirmer l’action</h2>
-    <p id="action_dialog_message"></p>
-    <label id="action_dialog_input_label" class="hidden">Confirmation
-      <input id="action_dialog_input" type="text" autocomplete="off">
-    </label>
-    <div class="action-dialog-actions">
-      <button id="action_dialog_cancel" class="secondary-btn" type="submit" value="cancel" formnovalidate>Annuler</button>
-      <button id="action_dialog_confirm" type="submit" value="confirm">Confirmer</button>
-    </div>
+    <h2 id="action_dialog_title">Confirmer l’action</h2><p id="action_dialog_message"></p>
+    <label id="action_dialog_input_label" class="hidden">Confirmation<input id="action_dialog_input" type="text" autocomplete="off"></label>
+    <div class="action-dialog-actions"><button id="action_dialog_cancel" class="secondary-btn" type="submit" value="cancel" formnovalidate>Annuler</button><button id="action_dialog_confirm" type="submit" value="confirm">Confirmer</button></div>
   </form>
 </dialog>
-
 <div id="toast_region" class="toast-region" aria-live="polite"></div>
-<script src="/static/common.js"></script>
+<script src="/static/common.js?v={{ asset_version }}"></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

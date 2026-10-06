@@ -4,8 +4,10 @@ import { login } from './helpers.js';
 test('adoption explicite du profil personnalisable et confirmation avant évaluation', async ({ page }) => {
   await login(page);
   await page.goto('/profile');
+  await page.locator('#tab_rules').click();
   await page.getByRole('button', { name: 'Passer au profil personnalisable' }).click();
   await page.getByRole('button', { name: 'Créer la version à vérifier' }).click();
+  await page.locator('#tab_rules').click();
   await expect(page.locator('#profile_confirmed')).toBeVisible();
   await page.goto('/');
   await expect(page.getByText(/confirmez.*profil|profil.*confirmer/i).first()).toBeVisible();
@@ -16,9 +18,11 @@ test('adoption explicite du profil personnalisable et confirmation avant évalua
   expect(blocked.status()).toBe(428);
   await page.goto('/profile');
   await page.locator('#candidate_years').fill('3');
-  await page.locator('#reject_experience_years').fill('');
+  await page.locator('#tab_preferences').click();
   await page.locator('#locations').fill('France\nBerlin, DE');
   await page.locator('#contract_types').selectOption(['permanent', 'freelance']);
+  await page.locator('#tab_rules').click();
+  await page.locator('#reject_experience_years').fill('');
   await page.locator('#profile_confirmed').check();
   await expect(page.locator('#profile_preview')).toContainText('Berlin, DE');
   await page.locator('#profile_save').click();

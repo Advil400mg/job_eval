@@ -81,6 +81,20 @@
     return `<div class="criteria-visual"><div>${blocks}</div><small>${label}</small></div>`;
   }
 
+  function offerReason(offer) {
+    if (offer.status === "review_required") {
+      return (offer.review_reasons || [])[0] || "Des informations ou réserves demandent une vérification avant candidature.";
+    }
+    if (offer.status === "jev_excluded") {
+      const failed = (offer.gates || []).find((gate) => gate.status === "fail");
+      return failed?.reason || "Une condition d’éligibilité bloque cette offre pour le profil utilisé.";
+    }
+    if (offer.status === "rejected") return "Cette évaluation ne satisfait pas les critères du profil utilisé. Consultez les scores et les preuves.";
+    if (offer.status === "qualified") return "Offre qualifiée pour le profil utilisé ; relisez les conditions avant de candidater.";
+    if (offer.error) return String(offer.error);
+    return "L’analyse n’est pas vérifiée : consultez les informations disponibles ou relancez l’évaluation.";
+  }
+
   function gatesHtml(gates = []) {
     if (!gates.length) return '<p class="muted">Aucune porte enregistrée.</p>';
     return `<div class="gate-list">${gates.map((gate) => {
@@ -239,9 +253,11 @@
 
   window.JEV = {
     $, $$, escapeHtml, num, formatDate, fetchJSON, statusBadge, scoreVisual,
-    criteriaVisual, criteriaHtml, gatesHtml, paginationHtml, showToast, applicationStatusBadge,
+    criteriaVisual, criteriaHtml, gatesHtml, offerReason, paginationHtml, showToast, applicationStatusBadge,
     updateQuery, generateCv, pollCv, refreshNavBadges, confirmAction, promptAction, trapFocus,
   };
+  const scriptNotice = $("#script_notice");
+  if (scriptNotice) scriptNotice.hidden = true;
   refreshNavBadges();
   setInterval(refreshNavBadges, 15000);
 })();

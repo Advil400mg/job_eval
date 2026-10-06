@@ -1,4 +1,4 @@
-"""Offline checks for the v2.6 production deployment artifacts."""
+"""Offline checks for the versioned production deployment artifacts."""
 
 from __future__ import annotations
 
@@ -22,7 +22,12 @@ from app.version import APP_VERSION  # noqa: E402
 
 class DeploymentArtifacts(unittest.TestCase):
     def test_version_is_centralized(self):
-        self.assertEqual(APP_VERSION, "2.6.0")
+        self.assertEqual(APP_VERSION, "3.0.0")
+        package = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
+        lock = json.loads((ROOT / "package-lock.json").read_text(encoding="utf-8"))
+        self.assertEqual(package["version"], APP_VERSION)
+        self.assertEqual(lock["version"], APP_VERSION)
+        self.assertEqual(lock["packages"][""]["version"], APP_VERSION)
         main = (ROOT / "app/main.py").read_text(encoding="utf-8")
         backup = (ROOT / "app/backup.py").read_text(encoding="utf-8")
         self.assertIn("version=APP_VERSION", main)

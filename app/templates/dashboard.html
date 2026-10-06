@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block shell_class %}wide-shell{% endblock %}
+{% block content %}
+<section class="page-heading"><div><p class="eyebrow">Votre recherche</p><h1>Bonjour {{ current_user.display_name or current_user.username }}.</h1><p>Les offres à examiner, les points à clarifier et les prochaines relances, dans votre espace personnel.</p></div><a class="primary-link" href="/">＋ Évaluer des offres</a></section>
+{% if profile_review_required %}<section class="panel" role="status"><strong>Profil à confirmer.</strong> Vérifiez les faits et préférences dans <a href="/profile">votre profil</a> avant de lancer une nouvelle évaluation.</section>{% endif %}
+<div class="dashboard-kpis" aria-label="Dernière évaluation de chaque offre">
+  <div class="dashboard-kpi"><span>Offres évaluées</span><strong id="dashboard_total">—</strong><small>Une offre par URL, dernière évaluation</small></div>
+  <div class="dashboard-kpi"><span>Qualifiées</span><strong id="dashboard_qualified">—</strong><small>À relire avant candidature</small></div>
+  <div class="dashboard-kpi"><span>Revue requise</span><strong id="dashboard_review">—</strong><small>Informations ou réserves à vérifier</small></div>
+</div>
+<div class="dashboard-grid">
+  <section class="panel"><div class="dashboard-panel-heading"><h2>Votre sélection</h2><a href="/offers?status=qualified">Toutes les offres qualifiées →</a></div><div id="dashboard_selection" class="dashboard-offer-list" aria-live="polite"><div class="loading-card">Chargement de vos offres…</div></div></section>
+  <div class="dashboard-stack">
+    <section class="panel focus-panel"><p class="eyebrow">Prochaines actions</p><h2>Clarifier, puis avancer.</h2><div id="dashboard_actions" aria-live="polite"><p class="muted">Chargement des vérifications et relances…</p></div></section>
+    <section class="panel"><h2>Le profil actuel</h2><dl class="profile-summary dashboard-profile">
+      <dt>Postes visés</dt><dd>{{ dashboard_profile.target_roles|join(', ') or 'Non renseignés' }}</dd>
+      <dt>Expérience déclarée</dt><dd>{% if dashboard_profile.candidate_years is not none %}{{ dashboard_profile.candidate_years }} ans{% else %}Non renseignée{% endif %}</dd>
+      <dt>Lieux acceptés</dt><dd>{{ dashboard_profile.locations|join(', ') or 'Sans restriction' }}</dd>
+      <dt>Langues déclarées</dt><dd>{{ dashboard_profile.languages_line or 'Non renseignées' }}</dd>
+    </dl><p class="muted small">Les anciens lots conservent le profil chargé à leur lancement.</p><a href="/profile">Vérifier mon profil →</a></section>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}<script src="/static/dashboard.js?v={{ asset_version }}"></script>{% endblock %}
