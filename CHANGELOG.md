@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.6.0 — 2026-09-28 (préparation sur `dev`, non publiée)
+## 2.6.0 — 2026-10-06
 
 - Extraction conservatrice des faits de contrat, d'expérience et d'accès junior avec passages de l'annonce recopiés ; séparation des exigences et des préférences.
 - Préservation du score pondéré Jev et ajout de dimensions explicatives, preuves sélectionnées dans le texte source et motifs de revue humaine pour les incertitudes.
@@ -9,6 +9,15 @@
 - Tiroir d'offre enrichi (preuves échappées, informations manquantes, réserves et retour modifiable) et filtre « Revue requise ».
 - Banc synthétique hors ligne et live, corpus relu par l'agent et holdout synthétique. Leur comparaison explore les régressions mais ne constitue pas une validation indépendante sur des offres réelles.
 - Retours de test : les durées de formation et les évolutions de carrière ne sont plus lues comme prérequis ; un minimum d'expérience explicite bloque même sous un titre junior ; le niveau d'anglais du CV est reconnu dans les profils générés et anciens sans déduire un niveau d'une simple mention de langue.
+- Profils personnalisables version 2 : métier, séniorité, années d'expérience déclarées, compétences, langues, contrats et lieux acceptés ou préférés ; conservation des règles historiques jusqu'à adoption volontaire.
+- Initialisation par CV ou profil manuel sans CV ; confirmation des faits et préférences avant évaluation. Les corrections du profil d'évaluation ne modifient pas le CV source ; la génération de CV reste indisponible sans master importé.
+- Éditeur de profil enrichi avec prévisualisation des critères réellement transmis à Jev, historique et contrôle des révisions ; choix multiples des contrats et préservation des couples ville/pays.
+- Portes structurées adaptées au profil : contrats acceptés, minima d'expérience explicites et localisation sourcée. Les lieux distants ou pays non prouvés restent à vérifier, sans rejet géographique certain.
+- Reconnaissance multilingue des pays et langues, comparaison des niveaux CECRL explicites et revue requise lorsque le niveau déclaré manque ou est insuffisant.
+- Nettoyage des liens d'évitement, navigation et sections d'offres liées ; provenance du lieu extrait et distinction entre contrat proposé, expérience passée en freelance et durée temporaire d'une mission.
+- Questions et dimensions Jev adaptées au métier et au niveau visés pour les profils version 2, sans changer la formule du score global ni recalculer les résultats historiques.
+- Correction du démarrage du serveur Playwright : sélection du Python local ou de celui disponible sur le PATH en CI.
+- Vérifications de livraison : 331 tests Python, 21 tests JavaScript et 11 parcours Chromium ; benchmarks hors ligne sur 11 et 24 portes annotées. Ces contrôles techniques ne remplacent pas la validation indépendante des verdicts Jev sur des offres et profils variés, qui reste à réaliser.
 
 ## 2.5.0 — 2026-09-27
 

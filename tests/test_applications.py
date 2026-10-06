@@ -6,6 +6,7 @@ import sys
 import sqlite3
 import tempfile
 import unittest
+from datetime import date, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -96,8 +97,11 @@ class Applications(unittest.TestCase):
     def test_filtres_de_relance_et_statut(self):
         overdue = store.create_application("https://jobs.test/overdue")
         upcoming = store.create_application("https://jobs.test/upcoming")
-        store.update_application(overdue["id"], {"follow_up_at": "2026-09-24"}, 1)
-        store.update_application(upcoming["id"], {"status": "interview", "follow_up_at": "2026-10-01"}, 1)
+        today = date.today()
+        store.update_application(overdue["id"], {"follow_up_at": (today - timedelta(days=7)).isoformat()}, 1)
+        store.update_application(upcoming["id"], {
+            "status": "interview", "follow_up_at": (today + timedelta(days=7)).isoformat(),
+        }, 1)
         self.assertEqual(store.list_applications(due="overdue")["applications"][0]["id"], overdue["id"])
         self.assertEqual(store.list_applications(due="upcoming")["applications"][0]["id"], upcoming["id"])
         self.assertEqual(store.list_applications(status="interview")["total"], 1)
