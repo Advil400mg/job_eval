@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="fr" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>JEV — Maquette v3.0</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="preview.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#content">Aller au contenu principal</a>
+  <div class="demo-banner">Maquette interactive v3.0 · Données fictives · Aucun appel Jev, aucune modification de vos données</div>
+  <div class="app-layout">
+    <aside class="sidebar" id="navigation">
+      <a href="#home" class="brand" aria-label="JEV — accueil"><span class="brand-symbol">J</span><span>jev<span class="brand-caption">Votre recherche, éclairée.</span></span></a>
+      <p class="nav-caption">MON ESPACE</p>
+      <nav aria-label="Navigation principale">
+        <a href="#home" data-nav="home"><span aria-hidden="true">◫</span> Vue d’ensemble</a>
+        <a href="#offers" data-nav="offers"><span aria-hidden="true">▤</span> Mes offres <span class="nav-count">4</span></a>
+        <a href="#evaluate" data-nav="evaluate"><span aria-hidden="true">＋</span> Analyser une offre</a>
+        <a href="#profile" data-nav="profile"><span aria-hidden="true">○</span> Mon profil</a>
+      </nav>
+      <div class="later-panel"><span class="nav-caption">SUITE DE LA REFONTE</span><p>Candidatures, CV, analyses et administration : conservés dans l’application actuelle, à maquetter ensuite.</p></div>
+      <div class="sidebar-footer"><span class="avatar">CE</span><span><strong>Camille Exemple</strong><small>Compte fictif · Analyste données</small></span></div>
+    </aside>
+    <div class="mobile-backdrop" id="mobile_backdrop" hidden></div>
+    <div class="workspace">
+      <header class="topbar">
+        <button class="icon-button mobile-toggle" id="menu_toggle" aria-expanded="false" aria-controls="navigation" aria-label="Ouvrir le menu">☰</button>
+        <span class="breadcrumb" id="breadcrumb">Mon espace / Vue d’ensemble</span>
+        <div class="topbar-actions"><span class="prototype-label">Prototype</span><button class="icon-button" id="theme_toggle" aria-label="Activer le thème sombre" title="Changer de thème">◐</button><a class="avatar small-avatar" href="#profile" aria-label="Mon profil">CE</a></div>
+      </header>
+      <main id="content" tabindex="-1"></main>
+      <footer class="page-footer">JEV v3.0 — proposition de parcours et de design. Les chiffres et les verdicts présentés sont des exemples, pas des résultats du moteur.</footer>
+    </div>
+  </div>
+  <dialog id="help_dialog" aria-labelledby="help_title" aria-describedby="help_copy">
+    <form method="dialog"><h2 id="help_title">Lire une analyse JEV</h2><p id="help_copy">Le verdict indique l’action à envisager. Le score résume l’adéquation aux critères du profil. Les portes vérifient les incompatibilités explicites. Une information manquante appelle une vérification, pas un succès présumé.</p><p>La confiance du modèle n’est pas une probabilité d’être recruté. Dans cette maquette, tous ces éléments sont fictifs.</p><button class="button primary" value="close">Compris</button></form>
+  </dialog>
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>

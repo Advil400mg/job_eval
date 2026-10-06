@@ -31,6 +31,8 @@ jobs:
         run: node tests/test_app_js.mjs
       - name: Playwright tests
         run: npm run test:e2e
+      - name: UI v3 prototype tests
+        run: npm run test:ui-preview
       - name: Syntax and whitespace checks
         run: |
           python -m compileall -q app scripts tests
