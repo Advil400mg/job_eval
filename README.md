@@ -41,7 +41,7 @@ jev-webapp/
 ├── scripts/
 │   ├── evaluate_job.py      # notation Jev (script du skill Job Hunt + surcharges optionnelles)
 │   └── serve.py             # démarrage : affiche la config effective puis lance uvicorn
-└── tests/                   # 363 tests (Python, Node et Playwright Chromium)
+└── tests/                   # 386 tests (Python, Node et Playwright Chromium)
 ```
 
 ## Ce que fait l'application
@@ -69,6 +69,17 @@ jev-webapp/
    entretien, refus ou offre reçue, avec journal d'événements, relances et exports CSV/JSON.
 10. **Fallback manuel** pour les sites dynamiques ou inaccessibles au serveur : coller le texte
    de l'annonce sans requête sortante ni navigateur Chromium dans l'image.
+
+### Interface v3.0.0 — candidate sur dev, non publiée
+
+- Navigation latérale, menu mobile au clavier et thème clair/sombre mémorisé dans le navigateur.
+- Vue d’ensemble sur `/dashboard` : compteurs, offres à examiner et relances issus des API du compte connecté ; aucun résultat fictif en cas d’erreur.
+- La route `/` reste l’entrée d’évaluation pour conserver les liens existants, avec deux modes URL/texte.
+- Analyse d’offre structurée : verdict, score, portes, preuves, réserves et prochaines actions ; les liens directs vers une offre survivent à l’actualisation.
+- Profil guidé en trois étapes, initialisation par CV ou saisie manuelle, validation native et erreurs visibles même quand une étape est masquée.
+- Pages secondaires et écrans de connexion harmonisés ; navigation et panneaux visibles sans JavaScript, avec indication des fonctions qui le nécessitent.
+
+Cette refonte ne modifie ni le moteur de notation, ni les données persistantes, ni le schéma SQLite. La dernière version stable publiée reste 2.6.0 ; le code de dev prépare la 3.0.0. Les URL d’assets portent un suffixe UI dédié pour éviter le cache de l’ancienne interface. Le tag de release sera posé sur main après fusion, pas sur dev.
 
 ### Premier lancement
 
@@ -174,7 +185,7 @@ et tous les chemins par défaut sont relatifs au dossier. Le moteur reste désac
 (`[cv] enabled = false`) ; dans ce cas la génération de CV est annoncée comme indisponible
 avec le motif, sans que le reste de l'application en souffre.
 
-Vérifié sur une instance vierge : 363 tests (331 Python, 21 JavaScript et 11 E2E Chromium),
+Vérifié sur une instance vierge : 386 tests (337 Python, 21 JavaScript et 28 E2E Chromium),
 isolation entre deux comptes, migration SQLite v8 et chemins utilisateur sous `/data/users/`.
 
 ## Démarrage sans Docker
@@ -365,7 +376,7 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-Les 331 tests Python et 21 tests JavaScript sont hors ligne. Les 11 parcours E2E utilisent
+Les 337 tests Python et 21 tests JavaScript sont hors ligne. Les 28 parcours E2E utilisent
 Playwright Chromium contre une instance temporaire isolée. L’ensemble couvre notamment la
 migration SQLite v8, le feedback cloisonné, l’authentification, l’audit, le diagnostic,
 la rétention des sauvegardes, l’accessibilité clavier, le SSRF, la reprise des jobs, les API,

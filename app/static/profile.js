@@ -1,10 +1,53 @@
 (() => {
+  'use strict';
   const { $, escapeHtml, fetchJSON, formatDate, showToast } = JEV;
   let profile = JSON.parse($("#profile_data").textContent);
   let revision = $("#profile_form").dataset.revision;
   const structured = profile.search?.policy_version === 2;
 
   const lines = (value) => String(value || "").split(/\n+/).map((item) => item.trim()).filter(Boolean);
+
+  /* ── Step tab navigation (progressive enhancement) ── */
+  let activeStep = 'facts';
+
+  function switchStep(step) {
+    activeStep = step || 'facts';
+    const tabs = document.querySelector('.ui-tabs');
+    if (!tabs) return;
+    tabs.querySelectorAll('[role="tab"]').forEach((tab) => {
+      const sel = tab.dataset.step === activeStep;
+      tab.setAttribute('aria-selected', String(sel));
+      tab.tabIndex = sel ? 0 : -1;
+    });
+    document.querySelectorAll('.ui-step[role="tabpanel"]').forEach((panel) => {
+      panel.hidden = panel.dataset.step !== activeStep;
+      panel.setAttribute('aria-hidden', String(panel.dataset.step !== activeStep));
+    });
+  }
+
+  function initSteps() {
+    if (!document.querySelector('.ui-tabs')) return;
+    const hash = location.hash?.slice(1);
+    const requested = ['facts', 'preferences', 'rules'].includes(hash) ? hash : 'facts';
+    switchStep(requested);
+    let revealingInvalid = false;
+    $("#profile_form").addEventListener("invalid", (event) => {
+      // Native validation reports all invalid controls before focusing the first.
+      // Reveal only that first control's panel for this validation cycle.
+      if (revealingInvalid) {
+        // Other invalid panels stay collapsed; suppress their native focus attempt.
+        event.preventDefault();
+        return;
+      }
+      revealingInvalid = true;
+      const panel = event.target.closest('[role="tabpanel"]');
+      if (panel) switchStep(panel.dataset.step);
+      $("#profile_errors").textContent = "Vérifiez le premier champ signalé avant d’enregistrer.";
+      $("#profile_errors").classList.remove("hidden");
+      setTimeout(() => { revealingInvalid = false; }, 0);
+    }, true);
+  }
+  /* ── end step tabs ── */
 
   function criterionRow(criterion = {}) {
     return `<article class="criterion-edit" data-criterion>
@@ -129,6 +172,9 @@
       renderProfile(); await loadHistory(); await updatePreview(); showToast(result.changed ? "Profil enregistré." : "Aucune modification.", "success");
     } catch (error) {
       $("#profile_errors").textContent = error.message; $("#profile_errors").classList.remove("hidden");
+      if (/candidate_facts|candidate_years|target_roles/i.test(error.message)) switchStep('facts');
+      else if (/minimum_global_score|minimum_confidence|max_age_days|locations|contract_types|seniority/i.test(error.message)) switchStep('preferences');
+      else if (/reject_experience_years|hard_rejection_rules|criteria|confirmed/i.test(error.message)) switchStep('rules');
     } finally { button.disabled = false; }
   });
 
@@ -149,6 +195,10 @@
     button.disabled = true;
     try {
       const result = await fetchJSON(`/api/profile/history/${button.dataset.restoreProfile}/restore`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expected_revision: revision }) });
+      if ((result.profile.search?.policy_version === 2) !== structured) {
+        window.location.reload();
+        return;
+      }
       profile = result.profile; revision = result.revision; $("#profile_form").dataset.revision = revision; renderProfile(); await loadHistory(); await updatePreview(); showToast("Version restaurée.", "success");
     } catch (error) { showToast(error.message, "error"); button.disabled = false; }
   });
@@ -221,5 +271,29 @@
     } catch (error) { showToast(error.message, "error"); button.disabled = false; }
   });
 
-  renderProfile(); updatePreview(); loadHistory(); loadBackups();
+  /* ── Step tab click handler ── */
+  document.querySelector('.ui-tabs')?.addEventListener('click', (event) => {
+    const tab = event.target.closest('[role="tab"][data-step]');
+    if (tab) switchStep(tab.dataset.step);
+  });
+
+  document.querySelector('.ui-tabs')?.addEventListener('keydown', (event) => {
+    const tabs = [...event.currentTarget.querySelectorAll('[role="tab"]')];
+    const index = tabs.indexOf(event.target);
+    if (index < 0 || !['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 :
+      (index + (['ArrowLeft', 'ArrowUp'].includes(event.key) ? -1 : 1) + tabs.length) % tabs.length;
+    switchStep(tabs[next].dataset.step);
+    tabs[next].focus();
+  });
+
+  /* ── Hash-based step deep-linking ── */
+  window.addEventListener('hashchange', () => {
+    if (!document.querySelector('.ui-tabs')) return;
+    const hash = location.hash?.slice(1);
+    if (['facts', 'preferences', 'rules'].includes(hash)) switchStep(hash);
+  });
+
+  renderProfile(); initSteps(); updatePreview(); loadHistory(); loadBackups();
 })();

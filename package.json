@@ -1,10 +1,11 @@
 {
   "name": "jev-webapp-e2e",
   "private": true,
-  "version": "2.6.0",
+  "version": "3.0.0",
   "scripts": {
     "test:e2e": "playwright test",
-    "test:js": "node tests/test_app_js.mjs"
+    "test:js": "node tests/test_app_js.mjs",
+    "test:ui-preview": "node docs/ui-v3/verify.mjs"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0"

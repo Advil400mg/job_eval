@@ -1,43 +1,23 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="page-heading">
-  <div><p class="eyebrow">Nouveau lot</p><h1>Évaluer des offres</h1>
-    <p>Collez les liens trouvés. Les doublons et paramètres de suivi sont éliminés avant le lancement.</p></div>
-  <a class="secondary-btn" href="/offers">Parcourir les offres</a>
-</section>
-{% if profile_review_required %}<section class="panel" role="alert"><strong>Profil à confirmer.</strong> Vérifiez les faits extraits du CV, le métier visé et les règles dans <a href="/profile">votre profil</a> avant de lancer une évaluation. Les évaluations précédentes ne sont pas recalculées.</section>{% endif %}
-
-<section class="panel focus-panel">
-  <label for="urls">URLs des offres <span id="url_count" class="hint">0 URL</span></label>
-  <textarea id="urls" rows="7" placeholder="https://entreprise.example/jobs/…&#10;https://autre.example/offre/…"></textarea>
-  <div id="url_feedback" class="input-feedback"></div>
-  <div class="action-row">
-    <button id="run" type="button">Lancer l’évaluation</button>
-    <span id="status" class="status" role="status"></span>
+<section class="page-heading"><div><p class="eyebrow">Une nouvelle analyse</p><h1>Évaluer des offres</h1><p>Comparez les missions et exigences à votre profil. Les doublons et paramètres de suivi sont éliminés avant le lancement.</p></div><a class="secondary-btn" href="/offers">Parcourir les offres</a></section>
+{% if profile_review_required %}<section class="panel" role="alert"><strong>Profil à confirmer.</strong> Vérifiez les faits, le métier visé et les préférences dans <a href="/profile">votre profil</a> avant de lancer une évaluation. Les évaluations précédentes ne sont pas recalculées.</section>{% endif %}
+<div class="ui-tabs" id="evaluation_modes" aria-label="Source de l’offre"><button type="button" data-evaluation-mode="url" aria-controls="evaluation_urls" aria-pressed="true">1 · À partir des liens</button><button type="button" data-evaluation-mode="text" aria-controls="evaluation_text" aria-pressed="false">2 · À partir du texte</button></div>
+<div class="dashboard-grid">
+  <div>
+    <section id="evaluation_urls" class="panel focus-panel"><h2>Collez les liens des offres</h2><label for="urls">URLs des offres</label><textarea id="urls" rows="7" placeholder="https://entreprise.example/jobs/…&#10;https://autre.example/offre/…" aria-describedby="url_count url_feedback"></textarea><span id="url_count" class="hint">0 URL</span><div id="url_feedback" class="input-feedback" role="status"></div><div class="action-row"><button id="run" type="button" {% if profile_review_required %}disabled{% endif %}>Lancer l’évaluation</button><span id="status" class="status" role="status"></span></div><p class="muted small">Cette action lance le moteur Jev et peut entraîner un coût API. Elle n’envoie aucune candidature.</p></section>
+    <section id="evaluation_text" class="panel manual-evaluation"><h2>Offre dynamique ou inaccessible ? Coller son texte</h2><p class="muted">Ce mode n’effectue aucune requête vers la page. L’URL reste validée et sert de référence ; indiquez seulement les informations présentes dans l’annonce.</p><form id="manual_form" class="stack-form">
+      <label>URL de référence<input id="manual_url" type="url" required maxlength="2048" placeholder="https://entreprise.example/jobs/…"></label>
+      <div class="form-grid three"><label>Intitulé<input id="manual_title" maxlength="300" required></label><label>Entreprise<input id="manual_company" maxlength="300"></label><label>Localisation<input id="manual_location" maxlength="300"></label></div>
+      <label>Date de publication prouvée<input id="manual_published_at" type="date"></label>
+      <label>Texte complet de l’offre<textarea id="manual_text" rows="12" minlength="200" maxlength="60000" required placeholder="Missions, exigences, localisation, contrat et date de publication…"></textarea></label>
+      <div class="action-row"><button type="submit" {% if profile_review_required %}disabled{% endif %}>Évaluer ce texte</button><span id="manual_status" class="status" role="status"></span></div><p class="muted small">Le texte saisi sera transmis au moteur d’évaluation configuré.</p>
+    </form></section>
   </div>
-  <details class="profile-summary">
-    <summary>Règles appliquées</summary>
-    <p>Score requis <strong>{{ thresholds.minimum_global_score }}/100</strong> · confiance minimale <strong>{{ thresholds.minimum_confidence }}</strong> · publication ≤ <strong>{{ thresholds.max_age_days }} jours</strong>.</p>
-    {% if target_roles %}<p>Postes ciblés : {{ target_roles|join(', ') }}</p>{% endif %}
-    <div class="criteria-chips">{% for criterion in criteria %}<span>{{ criterion.name }} · poids {{ criterion.weight }}</span>{% endfor %}</div>
-  </details>
-</section>
-
-<details class="panel manual-evaluation">
-  <summary><strong>Offre dynamique ou inaccessible ? Coller son texte</strong></summary>
-  <p class="muted">Ce mode n’effectue aucune requête vers la page. L’URL reste validée et sert de référence.</p>
-  <form id="manual_form" class="stack-form">
-    <label>URL de référence<input id="manual_url" type="url" required maxlength="2048" placeholder="https://entreprise.example/jobs/…"></label>
-    <div class="form-grid three"><label>Intitulé<input id="manual_title" maxlength="300" required></label><label>Entreprise<input id="manual_company" maxlength="300"></label><label>Localisation<input id="manual_location" maxlength="300"></label></div>
-    <label>Date de publication prouvée<input id="manual_published_at" type="date"></label>
-    <label>Texte complet de l’offre<textarea id="manual_text" rows="14" minlength="200" maxlength="60000" required placeholder="Copiez ici les missions, exigences, localisation, contrat et date de publication…"></textarea></label>
-    <div class="action-row"><button type="submit">Évaluer ce texte</button><span id="manual_status" class="status" role="status"></span></div>
-  </form>
-</details>
-
+  <div class="dashboard-stack"><section class="panel"><h2>Le profil utilisé</h2>{% if target_roles %}<p>Postes ciblés : <strong>{{ target_roles|join(', ') }}</strong></p>{% endif %}<p class="muted small">Score requis : {{ thresholds.minimum_global_score }}/100.<br>Confiance minimale : {{ thresholds.minimum_confidence }}.<br>Publication : au plus {{ thresholds.max_age_days }} jours.</p><a href="/profile">Vérifier les règles avant de lancer →</a><details class="profile-summary"><summary>Critères appliqués</summary><div class="criteria-chips">{% for criterion in criteria %}<span>{{ criterion.name }} · poids {{ criterion.weight }}</span>{% endfor %}</div></details></section><section class="panel"><h2>Comprendre le résultat</h2><p class="muted">Les conditions bloquantes, le score et les réserves seront présentés séparément. Une information absente reste à vérifier ; la confiance n’est pas une probabilité d’être recruté.</p></section></div>
+</div>
 <section id="active_run" class="panel hidden" aria-live="polite"></section>
-
-<section class="section-heading"><div><h2>Lots récents</h2><p>Les traitements en cours reprennent automatiquement après un rechargement.</p></div><a href="/runs">Voir tous les lots</a></section>
+<section class="section-heading"><div><h2>Lots récents</h2><p>Les traitements continuent côté serveur et restent visibles après actualisation.</p></div><a href="/runs">Voir tous les lots</a></section>
 <div id="recent_runs" class="run-list"><div class="loading-card">Chargement…</div></div>
 {% endblock %}
-{% block scripts %}<script src="/static/evaluate.js"></script>{% endblock %}
+{% block scripts %}<script src="/static/evaluate.js?v={{ asset_version }}"></script>{% endblock %}

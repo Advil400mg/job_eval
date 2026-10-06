@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from fastapi.testclient import TestClient  # noqa: E402
 from app import accounts, config, onboarding, security, store  # noqa: E402
 from app.main import app  # noqa: E402
+from app.version import APP_VERSION  # noqa: E402
 
 
 class ApiSecurity(unittest.TestCase):
@@ -51,7 +52,7 @@ class ApiSecurity(unittest.TestCase):
         with TestClient(app) as client:
             health = client.get("/healthz")
             self.assertEqual(health.status_code, 200)
-            self.assertEqual(health.json(), {"ok": True, "version": "2.6.0", "auth_required": True})
+            self.assertEqual(health.json(), {"ok": True, "version": APP_VERSION, "auth_required": True})
             self.assertIn("default-src 'self'", health.headers["content-security-policy"])
             self.assertEqual(client.get("/api/history").status_code, 401)
             page = client.get("/offers", follow_redirects=False)

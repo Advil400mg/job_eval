@@ -1,7 +1,7 @@
 (() => {
   const { $, $$, escapeHtml, fetchJSON, statusBadge, scoreVisual, criteriaVisual,
     criteriaHtml, gatesHtml, paginationHtml, updateQuery, formatDate, generateCv,
-    applicationStatusBadge, showToast, trapFocus } = JEV;
+    applicationStatusBadge, showToast, trapFocus, offerReason } = JEV;
   const params = new URLSearchParams(location.search);
   const state = {
     page: Number(params.get("page")) || 1, page_size: 25,
@@ -14,6 +14,7 @@
   };
   let debounce = null;
   let drawerTrigger = null;
+  let drawerRequest = 0;
 
   function syncControls() {
     $("#filter_q").value = state.q; $("#filter_status").value = state.status;
@@ -38,7 +39,7 @@
     if (offer.low_confidence_criteria?.length) issues.push("confiance faible");
     if (offer.error) issues.push("détail de l’erreur disponible");
     return `<article class="offer-row" data-url="${escapeHtml(offer.url)}" tabindex="0" role="button" aria-label="Ouvrir le détail de ${escapeHtml(offer.title || offer.url)}">
-      <div class="offer-identity"><div class="offer-title-line"><a href="${escapeHtml(offer.url)}" target="_blank" rel="noopener" data-external>${escapeHtml(offer.title || offer.url)}</a>${offer.evaluation_count > 1 ? `<span class="count-badge">${offer.evaluation_count} évaluations</span>` : ""}</div><strong>${escapeHtml(offer.company || "Entreprise inconnue")}</strong><span>${escapeHtml(offer.location || "Localisation inconnue")} · évaluée le ${formatDate(offer.evaluated_at)}</span><div class="offer-issues">${issues.length ? issues.map((issue) => `<span>${escapeHtml(issue)}</span>`).join("") : '<span class="positive">aucun blocage détecté</span>'}</div></div>
+      <div class="offer-identity"><div class="offer-title-line"><a href="${escapeHtml(offer.url)}" target="_blank" rel="noopener" data-external>${escapeHtml(offer.title || offer.url)}</a>${offer.evaluation_count > 1 ? `<span class="count-badge">${offer.evaluation_count} évaluations</span>` : ""}</div><strong>${escapeHtml(offer.company || "Entreprise inconnue")}</strong><span>${escapeHtml(offer.location || "Localisation inconnue")} · évaluée le ${formatDate(offer.evaluated_at)}</span><div class="offer-issues">${issues.length ? issues.map((issue) => `<span>${escapeHtml(issue)}</span>`).join("") : offer.status === "qualified" ? '<span class="positive">qualifiée pour le profil utilisé</span>' : '<span>analyse à consulter</span>'}</div><p class="offer-reason">${escapeHtml(offerReason(offer))}</p></div>
       <div class="offer-score">${scoreVisual(offer.score, offer.minimum_global_score, true)}</div>
       <div class="offer-criteria">${criteriaVisual(offer.criteria, offer.minimum_confidence)}</div>
       <div class="offer-status">${statusBadge(offer.status)}${offer.application ? applicationStatusBadge(offer.application.status) : ""}<span>${offer.published_at ? `publiée ${escapeHtml(offer.published_at)}` : "date non prouvée"}</span></div>
@@ -156,9 +157,43 @@
     if (!drawer.classList.contains("open")) drawerTrigger = document.activeElement;
     drawer.setAttribute("aria-hidden", "false"); drawer.classList.add("open"); backdrop.classList.remove("hidden");
     $("#offer_detail").innerHTML = '<div class="loading-card">Chargement du détail…</div>';
-    const payload = await fetchJSON(`/api/offers/history?url=${encodeURIComponent(url)}`);
+    const requestId = ++drawerRequest;
+    let payload;
+    try {
+      payload = await fetchJSON(`/api/offers/history?url=${encodeURIComponent(url)}`);
+    } catch (error) {
+      if (requestId === drawerRequest && drawer.classList.contains("open")) {
+        $("#offer_detail").innerHTML = `<div class="error" role="alert">${escapeHtml(error.message)}<p>Fermez ce panneau et réessayez pour charger l’analyse.</p></div>`;
+        $("#drawer_close").focus();
+      }
+      return;
+    }
+    if (requestId !== drawerRequest || !drawer.classList.contains("open")) return;
     const offer = payload.offer;
-    $("#offer_detail").innerHTML = `<div class="drawer-title"><p class="eyebrow">${escapeHtml(offer.company || "Offre")}</p><h2>${escapeHtml(offer.title || offer.url)}</h2><p>${escapeHtml(offer.location || "Localisation inconnue")}</p></div><div class="drawer-score">${scoreVisual(offer.score, offer.minimum_global_score)}</div><div class="drawer-status">${statusBadge(offer.status)}<a href="${escapeHtml(offer.url)}" target="_blank" rel="noopener">Voir l’offre source ↗</a></div>${offer.error ? `<div class="error">${escapeHtml(offer.error)}</div>` : ""}<section><h3>Décision</h3>${offer.blocking_criteria?.length ? `<p>Critères bloquants : ${offer.blocking_criteria.map((item) => `<code>${escapeHtml(item)}</code>`).join(" ")}</p>` : '<p class="muted">Aucun critère obligatoire bloquant.</p>'}${gatesHtml(offer.gates)}</section>${reviewHtml(offer)}${factsHtml(offer)}<section><h3>Critères Jev</h3>${criteriaHtml(offer.criteria, offer.minimum_confidence)}</section><section><h3>Suivi de candidature</h3><div class="drawer-actions">${offer.application ? `${applicationStatusBadge(offer.application.status)}<a class="secondary-btn" href="/applications?open=${encodeURIComponent(offer.application.id)}">Ouvrir le suivi</a>` : '<button data-track-offer>Ajouter au suivi</button>'}</div></section><section><h3>CV</h3><div class="drawer-actions">${offer.cv ? `<a class="secondary-btn" href="/api/cv/${offer.cv.job_id}/pdf" target="_blank">Télécharger le CV existant</a>` : ""}<button data-drawer-cv>Générer PDF</button><button class="secondary-btn" data-drawer-email>PDF + email</button></div></section><section><h3>Historique · ${payload.history.length} évaluation(s)</h3><div class="history-lines">${payload.history.map(historyLine).join("")}</div></section>${feedbackHtml(offer)}`;
+    updateQuery({ open: url });
+    const cvReady = document.body.dataset.cvAvailable === "true";
+    const cvDisabled = cvReady ? "" : " disabled title=\"Génération de CV indisponible pour ce profil ou cette instance\"";
+    $("#offer_detail").innerHTML = `
+      <div class="analysis-hero">
+        <div class="drawer-title"><p class="eyebrow">${escapeHtml(offer.company || "Analyse d’offre")}</p><h2>${escapeHtml(offer.title || offer.url)}</h2><p>${escapeHtml(offer.location || "Localisation inconnue")}</p></div>
+        <div class="drawer-status">${statusBadge(offer.status)}<a href="${escapeHtml(offer.url)}" target="_blank" rel="noopener">Voir l’offre source ↗</a></div>
+        <div class="analysis-overview"><div><h3>Ce que cette évaluation indique</h3><p class="offer-reason-v3">${escapeHtml(offerReason(offer))}</p><p class="analysis-warning">Le verdict, les conditions d’éligibilité et la confiance sont distincts du score. Une qualification ne garantit pas un recrutement.</p></div><div class="drawer-score">${scoreVisual(offer.score, offer.minimum_global_score)}</div></div>
+        ${offer.error ? `<div class="error">${escapeHtml(offer.error)}</div>` : ""}
+      </div>
+      <div class="analysis-layout">
+        <div class="analysis-column">
+          <section><h3>Conditions d’éligibilité</h3>${gatesHtml(offer.gates)}</section>
+          ${reviewHtml(offer)}${factsHtml(offer)}
+          <section><h3>Pourquoi ce score ?</h3><p class="muted small">Critères du profil chargé pour cette évaluation ; passages recopiés de l’annonce lorsqu’ils sont disponibles.</p>${offer.blocking_criteria?.length ? `<p>Critères bloquants : ${offer.blocking_criteria.map((item) => `<code>${escapeHtml(item)}</code>`).join(" ")}</p>` : '<p class="muted small">Aucun critère obligatoire bloquant enregistré ; les informations absentes restent à vérifier.</p>'}${criteriaHtml(offer.criteria, offer.minimum_confidence)}</section>
+          ${offer.dimensions?.length ? `<section><h3>Dimensions complémentaires</h3><p class="muted small">Éclairages séparés du score global, sans recalcul de l’évaluation.</p>${criteriaHtml(offer.dimensions, offer.minimum_confidence)}</section>` : ""}
+        </div>
+        <div class="analysis-column">
+          <section class="analysis-next"><p class="eyebrow">Et ensuite ?</p><h3>Suivi de candidature</h3><p class="muted small">Décidez après lecture des preuves et des réserves. Ajouter au suivi n’envoie aucune candidature.</p><div class="drawer-actions">${offer.application ? `${applicationStatusBadge(offer.application.status)}<a class="secondary-btn" href="/applications?open=${encodeURIComponent(offer.application.id)}">Ouvrir le suivi</a>` : '<button data-track-offer>Ajouter au suivi</button>'}</div></section>
+          <section><h3>Préparer mon CV</h3><div class="drawer-actions">${offer.cv ? `<a class="secondary-btn" href="/api/cv/${offer.cv.job_id}/pdf" target="_blank" rel="noopener">Télécharger le CV existant</a>` : ""}<button data-drawer-cv${cvDisabled}>Générer PDF</button><button class="secondary-btn" data-drawer-email${cvDisabled}>PDF + email</button></div>${cvReady ? '<p class="muted small">L’envoi par email est une action distincte, déclenchée uniquement par le bouton « PDF + email ».</p>' : '<p class="muted small">Un CV source et un moteur disponibles sont nécessaires. La consultation et le suivi restent accessibles.</p>'}</section>
+          <section><h3>Historique · ${payload.history.length} évaluation(s)</h3><p class="muted small">Les scores historiques ne sont pas recalculés avec le profil actuel.</p><div class="history-lines">${payload.history.map(historyLine).join("")}</div></section>
+          ${feedbackHtml(offer)}
+        </div>
+      </div>`;
     $("[data-drawer-cv]").addEventListener("click", (event) => generateCv(offer.url, false, event.currentTarget));
     $("[data-drawer-email]").addEventListener("click", (event) => generateCv(offer.url, true, event.currentTarget));
     const track = $("[data-track-offer]");
@@ -174,6 +209,8 @@
   }
 
   function closeDrawer() {
+    drawerRequest += 1;
+    updateQuery({ open: null });
     $("#offer_drawer").classList.remove("open"); $("#offer_drawer").setAttribute("aria-hidden", "true"); $("#offer_drawer_backdrop").classList.add("hidden");
     if (drawerTrigger?.isConnected) drawerTrigger.focus();
     drawerTrigger = null;
@@ -206,5 +243,9 @@
     $("#filters").classList.remove("open"); $("#filters_open").setAttribute("aria-expanded", "false");
   });
   window.addEventListener("popstate", () => location.reload());
-  syncControls(); loadOffers();
+  syncControls();
+  loadOffers().then(() => {
+    const open = params.get("open");
+    if (open) return openDrawer(open);
+  }).catch((error) => showToast(error.message, "error"));
 })();

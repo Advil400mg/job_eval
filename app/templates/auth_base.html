@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>{% block auth_title %}{% endblock %} — Jev</title>
+<script src="/static/shell.js?v={{ asset_version }}"></script>
+<link rel="stylesheet" href="/static/style.css?v={{ asset_version }}">
+<link rel="stylesheet" href="/static/ui-v3.css?v={{ asset_version }}">
+</head>
+<body class="auth-page">
+  <main class="auth-shell">
+    <section class="auth-card">
+      <button class="theme-toggle secondary-btn" type="button" data-theme-toggle>Thème</button>
+      {% block auth_content %}{% endblock %}
+    </section>
+  </main>
+</body>
+</html>

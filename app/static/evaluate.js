@@ -1,6 +1,17 @@
 (() => {
   const { $, escapeHtml, fetchJSON, statusBadge, scoreVisual, formatDate } = JEV;
   const textarea = $("#urls");
+  const modeButtons = [...document.querySelectorAll("[data-evaluation-mode]")];
+  function selectMode(mode) {
+    const urls = $("#evaluation_urls"), text = $("#evaluation_text");
+    if (!urls || !text) return;
+    urls.hidden = mode !== "url";
+    text.hidden = mode !== "text";
+    modeButtons.forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.evaluationMode === mode)));
+  }
+  modeButtons.forEach((button) => button.addEventListener("click", () => selectMode(button.dataset.evaluationMode)));
+  if (modeButtons.length) selectMode("url");
+  $("#manual_form").addEventListener("invalid", () => selectMode("text"), true);
   let activePoller = null;
 
   function parsedUrls() {

@@ -6,13 +6,13 @@ test('invitation, inscription et suppression administrateur complète', async ({
   await login(admin);
   await admin.goto('/admin');
   await admin.getByLabel(/email réservé/i).fill('new-user@example.test');
-  await admin.getByRole('button', { name: /créer l’invitation/i }).click();
+  await admin.getByRole('button', { name: /créer l['’]invitation/i }).click();
   await expect(admin.getByText('Invitation créée')).toBeVisible();
-  const invitationUrl = await admin.getByLabel(/lien d’invitation/i).inputValue();
+  const invitationUrl = await admin.getByLabel(/lien d['’]invitation/i).inputValue();
 
   const guest = await browser.newPage();
   await guest.goto(invitationUrl);
-  await guest.getByLabel(/^Nom d’utilisateur/i).fill('newuser');
+  await guest.getByLabel(/^Nom d['’]utilisateur/i).fill('newuser');
   await expect(guest.getByLabel(/^Email/i)).toHaveValue('new-user@example.test');
   await guest.getByLabel(/nom affiché/i).fill('New User');
   await guest.getByLabel(/^Mot de passe/i).fill('new-user-correct-password');
@@ -35,7 +35,7 @@ test('invitation, inscription et suppression administrateur complète', async ({
 test('journal audit, diagnostic et sauvegarde sont opérationnels', async ({ page }) => {
   await login(page);
   await page.goto('/admin/audit');
-  await expect(page.getByRole('heading', { name: /journal d’audit/i })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /journal d['’]audit/i })).toBeVisible();
   await expect(page.locator('.audit-event').first()).toBeVisible();
   await expect(page.locator('#audit_summary')).toContainText(/événement/);
 

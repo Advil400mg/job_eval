@@ -57,7 +57,7 @@ app.add_middleware(security.AuthMiddleware)
 app.add_middleware(security.ResponseHeadersMiddleware)
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
-templates.env.globals["asset_version"] = APP_VERSION
+templates.env.globals["asset_version"] = f"{APP_VERSION}-ui3"
 
 
 class EvaluateRequest(BaseModel):
@@ -467,6 +467,25 @@ def index(request: Request):
         "thresholds": thresholds, "criteria": criteria,
         "target_roles": profile.get("search", {}).get("target_roles", []),
         "profile_review_required": policy.structured(profile) and not profile["search"]["confirmed"],
+    })
+
+
+@app.get("/dashboard", response_class=HTMLResponse)
+def dashboard_page(request: Request):
+    user_id = _user_id(request)
+    if onboarding.status(user_id)["needed"]:
+        return _render_page(request, "dashboard.html", "dashboard", "Vue d’ensemble")
+    profile = pipeline.load_profile(user_id)
+    search = profile.get("search", {})
+    facts = policy.candidate_facts(profile)
+    return _render_page(request, "dashboard.html", "dashboard", "Vue d’ensemble", {
+        "dashboard_profile": {
+            "target_roles": search.get("target_roles", []),
+            "candidate_years": search.get("experience_filter", {}).get("candidate_years"),
+            "locations": search.get("locations", []),
+            "languages_line": facts.get("languages_line", ""),
+        },
+        "profile_review_required": policy.structured(profile) and not search.get("confirmed"),
     })
 
 

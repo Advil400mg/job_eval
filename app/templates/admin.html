@@ -1,19 +1,19 @@
 {% extends "base.html" %}
 {% block shell_class %}wide-shell{% endblock %}
 {% block content %}
-<section class="page-heading admin-heading">
+<section class="page-heading compact">
   <div>
-    <p class="eyebrow">Gestion de l’instance</p>
+    <p class="eyebrow">Gestion de l'instance</p>
     <h1>Administration</h1>
-    <p>Gère les accès, vérifie l’état des comptes et crée des invitations à usage unique.</p>
+    <p>Gérez les accès, vérifiez l'état des comptes et créez des invitations à usage unique.</p>
   </div>
-  <div class="admin-page-links" aria-label="Outils d’administration">
-    <a class="secondary-btn" href="/admin/audit">Journal d’audit</a>
+  <div class="admin-page-links" aria-label="Outils d'administration">
+    <a class="secondary-btn" href="/admin/audit">Journal d'audit</a>
     <a class="secondary-btn" href="/admin/diagnostics">Diagnostic</a>
   </div>
 </section>
 
-<section class="admin-kpis" aria-label="Résumé de l’instance">
+<section class="admin-kpis" aria-label="Résumé de l'instance">
   <article class="admin-kpi"><span>Comptes</span><strong>{{ admin_stats.users }}</strong><small>{{ admin_stats.active_users }} actif{% if admin_stats.active_users != 1 %}s{% endif %}</small></article>
   <article class="admin-kpi"><span>Administrateurs</span><strong>{{ admin_stats.admins }}</strong><small>accès complet</small></article>
   <article class="admin-kpi"><span>Invitations actives</span><strong>{{ admin_stats.active_invitations }}</strong><small>en attente</small></article>
@@ -24,10 +24,10 @@
     <div><p class="eyebrow">Nouvel accès</p><h2>Créer une invitation</h2><p>Le lien est utilisable une seule fois et expire automatiquement.</p></div>
   </div>
   <form id="invite_form" class="admin-invite-form">
-    <label for="invite_email"><span>Email réservé</span><small>Facultatif — empêche l’utilisation par une autre adresse.</small><input id="invite_email" type="email" maxlength="320" placeholder="prenom@exemple.com"></label>
+    <label for="invite_email"><span>Email réservé</span><small>Facultatif — empêche l'utilisation par une autre adresse.</small><input id="invite_email" type="email" maxlength="320" placeholder="prenom@exemple.com"></label>
     <label for="invite_hours"><span>Durée de validité</span><small>Entre 1 heure et 30 jours.</small><div class="input-suffix"><input id="invite_hours" type="number" min="1" max="720" value="72"><span>heures</span></div></label>
     <label class="admin-check"><input id="invite_send" type="checkbox"><span><strong>Envoyer par email</strong><small>Nécessite une configuration SMTP.</small></span></label>
-    <button class="primary-btn" type="submit">Créer l’invitation</button>
+    <button class="primary-btn" type="submit">Créer l'invitation</button>
   </form>
   <div id="invite_result" class="admin-invite-result hidden" role="status" aria-live="polite"></div>
 </section>
@@ -36,7 +36,7 @@
   <div class="admin-section-head">
     <div><p class="eyebrow">Accès</p><h2>Utilisateurs</h2><p>{{ admin_stats.users }} compte{% if admin_stats.users != 1 %}s{% endif %} enregistré{% if admin_stats.users != 1 %}s{% endif %} sur cette instance.</p></div>
   </div>
-  <p class="admin-delete-warning">La suppression d’un compte efface définitivement ses données et ses fichiers actuels. Les sauvegardes existantes restent inchangées et peuvent encore contenir ces données.</p>
+  <p class="admin-delete-warning">La suppression d'un compte efface définitivement ses données et ses fichiers actuels. Les sauvegardes existantes restent inchangées et peuvent encore contenir ces données.</p>
   <div class="admin-list admin-users-list" role="table" aria-label="Utilisateurs">
     <div class="admin-list-head" role="row"><span role="columnheader">Utilisateur</span><span role="columnheader">Contact</span><span role="columnheader">Rôle</span><span role="columnheader">État</span><span role="columnheader">Action</span></div>
     <div id="users_body" class="admin-list-body" role="rowgroup">
@@ -71,7 +71,7 @@
           <div class="admin-cell admin-cell-action" role="cell" data-label="Action">{% if invite.status == 'active' %}<button class="secondary-btn compact invite-revoke" data-id="{{ invite.id }}">Révoquer</button>{% else %}<span class="muted small">Aucune action</span>{% endif %}</div>
         </article>
       {% else %}
-        <div class="empty-state"><strong>Aucune invitation</strong><p>Crée le premier accès avec le formulaire ci-dessus.</p></div>
+        <div class="empty-state"><strong>Aucune invitation</strong><p>Créez le premier accès avec le formulaire ci-dessus.</p></div>
       {% endfor %}
     </div>
   </div>

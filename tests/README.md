@@ -6,7 +6,7 @@ La suite de tests combine trois niveaux complémentaires :
 2. tests JavaScript hors navigateur pour les fonctions d’interface isolables ;
 3. parcours E2E Playwright Chromium pour les interactions réelles, le clavier et le responsive.
 
-Pour la v2.6, la suite contient 331 tests Python, 21 tests JavaScript et 11 parcours E2E.
+Pour l’intégration UI v3, la suite contient 337 tests Python, 21 tests JavaScript et 28 parcours E2E.
 Aucune clé OpenRouter ni donnée personnelle n’est nécessaire.
 
 ## Installation
@@ -102,7 +102,16 @@ Les scénarios sont dans `tests/e2e/*.spec.js` :
 - `admin.spec.js` : invitation, inscription, suppression d’un compte, audit, diagnostic et sauvegarde ;
 - `accessibility.spec.js` : lien d’évitement, clavier, drawers, dialogues, retour du focus et largeurs cibles ;
 - `feedback.spec.js` : résultat v2.5, preuve hostile échappée, revue, retour éditable, conflit de révision,
-  isolation entre comptes et contrôle mobile.
+  isolation entre comptes et contrôle mobile ;
+- `profile_policy.spec.js` : adoption explicite des profils historiques et confirmation avant évaluation ;
+- `profile_v3.spec.js` : étapes guidées, validation native sur plusieurs panneaux, conflit de révision,
+  saisie manuelle réelle, deux parcours et rendu sans JavaScript ;
+- `shell_v3.spec.js` : thème persistant, contraste des états admin/diagnostic, dashboard connecté aux API,
+  liens directs, menu mobile, erreurs visibles et navigation sans JavaScript.
+
+La recette v3 vérifie aussi 264 combinaisons page/thème/largeur et 32 combinaisons pour
+les parcours d’initialisation, y compris autour des seuils CSS. Les données sont synthétiques ;
+aucun CV réel, secret d’instance ou appel au modèle n’est nécessaire.
 
 Commande complète :
 

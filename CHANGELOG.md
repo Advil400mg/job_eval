@@ -1,5 +1,18 @@
 # Changelog
 
+## 3.0.0 — 2026-10-07 (candidate sur dev, non publiée)
+
+- Nouvelle navigation latérale avec menu mobile accessible au clavier, thèmes clair/sombre et préférence locale persistante.
+- Vue d’ensemble connectée aux API du compte : compteurs d’offres, sélection à examiner et relances ; états d’erreur explicites sans données simulées.
+- Formulaires d’évaluation URL/texte séparés et lecture de l’analyse structurée autour du verdict, du score, des portes, des preuves et des actions.
+- Profil guidé en trois étapes, parcours d’initialisation CV/manuel distincts et validation des champs masqués sans blocage silencieux.
+- Conservation des règles historiques, de l’adoption explicite, de la confirmation, des révisions optimistes, de l’historique et de la séparation CV source/faits déclarés.
+- Harmonisation des pages secondaires et gabarit public commun sans polling authentifié ; correction des redirections de connexion et versionnement des assets UI.
+- Repli du formulaire d’administration selon sa largeur réelle, contrastes des états adaptés aux deux thèmes et panneaux lisibles sans JavaScript.
+- Vérifications locales : 337 tests Python, 21 tests JavaScript, 28 parcours Chromium, 264 contrôles de mise en page et 32 contrôles d’initialisation ; construction et démarrage de l’image Docker sur volume vierge.
+- Aucun changement du moteur d’évaluation ni migration des données ; code et manifestes versionnés 3.0.0. Aucun tag de release ni publication avant fusion dans main.
+- Ces vérifications portent sur l’interface et les contrats existants ; elles ne constituent pas une validation indépendante des verdicts Jev sur des offres réelles.
+
 ## 2.6.0 — 2026-10-06
 
 - Extraction conservatrice des faits de contrat, d'expérience et d'accès junior avec passages de l'annonce recopiés ; séparation des exigences et des préférences.
