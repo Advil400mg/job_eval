@@ -1,10 +1,16 @@
-"""Fetch and extract job-offer content from a URL (stdlib only)."""
+"""Fetch and extract source-backed job content with DOM and text parsers."""
 
 from __future__ import annotations
 
 import html
 import json
 import re
+from copy import deepcopy
+from urllib.parse import urljoin, urlsplit, urlunsplit
+
+from lxml import etree
+from lxml import html as dom_html
+import trafilatura
 
 from . import config, locations, network
 
@@ -77,50 +83,127 @@ def fetch_html(url: str, timeout: int | None = None) -> str:
         raise FetchError(str(exc)) from exc
 
 
-def _job_posting(html_text: str) -> dict:
-    for block in re.findall(
-        r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>',
-        html_text, re.S | re.I,
-    ):
-        try:
-            data = json.loads(block.strip())
-        except json.JSONDecodeError:
+def _document(html_text: str):
+    # The response has already been decoded by network.fetch_text. Encoding it
+    # explicitly avoids a conflicting page charset reinterpreting Unicode.
+    parser = dom_html.HTMLParser(encoding="utf-8", no_network=True, recover=True)
+    try:
+        return dom_html.document_fromstring(html_text.encode("utf-8"), parser=parser)
+    except (etree.ParserError, ValueError) as exc:
+        raise ValueError("HTML vide ou inexploitable") from exc
+
+
+def _postings(tree) -> list[dict]:
+    jobs = []
+    for script in tree.iter("script"):
+        mime = script.get("type", "").split(";", 1)[0].strip().casefold()
+        if mime != "application/ld+json":
             continue
-        candidates = data if isinstance(data, list) else [data]
-        for node in candidates:
-            if isinstance(node, dict) and node.get("@type") == "JobPosting":
-                return node
-            if isinstance(node, dict) and isinstance(node.get("@graph"), list):
-                for sub in node["@graph"]:
-                    if isinstance(sub, dict) and sub.get("@type") == "JobPosting":
-                        return sub
-    return {}
+        try:
+            data = json.loads(script.text or "")
+        except (ValueError, RecursionError):
+            continue
+        pending = [data]
+        while pending:
+            node = pending.pop()
+            if isinstance(node, list):
+                pending.extend(reversed(node))
+            elif isinstance(node, dict):
+                kinds = node.get("@type", [])
+                kinds = [kinds] if isinstance(kinds, str) else kinds
+                if isinstance(kinds, list) and any(
+                    isinstance(kind, str) and kind.rstrip("/").rsplit("/", 1)[-1] == "JobPosting"
+                    for kind in kinds
+                ):
+                    if node not in jobs:
+                        jobs.append(node)
+                    # Nested metadata belongs to this job, not another page.
+                    continue
+                pending.extend(reversed([v for v in node.values() if isinstance(v, (dict, list))]))
+    return jobs
+
+
+def _same_page(value: object, url: str) -> bool:
+    if isinstance(value, dict):
+        value = value.get("@id") or value.get("url")
+    if not isinstance(value, str) or not value.strip():
+        return False
+    try:
+        def canonical(raw):
+            parts = urlsplit(raw)
+            return urlunsplit((parts.scheme.casefold(), parts.netloc.casefold(),
+                               parts.path.rstrip("/") or "/", parts.query, ""))
+        return canonical(urljoin(url, value)) == canonical(url)
+    except ValueError:
+        return False
+
+
+def _selected_posting(tree, url: str | None = None) -> dict:
+    jobs = _postings(tree)
+    if len(jobs) <= 1:
+        return jobs[0] if jobs else {}
+    matches = [job for job in jobs if url and any(
+        _same_page(job.get(field), url) for field in ("url", "@id", "mainEntityOfPage")
+    )]
+    if len(matches) == 1:
+        return matches[0]
+    raise ValueError("Plusieurs annonces JobPosting sans correspondance unique avec l'URL")
+
+
+def _job_posting(html_text: str, url: str | None = None) -> dict:
+    """Decode real DOM attributes and select only the requested job."""
+    return _selected_posting(_document(html_text), url)
+
+
+_BLOCK_TAGS = frozenset({"p", "li", "div", "section", "article", "main", "header",
+                         "h1", "h2", "h3", "h4", "h5", "h6", "ul", "ol", "tr", "dl", "dt", "dd"})
+_HIDDEN_TAGS = frozenset({"script", "style", "noscript", "svg", "template", "nav", "footer"})
+
+
+def _tree_text(tree) -> str:
+    parts = []
+
+    def walk(node):
+        if not isinstance(node.tag, str) or node.tag.casefold() in _HIDDEN_TAGS:
+            return
+        tag = node.tag.casefold()
+        if tag in _BLOCK_TAGS or tag == "br":
+            parts.append("\n")
+        if node.text:
+            parts.append(node.text)
+        for child in node:
+            walk(child)
+            if child.tail:
+                parts.append(child.tail)
+        if tag in _BLOCK_TAGS:
+            parts.append("\n")
+        elif tag in {"td", "th"}:
+            parts.append(" ")
+
+    walk(tree)
+    lines = [re.sub(r"[ \t\xa0]+", " ", line).strip()
+             for line in "".join(parts).splitlines()]
+    return "\n".join(line for line in lines if line)
 
 
 def visible_text(html_text: str) -> str:
-    text = re.sub(r"<script.*?</script>", " ", html_text, flags=re.S | re.I)
-    text = re.sub(r"<style.*?</style>", " ", text, flags=re.S | re.I)
-    text = re.sub(r"<(nav|footer)\b[^>]*>.*?</\1\s*>", " ", text, flags=re.S | re.I)
-    text = re.sub(r"<br\s*/?>", "\n", text, flags=re.I)
-    text = re.sub(r"</(p|li|div|h1|h2|h3|h4|h5|tr|section|article)>", "\n", text, flags=re.I)
-    text = re.sub(r"<[^>]+>", " ", text)
-    text = html.unescape(text)
-    text = re.sub(r"[ \t\xa0]+", " ", text)
-    text = re.sub(r"\n\s*\n+", "\n", text)
-    return text.strip()
+    """Extract text nodes, never attribute fragments or script/style contents."""
+    if not html_text or not html_text.strip():
+        return ""
+    return _tree_text(_document(html_text))
+
+
+def _meta_from_tree(tree, prop: str) -> str | None:
+    for node in tree.iter("meta"):
+        if node.get("property") == prop or node.get("name") == prop:
+            value = node.get("content", "").strip()
+            if value:
+                return value
+    return None
 
 
 def _meta(html_text: str, prop: str) -> str | None:
-    pattern = (
-        r'<meta[^>]+(?:property|name)=["\']' + re.escape(prop) + r'["\'][^>]+content=["\'](.*?)["\']'
-    )
-    match = re.search(pattern, html_text, re.S | re.I)
-    if not match:
-        match = re.search(
-            r'<meta[^>]+content=["\'](.*?)["\'][^>]+(?:property|name)=["\']'
-            + re.escape(prop) + r'["\']', html_text, re.S | re.I,
-        )
-    return html.unescape(match.group(1)).strip() if match else None
+    return _meta_from_tree(_document(html_text), prop)
 
 
 def parse_french_date(value: str) -> str | None:
@@ -128,7 +211,7 @@ def parse_french_date(value: str) -> str | None:
     if not value:
         return None
     value = value.strip()
-    iso = re.search(r"\b(\d{4})-(\d{2})-(\d{2})\b", value)
+    iso = re.search(r"\b(\d{4})-(\d{2})-(\d{2})(?:[Tt]|\b)", value)
     if iso:
         return f"{iso.group(1)}-{iso.group(2)}-{iso.group(3)}"
     fr = re.search(r"\b(\d{1,2})[/.](\d{1,2})[/.](\d{4})\b", value)
@@ -164,18 +247,40 @@ def published_date(html_text: str, posting: dict, text: str) -> tuple[str | None
     return None, None
 
 
+_RELATED_HEADINGS = (
+    r"Des offres d['’]emplois recommand[ée]es", r"Offres similaires",
+    r"Related (?:jobs|offers)", r"Vous pourriez aussi aimer", r"Consultez aussi",
+    r"Ces offres pourraient aussi\s+vous intéresser", r"Recherches similaires",
+)
+
+
+def _trim_related(tree) -> None:
+    """Cut the DOM at an exact related-offer heading before content extraction."""
+    for node in tree.iter():
+        if not isinstance(node.tag, str) or node.tag.casefold() not in _BLOCK_TAGS:
+            continue
+        text = _tree_text(node).strip()
+        if not any(re.fullmatch(pattern, text, re.I) for pattern in _RELATED_HEADINGS):
+            continue
+        path = [node, *node.iterancestors()]
+        for current in path:
+            current.tail = None
+            parent = current.getparent()
+            if parent is not None:
+                for sibling in list(current.itersiblings()):
+                    parent.remove(sibling)
+        parent = node.getparent()
+        if parent is not None:
+            parent.remove(node)
+        return
+
+
 def _clean_job_text(raw_text: str) -> str:
     """Strip navigation, sidebar, and related-offer noise from visible text."""
     # Cut at related-offer headings FIRST (before nav-phrase removal changes
     # the heading text).
     text = raw_text
-    for heading in (
-        r"Des offres d'emplois recommand[ée]es",
-        r"Offres similaires",
-        r"Related (?:jobs|offers)",
-        r"Vous pourriez aussi aimer",
-        r"Consultez aussi",
-    ):
+    for heading in _RELATED_HEADINGS:
         cut = re.search(r"(?m)^[ \t]*" + heading + r"[ \t]*$", text, re.I)
         if cut and cut.start() > 10:
             text = text[:cut.start()]
@@ -243,57 +348,128 @@ def _parse_location(location_raw: str) -> dict:
     }
 
 
-def extract(url: str, html_text: str) -> dict:
-    """Build the offer record used by the gates and by the Jev payload."""
-    posting = _job_posting(html_text)
-    text = visible_text(html_text)
-    job_text = _clean_job_text(text)
+def _source_string(value: object) -> str:
+    if not isinstance(value, str) or not value.strip():
+        return ""
+    return " ".join(visible_text(html.unescape(value)).split())
 
-    title = (posting.get("title") or _meta(html_text, "og:title") or "").strip()
+
+def _structured_locations(posting: dict) -> list[str]:
+    nodes = posting.get("jobLocation")
+    nodes = nodes if isinstance(nodes, list) else [nodes]
+    result = []
+    for node in nodes:
+        if not isinstance(node, dict):
+            continue
+        address = node.get("address") or {}
+        if not isinstance(address, dict):
+            continue
+        country = address.get("addressCountry")
+        if isinstance(country, dict):
+            country = country.get("name") or country.get("identifier")
+        parts = [_source_string(value) for value in (
+            address.get("addressLocality"), address.get("addressRegion"), country,
+        )]
+        location = ", ".join(part for part in parts if part)
+        if location and location not in result:
+            result.append(location)
+    return result
+
+
+def _offer_scope(tree):
+    for selector in ("//main", "//article", "//body"):
+        nodes = tree.xpath(selector)
+        if nodes:
+            return nodes[0], selector != "//body"
+    return tree, False
+
+
+def _offer_body(tree, posting: dict, scoped_text: str, scoped: bool) -> str:
+    description = posting.get("description")
+    if isinstance(description, str) and description.strip():
+        body = _clean_job_text(visible_text(html.unescape(description)))
+        if body:
+            return body
+    if scoped:
+        return scoped_text
+    # Feed the already-pruned body to Trafilatura, never the whole page shell.
+    cleaned = deepcopy(tree)
+    for node in list(cleaned.iter()):
+        if isinstance(node.tag, str) and node.tag.casefold() in _HIDDEN_TAGS | {"head"}:
+            if node.getparent() is not None:
+                node.drop_tree()
+    _trim_related(cleaned)
+    content = dom_html.tostring(cleaned, encoding="unicode")
+    body = trafilatura.extract(content, include_comments=False, include_tables=True,
+                               favor_precision=True, with_metadata=False)
+    return _clean_job_text(body) if body else scoped_text
+
+
+def extract(url: str, html_text: str) -> dict:
+    """Build the existing offer shape from a selected, source-backed document."""
+    tree = _document(html_text)
+    posting = _selected_posting(tree, url)
+    scope, scoped = _offer_scope(tree)
+    scoped_text = _clean_job_text(_tree_text(scope))
+    body = _offer_body(tree, posting, scoped_text, scoped)
+    if not body.strip():
+        raise ValueError("La page ne contient aucun texte d'offre exploitable")
+
+    title = _source_string(posting.get("title"))
     if not title:
-        h1 = re.search(r"<h1[^>]*>(.*?)</h1>", html_text, re.S | re.I)
-        if h1:
-            title = html.unescape(re.sub(r"<[^>]+>", "", h1.group(1))).strip()
+        headings = scope.xpath(".//h1")
+        title = _tree_text(headings[0]) if headings else ""
     if not title:
-        page_title = re.search(r"<title[^>]*>(.*?)</title>", html_text, re.S | re.I)
-        title = html.unescape(page_title.group(1)).strip() if page_title else url
+        title = _meta_from_tree(tree, "og:title") or _meta_from_tree(tree, "twitter:title") or ""
+    if not title:
+        titles = tree.xpath("//title")
+        title = _tree_text(titles[0]) if titles else url
+    title = " ".join(title.split())
 
     org = posting.get("hiringOrganization")
     if isinstance(org, dict):
         org = org.get("name")
-    company = (org or _meta(html_text, "og:site_name") or "").strip()
+    company = _source_string(org)
     if not company:
-        employer = re.search(r"Employeur\s*:?\s*\n?\s*([^\n]{3,80})", job_text)
+        employer = re.search(r"Employeur[ \t]*:?[ \t]*\n?[ \t]*([^\n]{3,80})", scoped_text, re.I)
         company = employer.group(1).strip() if employer else "Non renseigné"
 
-    location_provenance_base = None
-    location = ""
-    job_location = posting.get("jobLocation")
-    if isinstance(job_location, dict):
-        address = job_location.get("address") or {}
-        if isinstance(address, dict):
-            country = address.get("addressCountry")
-            if isinstance(country, dict):
-                country = country.get("name") or country.get("identifier")
-            location = ", ".join(
-                str(value).strip() for value in
-                (address.get("addressLocality"), address.get("addressRegion"), country)
-                if isinstance(value, (str, int)) and str(value).strip()
-            )
-            if location:
-                location_provenance_base = "JSON-LD jobLocation"
-    if not location:
-        loc = re.search(r"Localisation\s*:?\s*\n?\s*([^\n]{3,120})", job_text)
-        if loc:
-            location = loc.group(1).strip()
-            location_provenance_base = "texte « Localisation »"
-        else:
-            location = "Non renseignée"
-            location_provenance_base = "non trouvée"
+    places = _structured_locations(posting)
+    location = places[0] if len(places) == 1 else ""
+    location_provenance = "JSON-LD jobLocation" if location else "non trouvée"
+    if len(places) > 1:
+        # The existing gate understands one location only. Retain all source
+        # places in the document, but do not claim a proven single geography.
+        location_provenance = "plusieurs lieux JSON-LD — choix non déterminé"
+    elif not location:
+        match = re.search(r"Localisation[ \t]*:?[ \t]*\n?[ \t]*([^\n]{3,120})", scoped_text, re.I)
+        if match:
+            location = match.group(1).strip()
+            location_provenance = "texte « Localisation »"
+    location = location or "Non renseignée"
 
-    iso, provenance = published_date(html_text, posting, job_text)
-
+    dated_posting = posting if isinstance(posting.get("datePosted"), str) else {}
+    iso, provenance = published_date(html_text, dated_posting, scoped_text)
     parsed = _parse_location(location)
+
+    # Include only available source metadata. It may be outside the description
+    # in the DOM, but must not disappear merely because the text cleaner omits it.
+    context = [title]
+    if company != "Non renseigné":
+        context.append("Employeur : " + company)
+    if len(places) > 1:
+        context.append("Lieux de travail annoncés : " + "; ".join(places))
+    elif location != "Non renseignée":
+        context.append("Localisation : " + location)
+    kinds = posting.get("employmentType") or []
+    kinds = [kinds] if isinstance(kinds, str) else kinds
+    if isinstance(kinds, list):
+        kinds = [_source_string(kind) for kind in kinds]
+        if any(kinds):
+            context.append("Type d'emploi : " + ", ".join(kind for kind in kinds if kind))
+    if iso:
+        context.append("Date de publication : " + iso)
+    job_text = _clean_job_text("\n".join(context + [body]))
 
     return {
         "url": url,
@@ -302,7 +478,7 @@ def extract(url: str, html_text: str) -> dict:
         "location": location,
         "location_city": parsed["location_city"],
         "location_country": parsed["location_country"],
-        "location_provenance": location_provenance_base,
+        "location_provenance": location_provenance,
         "published_at": iso,
         "published_at_provenance": provenance,
         "job_text": job_text,

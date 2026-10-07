@@ -1,6 +1,17 @@
 # Changelog
 
-## 3.0.0 — 2026-10-07 (candidate sur dev, non publiée)
+## 3.0.1 — 2026-10-07 (candidate sur dev, non publiée)
+
+- Extraction HTML par lxml, avec décodage réel des attributs et lecture des graphes/types JSON-LD ; sélection explicite du JobPosting correspondant à la page quand plusieurs annonces sont présentes.
+- Description structurée prioritaire et nettoyage Trafilatura en secours ; conservation des métadonnées vérifiées et retrait des sections d’offres voisines avant extraction du contenu.
+- Employeur distinct du nom du portail ; lecture des localisations en objet ou tableau unitaire, dates ISO avec heure et champs mal typés traités sans invention.
+- Lieux multiples conservés dans le document mais non réduits arbitrairement à une ville ; page vide ou liste JobPosting ambiguë signalée comme erreur avant notation.
+- Extraction commune aux voies évaluation et adaptation du CV, sans modifier leurs critères ou prompts ; les parseurs ne chargent pas les ressources distantes intégrées au HTML.
+- Dépendances locales lxml 6.1.3 et Trafilatura 2.3.1 ; aucun navigateur de scraping ni modèle génératif ajouté.
+- Vérifications locales : 369 tests Python, 21 tests JavaScript, 28 parcours E2E et bancs hors ligne ; 32 nouveaux tests Python synthétiques. Rejeu privé d’un même snapshot avant/après, sans appel Jev.
+- Pas de changement des critères, poids, seuils, portes objectives ou schéma SQLite ; résultats historiques inchangés. La confusion stage/CDI futur relève du lot 3.0.2, et aucune validation indépendante des verdicts Jev n’est revendiquée.
+
+## 3.0.0 — 2026-10-07
 
 - Nouvelle navigation latérale avec menu mobile accessible au clavier, thèmes clair/sombre et préférence locale persistante.
 - Vue d’ensemble connectée aux API du compte : compteurs d’offres, sélection à examiner et relances ; états d’erreur explicites sans données simulées.
@@ -10,7 +21,7 @@
 - Harmonisation des pages secondaires et gabarit public commun sans polling authentifié ; correction des redirections de connexion et versionnement des assets UI.
 - Repli du formulaire d’administration selon sa largeur réelle, contrastes des états adaptés aux deux thèmes et panneaux lisibles sans JavaScript.
 - Vérifications locales : 337 tests Python, 21 tests JavaScript, 28 parcours Chromium, 264 contrôles de mise en page et 32 contrôles d’initialisation ; construction et démarrage de l’image Docker sur volume vierge.
-- Aucun changement du moteur d’évaluation ni migration des données ; code et manifestes versionnés 3.0.0. Aucun tag de release ni publication avant fusion dans main.
+- Aucun changement du moteur d’évaluation ni migration des données ; code et manifestes versionnés 3.0.0. Tag annoté v3.0.0 sur le commit de fusion dans main.
 - Ces vérifications portent sur l’interface et les contrats existants ; elles ne constituent pas une validation indépendante des verdicts Jev sur des offres réelles.
 
 ## 2.6.0 — 2026-10-06

@@ -6,7 +6,7 @@ La suite de tests combine trois niveaux complémentaires :
 2. tests JavaScript hors navigateur pour les fonctions d’interface isolables ;
 3. parcours E2E Playwright Chromium pour les interactions réelles, le clavier et le responsive.
 
-Pour l’intégration UI v3, la suite contient 337 tests Python, 21 tests JavaScript et 28 parcours E2E.
+Pour la candidate v3.0.1, la suite contient 369 tests Python, 21 tests JavaScript et 28 parcours E2E.
 Aucune clé OpenRouter ni donnée personnelle n’est nécessaire.
 
 ## Installation
@@ -54,7 +54,14 @@ Les tests Python utilisent `unittest`. Ils couvrent notamment :
 - création, vérification, restauration et rétention des sauvegardes ;
 - profils, candidatures, traitements asynchrones et reprise après interruption ;
 - sécurité réseau, SSRF et validation CSRF ;
-- routes API et rendu des pages.
+- routes API et rendu des pages ;
+- extraction DOM/JSON-LD, attributs encodés, description structurée et retrait des offres liées ;
+- absence de requête réseau pendant le parsing, pages vides, annonces ambiguës et lieux multiples ;
+- réutilisation du même contenu d’offre par l’évaluation et la voie d’adaptation du CV.
+
+`test_extract_v301.py` et `test_extract_engine.py` ajoutent 32 régressions synthétiques.
+Les tests ne conservent aucun texte d’offre réelle ni donnée de CV ; le rejeu d’une page réelle
+reste un diagnostic local hors dépôt, sans appel Jev ni génération de CV.
 
 Lancer un module :
 
