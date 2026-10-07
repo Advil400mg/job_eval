@@ -10,7 +10,6 @@ CV_MASTER.json -> validation anti-invention -> PDF -> évaluation Jev optionnell
 """
 import argparse
 import base64
-from html import unescape as html_unescape
 import imaplib
 import json
 import os
@@ -39,6 +38,7 @@ import validate_tailoring  # noqa: E402
 APP_DIR = HERE.parent
 sys.path.insert(0, str(APP_DIR))
 from app import network as safe_network  # noqa: E402
+from app import extract as offer_extraction  # noqa: E402
 
 # Chemins configurables : par défaut tout est relatif au dossier de l'application,
 # ce qui rend le moteur utilisable sans aucune installation Hermes.
@@ -89,37 +89,15 @@ def read_env(names):
 # ── 1. offre ──────────────────────────────────────────────────────────────
 
 def html_to_text(html):
-    html = re.sub(r'(?is)<(script|style|noscript|svg)[^>]*>.*?</\1>', ' ', html)
-    html = re.sub(r'(?is)<br\s*/?>|</(p|div|li|tr|h[1-6])>', '\n', html)
-    html = re.sub(r'(?s)<[^>]+>', ' ', html)
-    html = html_unescape(html.replace('&nbsp;', ' '))
-    lines = [re.sub(r'[ \t]+', ' ', l).strip() for l in html.splitlines()]
-    return '\n'.join(l for l in lines if l)
+    return offer_extraction.visible_text(html)
 
 
 def json_ld_job(html):
-    for m in re.finditer(r'(?is)<script[^>]+application/ld\+json[^>]*>(.*?)</script>', html):
-        try:
-            data = json.loads(m.group(1).strip())
-        except Exception:
-            continue
-        items = data if isinstance(data, list) else [data]
-        for it in items:
-            if isinstance(it, dict) and 'JobPosting' in str(it.get('@type', '')):
-                return it
-    return None
+    return offer_extraction._job_posting(html) or None
 
 
 def meta_content(raw, prop):
-    m = re.search(r'(?is)<meta[^>]+(?:property|name)=["\']' + re.escape(prop) + r'["\'][^>]*>', raw)
-    if not m:
-        return ''
-    c = re.search(r'(?is)content=["\'](.*?)["\']', m.group(0))
-    return html_unescape(c.group(1)).strip() if c else ''
-
-
-GENERIC_TITLE = re.compile(r'^(offre d.emploi|offres? d.emploi|jobs?|careers?|recrutement|'
-                           r'nos offres|accueil|home)\b', re.I)
+    return offer_extraction._meta(raw, prop) or ''
 
 
 def fetch_offer(url):
@@ -129,41 +107,22 @@ def fetch_offer(url):
         timeout=45,
         max_bytes=5_000_000,
     )
-    text = html_to_text(raw)
-    job = json_ld_job(raw) or {}
-    org = job.get('hiringOrganization') or {}
-    loc = job.get('jobLocation') or {}
-    addr = (loc.get('address') if isinstance(loc, dict) else {}) or {}
-    meta = {
-        'title': (job.get('title') or '').strip(),
-        'company': (org.get('name') if isinstance(org, dict) else '') or '',
-        'location': ', '.join(x for x in [addr.get('addressLocality'), addr.get('addressRegion'),
-                                          addr.get('addressCountry')] if x),
-        'published_at': (job.get('datePosted') or '').strip(),
-        'contract': (job.get('employmentType') or '') if isinstance(job.get('employmentType'), str) else '',
-    }
+    offer = offer_extraction.extract(url, raw)
+    job = offer_extraction._job_posting(raw, url)
+    kinds = job.get('employmentType') or []
+    kinds = [kinds] if isinstance(kinds, str) else kinds
+    contract = ', '.join(k.strip() for k in kinds if isinstance(k, str) and k.strip()) \
+        if isinstance(kinds, list) else ''
     host = re.sub(r'^www\.', '', urllib.parse.urlparse(url).netloc)
-    meta['site'] = meta_content(raw, 'og:site_name') or host
-    candidates = [meta_content(raw, 'og:title'), meta_content(raw, 'twitter:title')]
-    m = re.search(r'(?is)<h1[^>]*>(.*?)</h1>', raw)
-    if m:
-        candidates.append(html_to_text(m.group(1)).strip())
-    m = re.search(r'(?is)<title[^>]*>(.*?)</title>', raw)
-    if m:
-        candidates.append(html_to_text(m.group(1)).strip())
-    for cand in candidates:
-        cand = re.sub(r'\s*[|•—–-]\s*(?:DGSE|accueil|home|site officiel).*$', '', cand, flags=re.I).strip()
-        if cand and 8 < len(cand) < 160 and not GENERIC_TITLE.match(cand):
-            meta['title'] = meta['title'] or cand
-            break
-    if not meta['title']:
-        for line in text.splitlines()[:40]:
-            if 12 < len(line) < 140 and not GENERIC_TITLE.match(line):
-                meta['title'] = line
-                break
-    if not meta['company']:
-        meta['company'] = meta_content(raw, 'og:site_name') or host
-    return text, meta, raw
+    meta = {
+        'title': offer['title'],
+        'company': offer['company'],
+        'location': offer['location'],
+        'published_at': offer['published_at'] or '',
+        'contract': contract,
+        'site': meta_content(raw, 'og:site_name') or host,
+    }
+    return offer['job_text'], meta, raw
 
 
 # ── 2. LLM ────────────────────────────────────────────────────────────────
